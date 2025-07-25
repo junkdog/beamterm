@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, cell::RefCell, collections::{HashMap, HashSet}};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph};
 use compact_str::{CompactString, ToCompactString};
@@ -34,6 +34,8 @@ pub struct FontAtlas {
     underline: beamterm_data::LineDecoration,
     /// Strikethrough configuration  
     strikethrough: beamterm_data::LineDecoration,
+    /// Tracks glyphs that were requested but not found in the atlas
+    glyph_tracker: GlyphTracker,
 }
 
 impl FontAtlas {
@@ -52,10 +54,6 @@ impl FontAtlas {
         let num_slices = config.texture_dimensions.2;
 
         let texture_layers = config.glyphs.iter().map(|g| g.id as i32).max().unwrap_or(0) + 1;
-        console::log_1(
-            &format!("Creating atlas grid with {}/{texture_layers} layers", config.glyphs.len())
-                .into(),
-        );
 
         let (cell_width, cell_height) = config.cell_size;
         let mut layers = HashMap::new();
@@ -79,6 +77,7 @@ impl FontAtlas {
             num_slices: num_slices as u32,
             underline: config.underline,
             strikethrough: config.strikethrough,
+            glyph_tracker: GlyphTracker::new(),
         })
     }
 
@@ -126,6 +125,97 @@ impl FontAtlas {
             }
         }
 
-        self.glyph_coords.get(key).copied()
+        match self.glyph_coords.get(key) {
+            Some(id) => Some(*id),
+            None => {
+                self.glyph_tracker.record_missing(key);
+                None
+            }
+        }
+    }
+
+    /// Returns a reference to the glyph tracker for accessing missing glyphs.
+    pub fn glyph_tracker(&self) -> &GlyphTracker {
+        &self.glyph_tracker
+    }
+
+    /// Returns the total number of glyphs available in the atlas.
+    /// This includes ASCII characters (0x20..0x80) plus non-ASCII glyphs.
+    pub(crate) fn glyph_count(&self) -> u32 {
+        // ASCII printable characters: 0x20..0x80 (96 characters)
+        let ascii_count = 0x80 - 0x20;
+        // Non-ASCII glyphs stored in symbol_lookup
+        let non_ascii_count = self.symbol_lookup.len() as u32;
+        ascii_count + non_ascii_count
+    }
+}
+
+/// Tracks glyphs that were requested but not found in the font atlas.
+#[derive(Debug, Default)]
+pub struct GlyphTracker {
+    missing: RefCell<HashSet<CompactString>>,
+}
+
+impl GlyphTracker {
+    /// Creates a new empty glyph tracker.
+    pub fn new() -> Self {
+        Self { missing: RefCell::new(HashSet::new()) }
+    }
+
+    /// Records a glyph as missing.
+    pub fn record_missing(&self, glyph: &str) {
+        self.missing.borrow_mut().insert(glyph.into());
+    }
+
+    /// Returns a copy of all missing glyphs.
+    pub fn missing_glyphs(&self) -> HashSet<CompactString> {
+        self.missing.borrow().clone()
+    }
+
+    /// Clears all tracked missing glyphs.
+    pub fn clear(&self) {
+        self.missing.borrow_mut().clear();
+    }
+
+    /// Returns the number of unique missing glyphs.
+    pub fn len(&self) -> usize {
+        self.missing.borrow().len()
+    }
+
+    /// Returns true if no glyphs are missing.
+    pub fn is_empty(&self) -> bool {
+        self.missing.borrow().is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_glyph_tracker() {
+        let tracker = GlyphTracker::new();
+        
+        // Initially empty
+        assert!(tracker.is_empty());
+        assert_eq!(tracker.len(), 0);
+        
+        // Record some missing glyphs
+        tracker.record_missing("🎮");
+        tracker.record_missing("🎯");
+        tracker.record_missing("🎮"); // Duplicate
+        
+        assert!(!tracker.is_empty());
+        assert_eq!(tracker.len(), 2); // Only unique glyphs
+        
+        // Check the missing glyphs
+        let missing = tracker.missing_glyphs();
+        assert!(missing.contains(&CompactString::new("🎮")));
+        assert!(missing.contains(&CompactString::new("🎯")));
+        
+        // Clear and verify
+        tracker.clear();
+        assert!(tracker.is_empty());
+        assert_eq!(tracker.len(), 0);
     }
 }

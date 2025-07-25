@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::FontAtlasData;
 use compact_str::CompactString;
+use wasm_bindgen::prelude::*;
 
 use crate::{
     gl::{CellQuery, SelectionMode},
@@ -194,6 +195,40 @@ impl Terminal {
         self.renderer.end_frame();
         Ok(())
     }
+
+    /// Returns a sorted list of all glyphs that were requested but not found in the font atlas.
+    pub fn missing_glyphs(&self) -> Vec<CompactString> {
+        let mut glyphs: Vec<_> = self.grid.borrow().atlas().glyph_tracker().missing_glyphs()
+            .into_iter()
+            .collect();
+        glyphs.sort();
+        glyphs
+    }
+
+    /// Exposes this terminal instance to the browser console for debugging.
+    ///
+    /// After calling this method, you can access the terminal from the console:
+    /// ```javascript
+    /// // In browser console:
+    /// window.__beamterm_debug.getMissingGlyphs();
+    /// ```
+    ///
+    /// Note: This creates a live reference that will show current missing glyphs
+    /// each time you call it.
+    fn expose_to_console(&self) {
+        let debug_api = TerminalDebugApi {
+            grid: self.grid.clone(),
+        };
+
+        let window = web_sys::window().expect("no window");
+        js_sys::Reflect::set(
+            &window,
+            &"__beamterm_debug".into(),
+            &JsValue::from(debug_api),
+        ).unwrap();
+
+        web_sys::console::log_1(&"Terminal debugging API exposed at window.__beamterm_debug".into());
+    }
 }
 
 /// Canvas source for terminal initialization.
@@ -233,6 +268,7 @@ pub struct TerminalBuilder {
     fallback_glyph: Option<CompactString>,
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
+    enable_debug_api: bool,
 }
 
 impl TerminalBuilder {
@@ -244,6 +280,7 @@ impl TerminalBuilder {
             fallback_glyph: None,
             input_handler: None,
             canvas_padding_color: 0x000000,
+            enable_debug_api: false,
         }
     }
 
@@ -272,6 +309,15 @@ impl TerminalBuilder {
     /// areas to maintain a consistent appearance.
     pub fn canvas_padding_color(mut self, color: u32) -> Self {
         self.canvas_padding_color = color;
+        self
+    }
+
+    /// Enables the debug API that will be exposed to the browser console.
+    ///
+    /// When enabled, a debug API will be available at `window.__beamterm_debug`
+    /// with methods like `getMissingGlyphs()` for inspecting the terminal state.
+    pub fn enable_debug_api(mut self) -> Self {
+        self.enable_debug_api = true;
         self
     }
 
@@ -351,7 +397,11 @@ impl TerminalBuilder {
                     mouse_handler: Some(mouse_input),
                 })
             },
-        }
+        }.inspect(|terminal| {
+            if self.enable_debug_api {
+                terminal.expose_to_console();
+            }
+        })
     }
 }
 
@@ -361,6 +411,83 @@ enum InputHandler {
         selection_mode: SelectionMode,
         trim_trailing_whitespace: bool,
     },
+}
+
+/// Debug API exposed to browser console for terminal inspection.
+#[wasm_bindgen]
+pub struct TerminalDebugApi {
+    grid: Rc<RefCell<TerminalGrid>>,
+}
+
+#[wasm_bindgen]
+impl TerminalDebugApi {
+    /// Returns an array of glyphs that were requested but not found in the font atlas.
+    #[wasm_bindgen(js_name = "getMissingGlyphs")]
+    pub fn get_missing_glyphs(&self) -> js_sys::Array {
+        let missing_set = self.grid.borrow().atlas().glyph_tracker().missing_glyphs();
+        let mut missing: Vec<_> = missing_set.into_iter().collect();
+        missing.sort();
+
+        let js_array = js_sys::Array::new();
+        for glyph in missing {
+            js_array.push(&JsValue::from_str(&glyph));
+        }
+        js_array
+    }
+
+    /// Returns the terminal size in cells as an object with `cols` and `rows` fields.
+    #[wasm_bindgen(js_name = "getTerminalSize")]
+    pub fn get_terminal_size(&self) -> JsValue {
+        let (cols, rows) = self.grid.borrow().terminal_size();
+        let obj = js_sys::Object::new();
+
+        js_sys::Reflect::set(&obj, &"cols".into(), &JsValue::from(cols)).unwrap();
+        js_sys::Reflect::set(&obj, &"rows".into(), &JsValue::from(rows)).unwrap();
+
+        obj.into()
+    }
+
+    /// Returns the canvas size in pixels as an object with `width` and `height` fields.
+    #[wasm_bindgen(js_name = "getCanvasSize")]
+    pub fn get_canvas_size(&self) -> JsValue {
+        let (width, height) = self.grid.borrow().canvas_size();
+        let obj = js_sys::Object::new();
+
+        js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(width)).unwrap();
+        js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(height)).unwrap();
+
+        obj.into()
+    }
+
+    /// Returns the number of glyphs available in the font atlas.
+    #[wasm_bindgen(js_name = "getGlyphCount")]
+    pub fn get_glyph_count(&self) -> u32 {
+        self.grid.borrow().atlas().glyph_count()
+    }
+
+    /// Returns the base glyph ID for a given symbol, or null if not found.
+    #[wasm_bindgen(js_name = "getBaseGlyphId")]
+    pub fn get_base_glyph_id(&self, symbol: &str) -> Option<u16> {
+        self.grid.borrow().atlas().get_base_glyph_id(symbol)
+    }
+
+    /// Returns the symbol for a given glyph ID, or null if not found.
+    #[wasm_bindgen(js_name = "getSymbol")]
+    pub fn get_symbol(&self, glyph_id: u16) -> Option<String> {
+        self.grid.borrow().atlas().get_symbol(glyph_id).map(|s| s.to_string())
+    }
+
+    /// Returns the cell size in pixels as an object with `width` and `height` fields.
+    #[wasm_bindgen(js_name = "getCellSize")]
+    pub fn get_cell_size(&self) -> JsValue {
+        let (width, height) = self.grid.borrow().atlas().cell_size();
+        let obj = js_sys::Object::new();
+
+        js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(width)).unwrap();
+        js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(height)).unwrap();
+
+        obj.into()
+    }
 }
 
 impl<'a> From<&'a str> for CanvasSource {

@@ -106,10 +106,7 @@ impl TerminalGrid {
             .get_uniform_location(&shader.program, "u_sampler")
             .ok_or(Error::uniform_location_failed("u_sampler"))?;
 
-        console::log_2(&"terminal cells".into(), &cell_data.len().into());
-
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
-        console::log_1(&format!("terminal size {cols}x{rows}").into());
         let grid = Self {
             shader,
             terminal_size: (cols as u16, rows as u16),
@@ -138,6 +135,11 @@ impl TerminalGrid {
     /// Returns the [`FontAtlas`] used by this terminal grid.
     pub fn atlas(&self) -> &FontAtlas {
         &self.atlas
+    }
+
+    /// Returns the canvas size in pixels.
+    pub(crate) fn canvas_size(&self) -> (i32, i32) {
+        self.canvas_size_px
     }
 
     /// Returns the unpadded cell dimensions in pixels.
