@@ -129,7 +129,10 @@ impl TerminalGrid {
 
     /// Sets the fallback glyph for missing characters.
     pub fn set_fallback_glyph(&mut self, fallback: &str) {
-        self.fallback_glyph = self.atlas.get_base_glyph_id(fallback).unwrap_or(' ' as u16);
+        self.fallback_glyph = self
+            .atlas
+            .get_base_glyph_id(fallback)
+            .unwrap_or(' ' as u16);
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
@@ -182,7 +185,9 @@ impl TerminalGrid {
     fn get_cell_symbol(&self, idx: usize) -> Cow<str> {
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
-            self.atlas.get_symbol(glyph_id).unwrap_or_else(|| self.fallback_symbol())
+            self.atlas
+                .get_symbol(glyph_id)
+                .unwrap_or_else(|| self.fallback_symbol())
         } else {
             self.fallback_symbol()
         }
@@ -231,11 +236,16 @@ impl TerminalGrid {
         let atlas = &self.atlas;
 
         let fallback_glyph = self.fallback_glyph;
-        self.cells.iter_mut().zip(cells).for_each(|(cell, data)| {
-            let glyph_id = atlas.get_base_glyph_id(data.symbol).unwrap_or(fallback_glyph);
+        self.cells
+            .iter_mut()
+            .zip(cells)
+            .for_each(|(cell, data)| {
+                let glyph_id = atlas
+                    .get_base_glyph_id(data.symbol)
+                    .unwrap_or(fallback_glyph);
 
-            *cell = CellDynamic::new(glyph_id | data.style_bits, data.fg, data.bg);
-        });
+                *cell = CellDynamic::new(glyph_id | data.style_bits, data.fg, data.bg);
+            });
 
         self.cells_pending_flush = true;
         Ok(())
@@ -256,7 +266,9 @@ impl TerminalGrid {
             .map(|(x, y, cell)| (w * y as usize + x as usize, cell))
             .filter(|(idx, _)| *idx < cell_count)
             .for_each(|(idx, cell)| {
-                let glyph_id = atlas.get_base_glyph_id(cell.symbol).unwrap_or(fallback_glyph);
+                let glyph_id = atlas
+                    .get_base_glyph_id(cell.symbol)
+                    .unwrap_or(fallback_glyph);
                 self.cells[idx] = CellDynamic::new(glyph_id | cell.style_bits, cell.fg, cell.bg);
             });
 
@@ -280,7 +292,9 @@ impl TerminalGrid {
 
         let atlas = &self.atlas;
         let fallback_glyph = self.fallback_glyph;
-        let glyph_id = atlas.get_base_glyph_id(cell_data.symbol).unwrap_or(fallback_glyph);
+        let glyph_id = atlas
+            .get_base_glyph_id(cell_data.symbol)
+            .unwrap_or(fallback_glyph);
 
         self.cells[idx] =
             CellDynamic::new(glyph_id | cell_data.style_bits, cell_data.fg, cell_data.bg);
@@ -394,7 +408,9 @@ impl TerminalGrid {
     }
 
     fn fallback_symbol(&self) -> Cow<str> {
-        self.atlas.get_symbol(self.fallback_glyph).unwrap_or(Cow::Borrowed(" "))
+        self.atlas
+            .get_symbol(self.fallback_glyph)
+            .unwrap_or(Cow::Borrowed(" "))
     }
 
     fn fill_glyphs(atlas: &FontAtlas) -> Vec<u16> {
@@ -429,7 +445,11 @@ impl TerminalGrid {
             ("🤩", FontStyle::Normal),
         ]
         .into_iter()
-        .map(|(symbol, style)| atlas.get_base_glyph_id(symbol).map(|g| g | style as u16))
+        .map(|(symbol, style)| {
+            atlas
+                .get_base_glyph_id(symbol)
+                .map(|g| g | style as u16)
+        })
         .map(|g| g.unwrap_or(' ' as u16))
         .collect()
     }
@@ -459,7 +479,8 @@ fn resize_cell_grid(
 }
 
 fn create_vao(gl: &WebGl2RenderingContext) -> Result<web_sys::WebGlVertexArrayObject, Error> {
-    gl.create_vertex_array().ok_or(Error::vertex_array_creation_failed())
+    gl.create_vertex_array()
+        .ok_or(Error::vertex_array_creation_failed())
 }
 
 fn setup_buffers(
@@ -498,7 +519,9 @@ fn create_buffer_u8(
     data: &[u8],
     usage: u32,
 ) -> Result<web_sys::WebGlBuffer, Error> {
-    let index_buf = gl.create_buffer().ok_or(Error::buffer_creation_failed("vbo-u8"))?;
+    let index_buf = gl
+        .create_buffer()
+        .ok_or(Error::buffer_creation_failed("vbo-u8"))?;
     gl.bind_buffer(target, Some(&index_buf));
 
     gl.buffer_data_with_u8_array(target, data, usage);
@@ -512,7 +535,9 @@ fn create_buffer_f32(
     data: &[f32],
     usage: u32,
 ) -> Result<web_sys::WebGlBuffer, Error> {
-    let buffer = gl.create_buffer().ok_or(Error::buffer_creation_failed("vbo-f32"))?;
+    let buffer = gl
+        .create_buffer()
+        .ok_or(Error::buffer_creation_failed("vbo-f32"))?;
 
     gl.bind_buffer(target, Some(&buffer));
 
@@ -560,7 +585,14 @@ fn create_dynamic_instance_buffer(
     let stride = size_of::<CellDynamic>() as i32;
 
     // setup instance attributes (while VAO is bound)
-    enable_vertex_attrib_array(gl, attrib::PACKED_DEPTH_FG_BG, 2, GL::UNSIGNED_INT, 0, stride);
+    enable_vertex_attrib_array(
+        gl,
+        attrib::PACKED_DEPTH_FG_BG,
+        2,
+        GL::UNSIGNED_INT,
+        0,
+        stride,
+    );
 
     Ok(instance_buf)
 }
@@ -683,7 +715,10 @@ impl<'a> CellData<'a> {
     /// Debug builds will panic if `style_bits` contains any invalid bits.
     pub fn new_with_style_bits(symbol: &'a str, style_bits: u16, fg: u32, bg: u32) -> Self {
         // emoji and glyph base mask should not intersect with style bits
-        debug_assert!(0x81FF & style_bits == 0, "Invalid style bits: {style_bits:#04x}");
+        debug_assert!(
+            0x81FF & style_bits == 0,
+            "Invalid style bits: {style_bits:#04x}"
+        );
         Self { symbol, style_bits, fg, bg }
     }
 }

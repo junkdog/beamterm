@@ -17,7 +17,9 @@ impl Texture {
         let (width, height, layers) = atlas.texture_dimensions;
 
         // prepare texture
-        let gl_texture = gl.create_texture().ok_or(Error::texture_creation_failed())?;
+        let gl_texture = gl
+            .create_texture()
+            .ok_or(Error::texture_creation_failed())?;
         gl.bind_texture(GL::TEXTURE_2D_ARRAY, Some(&gl_texture));
         gl.tex_storage_3d(GL::TEXTURE_2D_ARRAY, 1, GL::RGBA8, width, height, layers);
 
@@ -55,10 +57,26 @@ impl Texture {
 
     fn setup_mipmap(gl: &web_sys::WebGl2RenderingContext) {
         gl.generate_mipmap(GL::TEXTURE_2D_ARRAY);
-        gl.tex_parameteri(GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32);
-        gl.tex_parameteri(GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32);
+        gl.tex_parameteri(
+            GL::TEXTURE_2D_ARRAY,
+            GL::TEXTURE_MIN_FILTER,
+            GL::NEAREST as i32,
+        );
+        gl.tex_parameteri(
+            GL::TEXTURE_2D_ARRAY,
+            GL::TEXTURE_MAG_FILTER,
+            GL::NEAREST as i32,
+        );
         gl.tex_parameteri(GL::TEXTURE_2D_ARRAY, GL::TEXTURE_BASE_LEVEL, 0);
-        gl.tex_parameteri(GL::TEXTURE_2D_ARRAY, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32);
-        gl.tex_parameteri(GL::TEXTURE_2D_ARRAY, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32);
+        gl.tex_parameteri(
+            GL::TEXTURE_2D_ARRAY,
+            GL::TEXTURE_WRAP_S,
+            GL::CLAMP_TO_EDGE as i32,
+        );
+        gl.tex_parameteri(
+            GL::TEXTURE_2D_ARRAY,
+            GL::TEXTURE_WRAP_T,
+            GL::CLAMP_TO_EDGE as i32,
+        );
     }
 }

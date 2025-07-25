@@ -11,7 +11,9 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let mut terminal = Terminal::builder("canvas").fallback_glyph(" ").build()?;
+    let mut terminal = Terminal::builder("canvas")
+        .fallback_glyph(" ")
+        .build()?;
 
     terminal.render_frame()?;
 

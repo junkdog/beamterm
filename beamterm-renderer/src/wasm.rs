@@ -226,7 +226,9 @@ impl Batch {
     /// Updates a single cell at the given position.
     #[wasm_bindgen(js_name = "cell")]
     pub fn cell(&mut self, x: u16, y: u16, cell_data: &Cell) {
-        self.terminal_grid.borrow_mut().update_cell(x, y, cell_data.as_cell_data());
+        self.terminal_grid
+            .borrow_mut()
+            .update_cell(x, y, cell_data.as_cell_data());
     }
 
     /// Updates a cell by its buffer index.
@@ -246,7 +248,9 @@ impl Batch {
 
         match updates {
             Ok(cells) => {
-                let cell_data = cells.iter().map(|(x, y, data)| (*x, *y, data.as_cell_data()));
+                let cell_data = cells
+                    .iter()
+                    .map(|(x, y, data)| (*x, *y, data.as_cell_data()));
 
                 let mut terminal_grid = self.terminal_grid.borrow_mut();
                 terminal_grid
@@ -411,11 +415,7 @@ impl BeamtermRenderer {
 
         console::log_1(&"BeamtermRenderer initialized successfully".into());
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
-        Ok(BeamtermRenderer {
-            renderer,
-            terminal_grid,
-            mouse_handler: None,
-        })
+        Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
 
     /// Enable default mouse selection behavior with built-in copy to clipboard
@@ -481,7 +481,10 @@ impl BeamtermRenderer {
     /// Get selected text based on a cell query
     #[wasm_bindgen(js_name = "getText")]
     pub fn get_text(&self, query: &CellQuery) -> String {
-        self.terminal_grid.borrow().get_text(query.inner).to_string()
+        self.terminal_grid
+            .borrow()
+            .get_text(query.inner)
+            .to_string()
     }
 
     /// Copy text to the system clipboard
@@ -510,13 +513,20 @@ impl BeamtermRenderer {
     /// Clear any active selection
     #[wasm_bindgen(js_name = "clearSelection")]
     pub fn clear_selection(&self) {
-        self.terminal_grid.borrow().selection_tracker().clear();
+        self.terminal_grid
+            .borrow()
+            .selection_tracker()
+            .clear();
     }
 
     /// Check if there is an active selection
     #[wasm_bindgen(js_name = "hasSelection")]
     pub fn has_selection(&self) -> bool {
-        self.terminal_grid.borrow().selection_tracker().get_query().is_some()
+        self.terminal_grid
+            .borrow()
+            .selection_tracker()
+            .get_query()
+            .is_some()
     }
 
     /// Create a new render batch
@@ -538,10 +548,7 @@ impl BeamtermRenderer {
     #[wasm_bindgen(js_name = "cellSize")]
     pub fn cell_size(&self) -> Size {
         let (width, height) = self.terminal_grid.borrow().cell_size();
-        Size {
-            width: width as u16,
-            height: height as u16,
-        }
+        Size { width: width as u16, height: height as u16 }
     }
 
     /// Render the terminal to the canvas

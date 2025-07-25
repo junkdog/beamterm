@@ -77,7 +77,11 @@ impl Cli {
         // Try to find by name (case-insensitive partial match)
         available_fonts
             .iter()
-            .find(|f| f.name.to_lowercase().contains(&self.font.to_lowercase()))
+            .find(|f| {
+                f.name
+                    .to_lowercase()
+                    .contains(&self.font.to_lowercase())
+            })
             .ok_or_else(|| format!("Font '{}' not found", self.font))
     }
 

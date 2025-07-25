@@ -115,7 +115,8 @@ impl Renderer {
     /// * `b` - Blue component (0.0 to 1.0)
     pub fn clear(&mut self, r: f32, g: f32, b: f32) {
         self.state.clear_color(&self.gl, r, g, b, 1.0);
-        self.gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
+        self.gl
+            .clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
     }
 
     /// Begins a new rendering frame.

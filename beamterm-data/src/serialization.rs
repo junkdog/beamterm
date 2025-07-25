@@ -140,9 +140,7 @@ impl<'a> Deserializer<'a> {
 
     fn verify_offset_in_bounds(&self, length: usize) -> Result<(), SerializationError> {
         if (self.position + length) > self.data.len() {
-            return Err(SerializationError {
-                message: CompactString::from("Out of bounds read"),
-            });
+            return Err(SerializationError { message: CompactString::from("Out of bounds read") });
         }
         Ok(())
     }
@@ -217,7 +215,8 @@ impl Serializable for FontAtlasData {
 
         // serialize the glyphs
         ser.write_u16(self.glyphs.len() as u16);
-        ser.data.extend(self.glyphs.iter().flat_map(Glyph::serialize));
+        ser.data
+            .extend(self.glyphs.iter().flat_map(Glyph::serialize));
 
         // serialize 3d texture data
         let packed_texture_data = miniz_oxide::deflate::compress_to_vec(&self.texture_data, 9);
@@ -511,7 +510,11 @@ mod tests {
         assert_eq!(original.glyphs.len(), deserialized.glyphs.len());
 
         // Assert each glyph matches
-        for (orig_glyph, deser_glyph) in original.glyphs.iter().zip(deserialized.glyphs.iter()) {
+        for (orig_glyph, deser_glyph) in original
+            .glyphs
+            .iter()
+            .zip(deserialized.glyphs.iter())
+        {
             assert_eq!(orig_glyph.id, deser_glyph.id);
             assert_eq!(orig_glyph.symbol, deser_glyph.symbol);
             assert_eq!(orig_glyph.pixel_coords, deser_glyph.pixel_coords);

@@ -11,10 +11,7 @@ pub(super) struct GlyphCoordinate {
 impl GlyphCoordinate {
     pub(super) fn from_glyph_id(id: u16) -> Self {
         // 16 glyphs per layer, indexed from 0 to 15
-        Self {
-            layer: id >> 4,
-            glyph_index: (id & 0xF) as u8,
-        }
+        Self { layer: id >> 4, glyph_index: (id & 0xF) as u8 }
     }
 
     pub(super) fn xy(&self, config: &RasterizationConfig) -> (i32, i32) {
@@ -25,6 +22,10 @@ impl GlyphCoordinate {
     }
 
     pub(super) fn cell_offset_in_px(&self, config: &RasterizationConfig) -> (i32, i32, i32) {
-        (self.glyph_index as i32 * config.cell_width, 0, self.layer as i32)
+        (
+            self.glyph_index as i32 * config.cell_width,
+            0,
+            self.layer as i32,
+        )
     }
 }

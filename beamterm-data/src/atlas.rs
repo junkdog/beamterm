@@ -58,7 +58,10 @@ impl FontAtlasData {
     }
 
     pub fn terminal_size(&self, viewport_width: i32, viewport_height: i32) -> (i32, i32) {
-        (viewport_width / self.cell_size.0, viewport_height / self.cell_size.1)
+        (
+            viewport_width / self.cell_size.0,
+            viewport_height / self.cell_size.1,
+        )
     }
 
     pub fn cell_size(&self) -> (i32, i32) {

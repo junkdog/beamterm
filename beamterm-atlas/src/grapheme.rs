@@ -11,8 +11,10 @@ pub struct GraphemeSet<'a> {
 
 impl<'a> GraphemeSet<'a> {
     pub fn new(chars: &'a str) -> Self {
-        let mut graphemes =
-            chars.graphemes(true).filter(|g| !is_ascii_control(g)).collect::<Vec<&str>>();
+        let mut graphemes = chars
+            .graphemes(true)
+            .filter(|g| !is_ascii_control(g))
+            .collect::<Vec<&str>>();
         graphemes.sort();
         graphemes.dedup();
 
@@ -30,7 +32,10 @@ impl<'a> GraphemeSet<'a> {
             }
         }
         let non_emoji_glyphs = ascii.len() + unicode.len();
-        assert!(non_emoji_glyphs <= 512, "Too many unique graphemes: {non_emoji_glyphs}");
+        assert!(
+            non_emoji_glyphs <= 512,
+            "Too many unique graphemes: {non_emoji_glyphs}"
+        );
 
         Self { ascii, unicode, emoji }
     }

@@ -210,11 +210,14 @@ impl BlockCellIterator {
         // Bounds checking and coordinate ordering
         let start = (
             start.0.min(cols.saturating_sub(1)),
-            start.1.min((max_cells / cols as usize).saturating_sub(1) as u16),
+            start
+                .1
+                .min((max_cells / cols as usize).saturating_sub(1) as u16),
         );
         let end = (
             end.0.min(cols.saturating_sub(1)),
-            end.1.min((max_cells / cols as usize).saturating_sub(1) as u16),
+            end.1
+                .min((max_cells / cols as usize).saturating_sub(1) as u16),
         );
         let (start, end) = if start > end { (end, start) } else { (start, end) };
 
@@ -238,11 +241,14 @@ impl LinearCellIterator {
         // Bounds checking and coordinate ordering
         let start = (
             start.0.min(cols.saturating_sub(1)),
-            start.1.min((max_cells / cols_usize).saturating_sub(1) as u16),
+            start
+                .1
+                .min((max_cells / cols_usize).saturating_sub(1) as u16),
         );
         let end = (
             end.0.min(cols.saturating_sub(1)),
-            end.1.min((max_cells / cols_usize).saturating_sub(1) as u16),
+            end.1
+                .min((max_cells / cols_usize).saturating_sub(1) as u16),
         );
         let (start, end) = if start > end { (end, start) } else { (start, end) };
 

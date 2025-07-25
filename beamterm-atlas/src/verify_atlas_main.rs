@@ -15,7 +15,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Calculate total number of slices
-    let max_slice = atlas.glyphs.iter().max_by_key(|g| g.id).unwrap().id as usize / 16;
+    let max_slice = atlas
+        .glyphs
+        .iter()
+        .max_by_key(|g| g.id)
+        .unwrap()
+        .id as usize
+        / 16;
 
     // Display slices two per row
     for slice_pair in (0..=max_slice).step_by(2) {
@@ -54,7 +60,14 @@ fn render_slice_pair(
     // Left slice markers
     for x in 0..display_width {
         if x % atlas.cell_size.0 as usize == 0 {
-            write!(&mut output, "{}", (x / atlas.cell_size.0 as usize).to_string().blue()).ok();
+            write!(
+                &mut output,
+                "{}",
+                (x / atlas.cell_size.0 as usize)
+                    .to_string()
+                    .blue()
+            )
+            .ok();
         } else {
             write!(&mut output, " ").ok();
         }
@@ -65,7 +78,14 @@ fn render_slice_pair(
                                         // Right slice markers
         for x in 0..display_width {
             if x % atlas.cell_size.0 as usize == 0 {
-                write!(&mut output, "{}", (x / atlas.cell_size.0 as usize).to_string().blue()).ok();
+                write!(
+                    &mut output,
+                    "{}",
+                    (x / atlas.cell_size.0 as usize)
+                        .to_string()
+                        .blue()
+                )
+                .ok();
             } else {
                 write!(&mut output, " ").ok();
             }
@@ -77,7 +97,14 @@ fn render_slice_pair(
     for y in (0..display_height).step_by(2) {
         // Draw row marker
         if y % atlas.cell_size.1 as usize == 0 {
-            write!(&mut output, "{:2} ", (y / atlas.cell_size.1 as usize).to_string().blue()).ok();
+            write!(
+                &mut output,
+                "{:2} ",
+                (y / atlas.cell_size.1 as usize)
+                    .to_string()
+                    .blue()
+            )
+            .ok();
         } else {
             write!(&mut output, "   ").ok();
         }

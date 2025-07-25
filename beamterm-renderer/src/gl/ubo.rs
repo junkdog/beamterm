@@ -13,7 +13,9 @@ pub(super) struct UniformBufferObject {
 
 impl UniformBufferObject {
     pub fn new(gl: &GL, binding_point: u32) -> Result<Self, Error> {
-        let buffer = gl.create_buffer().ok_or(Error::buffer_creation_failed("ubo"))?;
+        let buffer = gl
+            .create_buffer()
+            .ok_or(Error::buffer_creation_failed("ubo"))?;
 
         Ok(Self { buffer, binding_point })
     }

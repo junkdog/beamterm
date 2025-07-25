@@ -124,7 +124,11 @@ impl BitmapFontGenerator {
         let mut buffer = self.rasterize_glyph_for_atlas(glyph, inner_cell_w, inner_cell_h);
         let buffer_size = self.get_buffer_size(glyph.is_emoji, inner_cell_w, inner_cell_h);
 
-        buffer.set_size(&mut self.font_system, Some(buffer_size.0), Some(buffer_size.1));
+        buffer.set_size(
+            &mut self.font_system,
+            Some(buffer_size.0),
+            Some(buffer_size.1),
+        );
 
         let mut buffer = buffer.borrow_with(&mut self.font_system);
         let cell_offset = coord.cell_offset_in_px(config);
@@ -140,7 +144,10 @@ impl BitmapFontGenerator {
 
         // render pixels to texture
         let cell_offset = (cell_offset.0, cell_offset.1);
-        debug_assert_eq!(cell_offset.1, 0, "Y offset should be zero for single row texture");
+        debug_assert_eq!(
+            cell_offset.1, 0,
+            "Y offset should be zero for single row texture"
+        );
         self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
     }
 
@@ -430,6 +437,10 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
         // "b"
     ]
     .into_iter()
-    .flat_map(|ch| FontStyle::ALL.iter().map(move |style| Glyph::new(ch, *style, (0, 0))))
+    .flat_map(|ch| {
+        FontStyle::ALL
+            .iter()
+            .map(move |style| Glyph::new(ch, *style, (0, 0)))
+    })
     .collect()
 }

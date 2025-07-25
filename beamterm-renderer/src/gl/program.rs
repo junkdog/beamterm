@@ -15,7 +15,9 @@ impl ShaderProgram {
         vertex_source: &str,
         fragment_source: &str,
     ) -> Result<Self, Error> {
-        let program = gl.create_program().ok_or(Error::shader_program_creation_failed())?;
+        let program = gl
+            .create_program()
+            .ok_or(Error::shader_program_creation_failed())?;
 
         // compile shaders
         let vertex_shader = compile_shader(gl, ShaderType::Vertex, vertex_source)?;

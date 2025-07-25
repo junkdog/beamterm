@@ -23,8 +23,11 @@ impl GlState {
     /// Create a new GLState object with WebGL defaults
     pub fn new(gl: &GL) -> Self {
         // Get max vertex attributes
-        let max_vertex_attribs =
-            gl.get_parameter(GL::MAX_VERTEX_ATTRIBS).unwrap().as_f64().unwrap() as usize;
+        let max_vertex_attribs = gl
+            .get_parameter(GL::MAX_VERTEX_ATTRIBS)
+            .unwrap()
+            .as_f64()
+            .unwrap() as usize;
 
         Self {
             viewport: [0, 0, 0, 0],

@@ -1,4 +1,8 @@
-use std::{borrow::Cow, cell::RefCell, collections::{HashMap, HashSet}};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph};
 use compact_str::{CompactString, ToCompactString};
@@ -53,7 +57,13 @@ impl FontAtlas {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &config)?;
         let num_slices = config.texture_dimensions.2;
 
-        let texture_layers = config.glyphs.iter().map(|g| g.id as i32).max().unwrap_or(0) + 1;
+        let texture_layers = config
+            .glyphs
+            .iter()
+            .map(|g| g.id as i32)
+            .max()
+            .unwrap_or(0)
+            + 1;
 
         let (cell_width, cell_height) = config.cell_size;
         let mut layers = HashMap::new();
@@ -88,7 +98,10 @@ impl FontAtlas {
 
     pub fn cell_size(&self) -> (i32, i32) {
         let (w, h) = self.cell_size;
-        (w - 2 * FontAtlasData::PADDING, h - 2 * FontAtlasData::PADDING)
+        (
+            w - 2 * FontAtlasData::PADDING,
+            h - 2 * FontAtlasData::PADDING,
+        )
     }
 
     /// Returns the underline configuration
@@ -110,7 +123,9 @@ impl FontAtlas {
             let ch = base_glyph_id as u8 as char;
             Some(Cow::from(ch.to_compact_string()))
         } else {
-            self.symbol_lookup.get(&base_glyph_id).map(|s| Cow::from(s.as_str()))
+            self.symbol_lookup
+                .get(&base_glyph_id)
+                .map(|s| Cow::from(s.as_str()))
         }
     }
 
@@ -130,7 +145,7 @@ impl FontAtlas {
             None => {
                 self.glyph_tracker.record_missing(key);
                 None
-            }
+            },
         }
     }
 
@@ -195,24 +210,24 @@ mod tests {
     #[test]
     fn test_glyph_tracker() {
         let tracker = GlyphTracker::new();
-        
+
         // Initially empty
         assert!(tracker.is_empty());
         assert_eq!(tracker.len(), 0);
-        
+
         // Record some missing glyphs
         tracker.record_missing("🎮");
         tracker.record_missing("🎯");
         tracker.record_missing("🎮"); // Duplicate
-        
+
         assert!(!tracker.is_empty());
         assert_eq!(tracker.len(), 2); // Only unique glyphs
-        
+
         // Check the missing glyphs
         let missing = tracker.missing_glyphs();
         assert!(missing.contains(&CompactString::new("🎮")));
         assert!(missing.contains(&CompactString::new("🎯")));
-        
+
         // Clear and verify
         tracker.clear();
         assert!(tracker.is_empty());

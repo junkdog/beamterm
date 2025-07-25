@@ -400,7 +400,7 @@ impl DefaultSelectionHandler {
 ///    │        ▼
 ///    │   ┌──────────┐
 ///    │   │Selecting │◀────────────┐
-///    │   └────┬─────┘             │ 
+///    │   └────┬─────┘             │
 ///    │        │ complete_selection│
 ///    │        ▼                   │
 ///    │   ┌──────────┐             │
@@ -419,10 +419,7 @@ enum SelectionState {
     /// No selection in progress.
     Idle,
     /// Active selection with start point and current cursor position.
-    Selecting {
-        start: (u16, u16),
-        current: Option<(u16, u16)>,
-    },
+    Selecting { start: (u16, u16), current: Option<(u16, u16)> },
     /// MouseDown in a cell while selection exists.
     /// Will become Selecting on MouseMove or Idle on MouseUp.
     MaybeSelecting { start: (u16, u16) },
@@ -482,7 +479,10 @@ impl SelectionState {
 
     /// Checks if currently in selecting state.
     fn is_selecting(&self) -> bool {
-        matches!(self, SelectionState::Selecting { .. } | SelectionState::MaybeSelecting { .. })
+        matches!(
+            self,
+            SelectionState::Selecting { .. } | SelectionState::MaybeSelecting { .. }
+        )
     }
 
     /// Begins potential new selection while one exists.

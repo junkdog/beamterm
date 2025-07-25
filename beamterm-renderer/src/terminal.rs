@@ -99,7 +99,9 @@ impl Terminal {
         &mut self,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
-        self.grid.borrow_mut().update_cells(self.renderer.gl(), cells)
+        self.grid
+            .borrow_mut()
+            .update_cells(self.renderer.gl(), cells)
     }
 
     /// Updates terminal cell content efficiently.
@@ -113,7 +115,9 @@ impl Terminal {
         &mut self,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
     ) -> Result<(), Error> {
-        self.grid.borrow_mut().update_cells_by_position(self.renderer.gl(), cells)
+        self.grid
+            .borrow_mut()
+            .update_cells_by_position(self.renderer.gl(), cells)
     }
 
     /// Returns the WebGL2 rendering context.
@@ -130,7 +134,9 @@ impl Terminal {
     /// Combines [`Renderer::resize`] and [`TerminalGrid::resize`] operations.
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Error> {
         self.renderer.resize(width, height);
-        self.grid.borrow_mut().resize(self.renderer.gl(), (width, height))?;
+        self.grid
+            .borrow_mut()
+            .resize(self.renderer.gl(), (width, height))?;
 
         if let Some(mouse_input) = &mut self.mouse_handler {
             let (cols, rows) = self.grid.borrow_mut().terminal_size();
@@ -188,7 +194,9 @@ impl Terminal {
     ///
     /// Combines [`Renderer::begin_frame`], [`Renderer::render`], and [`Renderer::end_frame`].
     pub fn render_frame(&mut self) -> Result<(), Error> {
-        self.grid.borrow_mut().flush_cells(self.renderer.gl())?;
+        self.grid
+            .borrow_mut()
+            .flush_cells(self.renderer.gl())?;
 
         self.renderer.begin_frame();
         self.renderer.render(&*self.grid.borrow());
@@ -198,7 +206,12 @@ impl Terminal {
 
     /// Returns a sorted list of all glyphs that were requested but not found in the font atlas.
     pub fn missing_glyphs(&self) -> Vec<CompactString> {
-        let mut glyphs: Vec<_> = self.grid.borrow().atlas().glyph_tracker().missing_glyphs()
+        let mut glyphs: Vec<_> = self
+            .grid
+            .borrow()
+            .atlas()
+            .glyph_tracker()
+            .missing_glyphs()
             .into_iter()
             .collect();
         glyphs.sort();
@@ -216,18 +229,19 @@ impl Terminal {
     /// Note: This creates a live reference that will show current missing glyphs
     /// each time you call it.
     fn expose_to_console(&self) {
-        let debug_api = TerminalDebugApi {
-            grid: self.grid.clone(),
-        };
+        let debug_api = TerminalDebugApi { grid: self.grid.clone() };
 
         let window = web_sys::window().expect("no window");
         js_sys::Reflect::set(
             &window,
             &"__beamterm_debug".into(),
             &JsValue::from(debug_api),
-        ).unwrap();
+        )
+        .unwrap();
 
-        web_sys::console::log_1(&"Terminal debugging API exposed at window.__beamterm_debug".into());
+        web_sys::console::log_1(
+            &"Terminal debugging API exposed at window.__beamterm_debug".into(),
+        );
     }
 }
 
@@ -382,22 +396,15 @@ impl TerminalBuilder {
                 )?;
                 mouse_input.default_input_handler = Some(handler);
 
-                Ok(Terminal {
-                    renderer,
-                    grid,
-                    mouse_handler: Some(mouse_input),
-                })
+                Ok(Terminal { renderer, grid, mouse_handler: Some(mouse_input) })
             },
             Some(InputHandler::Mouse(callback)) => {
                 let mouse_input =
                     TerminalMouseHandler::new(renderer.canvas(), grid.clone(), callback)?;
-                Ok(Terminal {
-                    renderer,
-                    grid,
-                    mouse_handler: Some(mouse_input),
-                })
+                Ok(Terminal { renderer, grid, mouse_handler: Some(mouse_input) })
             },
-        }.inspect(|terminal| {
+        }
+        .inspect(|terminal| {
             if self.enable_debug_api {
                 terminal.expose_to_console();
             }
@@ -424,7 +431,12 @@ impl TerminalDebugApi {
     /// Returns an array of glyphs that were requested but not found in the font atlas.
     #[wasm_bindgen(js_name = "getMissingGlyphs")]
     pub fn get_missing_glyphs(&self) -> js_sys::Array {
-        let missing_set = self.grid.borrow().atlas().glyph_tracker().missing_glyphs();
+        let missing_set = self
+            .grid
+            .borrow()
+            .atlas()
+            .glyph_tracker()
+            .missing_glyphs();
         let mut missing: Vec<_> = missing_set.into_iter().collect();
         missing.sort();
 
@@ -468,13 +480,20 @@ impl TerminalDebugApi {
     /// Returns the base glyph ID for a given symbol, or null if not found.
     #[wasm_bindgen(js_name = "getBaseGlyphId")]
     pub fn get_base_glyph_id(&self, symbol: &str) -> Option<u16> {
-        self.grid.borrow().atlas().get_base_glyph_id(symbol)
+        self.grid
+            .borrow()
+            .atlas()
+            .get_base_glyph_id(symbol)
     }
 
     /// Returns the symbol for a given glyph ID, or null if not found.
     #[wasm_bindgen(js_name = "getSymbol")]
     pub fn get_symbol(&self, glyph_id: u16) -> Option<String> {
-        self.grid.borrow().atlas().get_symbol(glyph_id).map(|s| s.to_string())
+        self.grid
+            .borrow()
+            .atlas()
+            .get_symbol(glyph_id)
+            .map(|s| s.to_string())
     }
 
     /// Returns the cell size in pixels as an object with `width` and `height` fields.

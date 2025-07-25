@@ -53,8 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // These parameters should be stored in FontAtlasData for use during rendering
     // Currently, the shader uses hardcoded values for these effects
     let underline = LineDecoration::new(cli.underline_position, cli.underline_thickness / 100.0);
-    let strikethrough =
-        LineDecoration::new(cli.strikethrough_position, cli.strikethrough_thickness / 100.0);
+    let strikethrough = LineDecoration::new(
+        cli.strikethrough_position,
+        cli.strikethrough_thickness / 100.0,
+    );
 
     // Generate the font
     let bitmap_font = BitmapFontGenerator::new_with_family(
@@ -81,13 +83,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Total glyph count: {}", bitmap_font.atlas_data.glyphs.len());
     println!(
         "Glyph count per variant: {}/{} (emoji: {})",
-        bitmap_font.atlas_data.glyphs.iter().filter(|g| !g.is_emoji).count() / FontStyle::ALL.len(),
+        bitmap_font
+            .atlas_data
+            .glyphs
+            .iter()
+            .filter(|g| !g.is_emoji)
+            .count()
+            / FontStyle::ALL.len(),
         Glyph::GLYPH_ID_MASK + 1, // zero-based id/index
-        bitmap_font.atlas_data.glyphs.iter().filter(|g| g.is_emoji).count()
+        bitmap_font
+            .atlas_data
+            .glyphs
+            .iter()
+            .filter(|g| g.is_emoji)
+            .count()
     );
     println!(
         "Longest grapheme in bytes: {}",
-        bitmap_font.atlas_data.glyphs.iter().map(|g| g.symbol.len()).max().unwrap_or(0)
+        bitmap_font
+            .atlas_data
+            .glyphs
+            .iter()
+            .map(|g| g.symbol.len())
+            .max()
+            .unwrap_or(0)
     );
 
     Ok(())

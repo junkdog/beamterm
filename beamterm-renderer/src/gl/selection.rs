@@ -54,14 +54,18 @@ impl SelectionTracker {
     /// Panics if no selection is active. This is internal-only API where
     /// a selection is guaranteed to exist when called.
     pub(crate) fn query(&self) -> CellQuery {
-        self.get_query().expect("query to be a value due to internal-only usage")
+        self.get_query()
+            .expect("query to be a value due to internal-only usage")
     }
 
     /// Returns the selection mode of the current query.
     ///
     /// Defaults to the default selection mode if no query is active.
     pub(super) fn mode(&self) -> SelectionMode {
-        self.query.borrow().as_ref().map_or(SelectionMode::default(), |q| q.mode)
+        self.query
+            .borrow()
+            .as_ref()
+            .map_or(SelectionMode::default(), |q| q.mode)
     }
 
     /// Returns the current selection query or `None` if no selection is active.
@@ -96,9 +100,7 @@ impl TerminalDimensions {
     /// * `cols` - Number of columns in the terminal
     /// * `rows` - Number of rows in the terminal
     pub fn new(cols: u16, rows: u16) -> Self {
-        Self {
-            size: Rc::new(RefCell::new((cols, rows))),
-        }
+        Self { size: Rc::new(RefCell::new((cols, rows))) }
     }
 
     /// Updates the terminal dimensions.
