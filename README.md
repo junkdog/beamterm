@@ -7,8 +7,10 @@ A high-performance terminal rendering system for web browsers, targeting sub-mil
 times. **beamterm** is a terminal renderer, not a full terminal emulator - it handles the display
 layer while you provide the terminal logic.
 
-Completely new to beamterm? Have a look at the [live demos][demos], showcasing both pure Rust
-applications and JavaScript/TypeScript examples.
+### 🚀 [Live Demos][demos]
+
+Check out [**interactive examples**][demos] showcasing both pure Rust applications and JavaScript/TypeScript 
+integrations.
 
 ## Key Features
 
