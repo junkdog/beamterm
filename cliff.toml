@@ -109,4 +109,4 @@ sort_commits = "oldest"
 recurse_submodules = false
 
 # regex for matching git tags
-tag_pattern = "beamterm-[0-9].*"
+tag_pattern = "beamterm-v?[0-9].*"

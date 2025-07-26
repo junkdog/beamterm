@@ -342,16 +342,21 @@ impl DefaultSelectionHandler {
         Box::new(move |event: TerminalMouseEvent, grid: &TerminalGrid| {
             let mut state = selection_state.borrow_mut();
 
+            // update mouse selection state based on the event type.
             match event.event_type {
-                // only handle left mouse button events
                 MouseEventType::MouseDown if event.button == 0 => {
+                    // note: if there's an existing selection in progress, it
+                    // means that the cursor left the terminal (canvas) area
+                    // while a previous selection was ongoing. if so, we do
+                    // nothing and await the MouseUp event.
+
                     // mouse down always begins a new *potential* selection
                     if state.is_complete() {
                         // the existing (completed) selection is replaced with
                         // a new selection which will be canceled if the mouse
                         // up event is fired on the same cell.
                         state.maybe_selecting(event.col, event.row);
-                    } else {
+                    } else if state.is_idle() {
                         // begins a new selection from a blank state
                         state.begin_selection(event.col, event.row);
                     }
@@ -483,6 +488,10 @@ impl SelectionState {
             self,
             SelectionState::Selecting { .. } | SelectionState::MaybeSelecting { .. }
         )
+    }
+
+    fn is_idle(&self) -> bool {
+        matches!(self, SelectionState::Idle)
     }
 
     /// Begins potential new selection while one exists.

@@ -2,7 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [beamterm-0.5.0] - 2025-06-29
+## [unreleased]
+
+### 🚀 Features
+
+- *(renderer)* Add `TerminalBuilder::enable_debug_api`. When enabled, a debug API will be available at `window.__beamterm_debug`.
+
+### 🐛 Bug Fixes
+
+- *(mouse)* Handle cursor leaving terminal during selection
+
+### ⚙️ Miscellaneous Tasks
+
+- *(atlas)* More glyphs
+
+## [beamterm-v0.5.0] - 2025-06-29
 
 ### 🚀 Features
 
@@ -12,6 +26,10 @@ All notable changes to this project will be documented in this file.
 ### 💼 Other
 
 - *(renderer)* The `mouse` module is now pub and not re-exported from the root
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.5.0
 
 ## [beamterm-0.4.0] - 2025-06-28
 
