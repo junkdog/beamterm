@@ -300,9 +300,9 @@ dependencies = [
 
 [[package]]
 name = "emojis"
-version = "0.6.4"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99e1f1df1f181f2539bac8bf027d31ca5ffbf9e559e3f2d09413b9107b5c02f4"
+checksum = "0a08afd8e599463c275703532e707c767b8c068a826eea9ca8fceaf3435029df"
 dependencies = [
  "phf",
 ]
@@ -466,18 +466,18 @@ checksum = "1036865bb9422d3300cf723f657c2851d0e9ab12567854b1f4eba3d77decf564"
 
 [[package]]
 name = "phf"
-version = "0.11.3"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
 dependencies = [
  "phf_shared",
 ]
 
 [[package]]
 name = "phf_shared"
-version = "0.11.3"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
 dependencies = [
  "siphasher",
 ]
