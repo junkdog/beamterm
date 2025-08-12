@@ -119,7 +119,10 @@ impl<'a> Widget for FontDisplay<'a> {
 /// Render glyph using half-block characters where each terminal cell represents 2 vertical pixels
 fn render_glyph_half_blocks(glyph_image: &GlyphImage, area: Rect, buf: &mut Buffer) {
     let display_width = (glyph_image.width as u16).min(area.width);
-    let display_height = glyph_image.height.div_ceil(2).min(area.height as u32) as u16;
+    let display_height = glyph_image
+        .height
+        .div_ceil(2)
+        .min(area.height as u32) as u16;
 
     // Create a lookup map for quick pixel access
     let mut pixel_map = std::collections::HashMap::new();
