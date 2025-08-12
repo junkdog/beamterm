@@ -13,19 +13,14 @@ pub(crate) struct GlyphBounds {
 impl GlyphBounds {
     /// Creates empty bounds for initialization
     pub(crate) fn empty() -> Self {
-        Self {
-            max_x: 0,
-            max_y: 0,
-            min_x: 0,
-            min_y: 0,
-        }
+        Self { max_x: 0, max_y: 0, min_x: 0, min_y: 0 }
     }
-    
+
     pub fn shrink_width(mut self, amount: i32) -> Self {
         self.max_x -= amount;
         self
     }
-    
+
     pub fn shrink_height(mut self, amount: i32) -> Self {
         self.max_y -= amount;
         self
@@ -44,11 +39,11 @@ impl GlyphBounds {
     pub fn contains(&self, x: i32, y: i32) -> bool {
         x >= 0 && x <= self.max_x && y >= 0 && y <= self.max_y
     }
-    
+
     pub fn width(&self) -> i32 {
         1 + self.max_x - self.min_x
     }
-    
+
     pub fn height(&self) -> i32 {
         1 + self.max_y - self.min_y
     }
@@ -78,4 +73,3 @@ pub(crate) fn measure_glyph_bounds(
 
     bounds
 }
-

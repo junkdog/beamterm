@@ -1,5 +1,5 @@
-use std::fs::File;
-use std::io::Write;
+use std::{fs::File, io::Write};
+
 use beamterm_data::FontAtlasData;
 
 /// Represents a bitmap font with all its associated metadata

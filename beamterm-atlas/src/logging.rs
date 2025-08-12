@@ -112,7 +112,7 @@ impl LoggingConfig {
             log_dir: Some(Self::default_log_dir()),
             json_format: false, // Human-readable for development
             max_files: Some(5), // Keep fewer files for development
-            is_tui: true, // Disables console logging to prevent TUI interference
+            is_tui: true,       // Disables console logging to prevent TUI interference
         }
     }
 }

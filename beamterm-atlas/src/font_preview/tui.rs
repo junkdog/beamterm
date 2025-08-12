@@ -5,7 +5,7 @@ use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{Frame, Terminal, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 
 use crate::font_preview::event::{EventHandler, FontPreviewEvent};
 

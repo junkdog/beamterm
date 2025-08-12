@@ -1,8 +1,8 @@
+mod atlas_generator;
 mod bitmap_font;
 mod cli;
 mod coordinate;
 mod font_discovery;
-mod atlas_generator;
 mod glyph_bounds;
 mod glyph_rasterizer;
 mod glyph_set;
@@ -14,7 +14,10 @@ use beamterm_data::*;
 use clap::Parser;
 
 use crate::{
-    cli::Cli, font_discovery::FontDiscovery, atlas_generator::AtlasFontGenerator, glyph_set::GLYPHS,
+    atlas_generator::AtlasFontGenerator,
+    cli::Cli,
+    font_discovery::FontDiscovery,
+    glyph_set::GLYPHS,
     logging::{init_logging, LoggingConfig},
 };
 
@@ -24,8 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize structured logging
     let logging_config = LoggingConfig::from_env();
-    let (_guard, _reload_handle) = init_logging(logging_config)
-        .map_err(|e| format!("Failed to initialize logging: {}", e))?;
+    let (_guard, _reload_handle) =
+        init_logging(logging_config).map_err(|e| format!("Failed to initialize logging: {}", e))?;
 
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
@@ -123,4 +126,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

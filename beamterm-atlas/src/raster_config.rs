@@ -1,4 +1,5 @@
 use beamterm_data::{FontAtlasData, Glyph};
+
 use crate::glyph_bounds::GlyphBounds;
 
 #[derive(Debug)]
@@ -14,10 +15,7 @@ impl RasterizationConfig {
     const GRID_WIDTH: i32 = 16;
     const GRID_HEIGHT: i32 = 1;
 
-    pub(super) fn new(
-        bounds: GlyphBounds,
-        glyphs: &[Glyph],
-    ) -> Self {
+    pub(super) fn new(bounds: GlyphBounds, glyphs: &[Glyph]) -> Self {
         let (inner_cell_w, inner_cell_h) = (bounds.width(), bounds.height());
 
         let slice_width = Self::GRID_WIDTH * (inner_cell_w + 2 * FontAtlasData::PADDING);
@@ -45,7 +43,7 @@ impl RasterizationConfig {
     pub(super) fn padded_cell_size(&self) -> (i32, i32) {
         (
             self.bounds.width() + 2 * FontAtlasData::PADDING,
-            self.bounds.height() + 2 * FontAtlasData::PADDING
+            self.bounds.height() + 2 * FontAtlasData::PADDING,
         )
     }
 }

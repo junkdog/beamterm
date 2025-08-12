@@ -1,4 +1,5 @@
 use std::{fmt::Debug, sync::mpsc, thread};
+
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, KeyEventKind};
 
 #[derive(Debug, Clone)]
@@ -85,10 +86,8 @@ impl EventHandler {
         match event::read().expect("unable to read event") {
             CrosstermEvent::Key(e) if e.kind == KeyEventKind::Press => {
                 sender.send(FontPreviewEvent::Input(e))
-            }
-            CrosstermEvent::Resize(w, h) => {
-                sender.send(FontPreviewEvent::Resize(w, h))
-            }
+            },
+            CrosstermEvent::Resize(w, h) => sender.send(FontPreviewEvent::Resize(w, h)),
             _ => Ok(()),
         }
         .expect("failed to send event")
@@ -110,17 +109,15 @@ pub enum FocusedWidget {
 
 const WIDGET_COUNT: u32 = 8;
 
-
 impl FocusedWidget {
     pub fn next(self) -> Self {
         let next_idx = (self.to_u8() + 1) % WIDGET_COUNT as u8;
         Self::from_u8(next_idx)
     }
-    
+
     pub fn prev(self) -> Self {
         let prev_idx = WIDGET_COUNT + self.to_u8() as u32 - 1;
         Self::from_u8((prev_idx % WIDGET_COUNT) as _)
-
     }
 
     const fn from_u8(discriminant: u8) -> Self {

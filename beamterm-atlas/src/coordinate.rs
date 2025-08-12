@@ -17,7 +17,7 @@ impl AtlasCoordinate {
     pub(super) fn xy(&self, config: &RasterizationConfig) -> (i32, i32) {
         let x = self.cell_offset_in_px(config).0 + FontAtlasData::PADDING;
         let y = FontAtlasData::PADDING;
-        
+
         (x, y)
     }
 

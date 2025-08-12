@@ -1,13 +1,20 @@
-use itertools::Itertools;
 use std::collections::HashSet;
-use compact_str::ToCompactString;
+
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
+use itertools::Itertools;
 use tracing::{debug, info};
-use crate::{coordinate::AtlasCoordinate, font_discovery::{FontDiscovery, FontFamily}, grapheme::GraphemeSet, raster_config::RasterizationConfig};
-use crate::bitmap_font::BitmapFont;
-use crate::glyph_bounds::{GlyphBounds, measure_glyph_bounds};
-use crate::glyph_rasterizer::{create_text_attrs, create_rasterizer};
+
+use crate::{
+    bitmap_font::BitmapFont,
+    coordinate::AtlasCoordinate,
+    font_discovery::{FontDiscovery, FontFamily},
+    glyph_bounds::{measure_glyph_bounds, GlyphBounds},
+    glyph_rasterizer::{create_rasterizer, create_text_attrs},
+    grapheme::GraphemeSet,
+    raster_config::RasterizationConfig,
+};
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
@@ -22,7 +29,8 @@ impl GlyphBitmap {
         let width = self.bounds.width();
         let height = self.bounds.height();
 
-        let existing_pixels: HashSet<_> = self.data
+        let existing_pixels: HashSet<_> = self
+            .data
             .iter()
             .map(|(x, y, _)| (*x, *y))
             .collect();
@@ -32,14 +40,12 @@ impl GlyphBitmap {
         (0..width)
             .cartesian_product(0..height)
             .filter(|&(x, y)| !existing_pixels.contains(&(x, y)))
-            .for_each(|(x, y)| {
-                match (x + y) % 8 {
-                    0 => data.push((x, y, Color::rgb(0x7F, 0x00, 0x7f))),
-                    2 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x7f))),
-                    4 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x00))),
-                    6 => data.push((x, y, Color::rgb(0x7f, 0x7f, 0x00))),
-                    _ => (),
-                }
+            .for_each(|(x, y)| match (x + y) % 8 {
+                0 => data.push((x, y, Color::rgb(0x7F, 0x00, 0x7f))),
+                2 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x7f))),
+                4 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x00))),
+                6 => data.push((x, y, Color::rgb(0x7f, 0x7f, 0x00))),
+                _ => (),
             });
 
         Self { data, bounds: self.bounds }
@@ -71,7 +77,7 @@ impl AtlasFontGenerator {
             line_height = line_height,
             "Creating bitmap font generator"
         );
-        
+
         let discovery = FontDiscovery::new();
         let mut font_system = discovery.into_font_system();
 
@@ -100,22 +106,19 @@ impl AtlasFontGenerator {
             chars = %chars,
             "Starting font generation"
         );
-        
+
         // categorize and allocate IDs
         let grapheme_set = GraphemeSet::new(chars);
         let glyphs = grapheme_set.into_glyphs();
-        
-        debug!(
-            glyph_count = glyphs.len(),
-            "Generated glyph set"
-        );
+
+        debug!(glyph_count = glyphs.len(), "Generated glyph set");
 
         // calculate texture dimensions using all font styles to ensure proper cell sizing
         // let test_glyphs = create_test_glyphs_for_cell_calculation();
         // let bounds = self.calculate_cell_dimensions(&test_glyphs);
         let bounds = self.calculate_optimized_cell_dimensions();
         let config = RasterizationConfig::new(bounds, &glyphs);
-        
+
         info!(
             bounds = ?bounds,
             texture_width = config.texture_width,
@@ -213,16 +216,9 @@ impl AtlasFontGenerator {
         let mut buffer = self.render_to_buffer(&glyph, bounds.width(), bounds.height());
         let mut buffer = buffer.borrow_with(&mut self.font_system);
 
-        let pixels = Self::collect_glyph_pixels(
-            &mut buffer,
-            &mut self.cache,
-            bounds,
-        );
+        let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
 
-        GlyphBitmap {
-            data: pixels,
-            bounds
-        }
+        GlyphBitmap { data: pixels, bounds }
     }
 
     fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, cell_h: i32) -> Buffer {
@@ -383,16 +379,9 @@ impl AtlasFontGenerator {
                 .expect("glyph to rasterize to Buffer");
 
             let mut buffer = buffer.borrow_with(&mut self.font_system);
-            let bounds = measure_glyph_bounds(
-                &mut buffer,
-                &mut self.cache
-            );
+            let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
 
-            let pixels = Self::collect_glyph_pixels(
-                &mut buffer,
-                &mut self.cache,
-                bounds
-            );
+            let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
 
             // Calculate edge intensity fitness with font size deviation penalty
             let right_intensity = Self::calculate_edge_intensity(&pixels, bounds, true);
@@ -412,33 +401,41 @@ impl AtlasFontGenerator {
                 best_fitness = edge_fitness;
                 best_bounds = bounds;
                 best_metrics = dynamic_metrics;
-                debug!("New best fitness, error score: {:.4} at font_size={:.4}", best_fitness, dynamic_metrics.font_size);
+                debug!(
+                    "New best fitness, error score: {:.4} at font_size={:.4}",
+                    best_fitness, dynamic_metrics.font_size
+                );
             }
-
         }
 
         // Optimize final bounds based on edge intensities
-        info!("Optimizing bounds for overdraw, error score: {:.4}", best_fitness);
-        info!("font size update to {:.4} from {:.4}",
-            best_metrics.font_size, self.metrics.font_size);
+        info!(
+            "Optimizing bounds for overdraw, error score: {:.4}",
+            best_fitness
+        );
+        info!(
+            "font size update to {:.4} from {:.4}",
+            best_metrics.font_size, self.metrics.font_size
+        );
         self.metrics = best_metrics;
 
         Self::optimize_bounds_for_overdraw(
             best_bounds,
-            &self.reference_glyph_pixels(&reference_glyph, best_bounds)
+            &self.reference_glyph_pixels(&reference_glyph, best_bounds),
         )
     }
 
-    fn calculate_edge_intensity(pixels: &[(i32, i32, Color)], bounds: GlyphBounds, is_right_edge: bool) -> f32 {
+    fn calculate_edge_intensity(
+        pixels: &[(i32, i32, Color)],
+        bounds: GlyphBounds,
+        is_right_edge: bool,
+    ) -> f32 {
         let mut total_intensity = 0.0;
         let mut pixel_count = 0;
 
         for &(x, y, color) in pixels {
-            let is_edge_pixel = if is_right_edge {
-                x == bounds.width() - 1
-            } else {
-                y == bounds.height() - 1
-            };
+            let is_edge_pixel =
+                if is_right_edge { x == bounds.width() - 1 } else { y == bounds.height() - 1 };
 
             if is_edge_pixel {
                 // Convert color to intensity (0.0 - 1.0)
@@ -455,7 +452,10 @@ impl AtlasFontGenerator {
         }
     }
 
-    fn optimize_bounds_for_overdraw(mut bounds: GlyphBounds, pixels: &[(i32, i32, Color)]) -> GlyphBounds {
+    fn optimize_bounds_for_overdraw(
+        mut bounds: GlyphBounds,
+        pixels: &[(i32, i32, Color)],
+    ) -> GlyphBounds {
         let right_intensity = Self::calculate_edge_intensity(pixels, bounds, true);
         let bottom_intensity = Self::calculate_edge_intensity(pixels, bounds, false);
 
@@ -470,7 +470,11 @@ impl AtlasFontGenerator {
         bounds
     }
 
-    fn reference_glyph_pixels(&mut self, glyph: &Glyph, bounds: GlyphBounds) -> Vec<(i32, i32, Color)> {
+    fn reference_glyph_pixels(
+        &mut self,
+        glyph: &Glyph,
+        bounds: GlyphBounds,
+    ) -> Vec<(i32, i32, Color)> {
         let mut buffer = create_rasterizer(&glyph.symbol)
             .font_family_name(&self.font_family_name)
             .font_style(glyph.style)
@@ -480,17 +484,19 @@ impl AtlasFontGenerator {
         Self::collect_glyph_pixels(
             &mut buffer.borrow_with(&mut self.font_system),
             &mut self.cache,
-            bounds
+            bounds,
         )
     }
 
     /// Calculates unified cell dimensions with baseline awareness
     /// by finding maximum bounds across all font styles in the test set.
     fn calculate_cell_dimensions(&mut self, glyphs: &[Glyph]) -> GlyphBounds {
-
         let mut bounds = GlyphBounds::empty();
 
-        debug!("Measuring unified cell dimensions across {} glyphs", glyphs.len());
+        debug!(
+            "Measuring unified cell dimensions across {} glyphs",
+            glyphs.len()
+        );
 
         // Measure all style combinations to find maximum bounds
         for glyph in glyphs.iter() {
@@ -499,11 +505,11 @@ impl AtlasFontGenerator {
                 .font_style(glyph.style)
                 .rasterize(&mut self.font_system, self.metrics)
                 .expect("glyph to rasterize to Buffer");
-            
+
             // Measure actual glyph bounds with baseline awareness using new module
             let glyph_bounds = measure_glyph_bounds(
                 &mut buffer.borrow_with(&mut self.font_system),
-                &mut self.cache
+                &mut self.cache,
             );
             bounds = bounds.merge(glyph_bounds);
 
@@ -526,22 +532,22 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
     // so we need to track inner and outer cell bounds.
 
     // Use multiple test characters that stress different dimensions and baseline positions:
-    // - Block character for full block coverage  
+    // - Block character for full block coverage
     // - Capital letters for ascender measurement
     // - Lowercase with descenders for full baseline range
     // - Mixed ascender/descender combinations for edge cases
     // - Characters that may have different metrics in different styles
     [
         // Block character for full coverage
-        "\u{2588}",  // █
-        // // Capital letters for ascender measurement
-        // "M", "W", "H", "I",
-        // // Lowercase with descenders
-        // "g", "y", "p", "q", "j",
-        // // Mixed ascender/descender combinations
-        // "b", "d", "f", "h", "k", "l", "t",
-        // // Characters that may have different metrics
-        // "Q", "@", "#", "&"
+        "\u{2588}", // █
+                   // // Capital letters for ascender measurement
+                   // "M", "W", "H", "I",
+                   // // Lowercase with descenders
+                   // "g", "y", "p", "q", "j",
+                   // // Mixed ascender/descender combinations
+                   // "b", "d", "f", "h", "k", "l", "t",
+                   // // Characters that may have different metrics
+                   // "Q", "@", "#", "&"
     ]
     .into_iter()
     .flat_map(|ch| {

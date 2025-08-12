@@ -1,11 +1,11 @@
 mod app;
-mod event;
-mod theme;
-mod ui;
 mod block_render;
-mod widgets;
-mod tui;
-mod input_processor;
+mod event;
 mod input_multiplexer;
+mod input_processor;
+mod theme;
+mod tui;
+mod ui;
+mod widgets;
 
 pub use app::FontPreviewApp;

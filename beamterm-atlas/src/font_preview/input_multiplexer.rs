@@ -1,5 +1,6 @@
-use color_eyre::Result;
 use std::sync::mpsc::Sender;
+
+use color_eyre::Result;
 
 use crate::font_preview::{
     event::FontPreviewEvent,
@@ -14,14 +15,11 @@ pub struct InputMultiplexer {
 
 impl InputMultiplexer {
     pub fn new(sender: Sender<FontPreviewEvent>) -> Self {
-        let mut multiplexer = Self { 
-            sender: sender.clone(), 
-            processors: Vec::new() 
-        };
-        
+        let mut multiplexer = Self { sender: sender.clone(), processors: Vec::new() };
+
         // Add the main input processor as the base layer
         multiplexer.push(Box::new(MainInputProcessor::new(sender)));
-        
+
         multiplexer
     }
 
@@ -44,20 +42,13 @@ impl InputMultiplexer {
 
     pub fn apply(&mut self, event: &FontPreviewEvent, ui: &mut UI) -> Result<()> {
         // Handle modal events that should trigger processor stack changes
-        match event {
-            // Future modal events would be handled here
-            // FontPreviewEvent::SettingsDialogOpen => {
-            //     self.push(Box::new(SettingsDialogProcessor::new(self.sender.clone())));
-            // },
-            // FontPreviewEvent::SettingsDialogClose => self.pop_processor(),
-            _ => {}
-        }
+        {}
 
         // Apply the event to the top processor
         if let Some(processor) = self.processors.last_mut() {
             processor.apply(event, ui)?;
         }
-        
+
         Ok(())
     }
 }

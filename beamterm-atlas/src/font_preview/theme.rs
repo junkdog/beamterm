@@ -40,53 +40,45 @@ impl Default for Theme {
             shortcut_mnemonic: Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
-            
+
             input_active: Style::default()
                 .fg(Color::White)
                 .bg(Color::DarkGray),
-            
-            input_inactive: Style::default()
-                .fg(Color::Gray),
-            
+
+            input_inactive: Style::default().fg(Color::Gray),
+
             variant_label: Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-            
-            parameter_label: Style::default()
-                .fg(Color::White),
-            
+
+            parameter_label: Style::default().fg(Color::White),
+
             parameter_value: Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
-            
-            border_focused: Style::default()
-                .fg(Color::Yellow),
-            
-            border_unfocused: Style::default()
-                .fg(Color::Gray),
-            
-            block_glyph: Style::default()
-                .fg(Color::White),
-            
-            preview_canvas: Style::default()
-                .bg(Color::Rgb(64,64, 64)),
-            
+
+            border_focused: Style::default().fg(Color::Yellow),
+
+            border_unfocused: Style::default().fg(Color::Gray),
+
+            block_glyph: Style::default().fg(Color::White),
+
+            preview_canvas: Style::default().bg(Color::Rgb(64, 64, 64)),
+
             status_bar: Style::default()
                 .fg(Color::White)
                 .bg(Color::DarkGray),
-            
+
             error: Style::default()
                 .fg(Color::Red)
                 .add_modifier(Modifier::BOLD),
-            
+
             success: Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
-            
-            button: Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue),
-            
+
+            button: Style::default().fg(Color::White).bg(Color::Blue),
+
             button_focused: Style::default()
                 .fg(Color::Black)
                 .bg(Color::Yellow),
