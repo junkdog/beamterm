@@ -20,7 +20,7 @@ colored = "3.0.0"
 cosmic-text = "0.14.2"
 crossterm = "0.28"
 directories = "6.0.0"
-emojis = "0.6.4"
+emojis = "0.7.1"
 ratatui = "0.29"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
