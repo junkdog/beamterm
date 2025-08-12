@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use cosmic_text::{fontdb, FontSystem, Style, Weight};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FontFamily {
     pub name: String,
     pub fonts: FontVariants,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FontVariants {
     pub regular: fontdb::ID,
     pub bold: fontdb::ID,

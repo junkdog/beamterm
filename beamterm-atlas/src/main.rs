@@ -1,23 +1,36 @@
+mod bitmap_font;
 mod cli;
 mod coordinate;
 mod font_discovery;
-mod generator;
+mod atlas_generator;
+mod glyph_bounds;
+mod glyph_rasterizer;
 mod glyph_set;
 mod grapheme;
+mod logging;
 mod raster_config;
-
-use std::{fs::File, io::Write};
 
 use beamterm_data::*;
 use clap::Parser;
 
 use crate::{
-    cli::Cli, font_discovery::FontDiscovery, generator::BitmapFontGenerator, glyph_set::GLYPHS,
+    cli::Cli, font_discovery::FontDiscovery, atlas_generator::AtlasFontGenerator, glyph_set::GLYPHS,
+    logging::{init_logging, LoggingConfig},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // panic hook
     color_eyre::install()?;
+
+    // Initialize structured logging
+    let logging_config = LoggingConfig::from_env();
+    let (_guard, _reload_handle) = init_logging(logging_config)
+        .map_err(|e| format!("Failed to initialize logging: {}", e))?;
+
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        "beamterm-atlas starting up"
+    );
 
     // parse command line arguments
     let cli = Cli::parse();
@@ -49,9 +62,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // print configuration summary
     cli.print_summary(&selected_font.name);
 
-    // TODO: Pass underline/strikethrough configuration to the generator
-    // These parameters should be stored in FontAtlasData for use during rendering
-    // Currently, the shader uses hardcoded values for these effects
     let underline = LineDecoration::new(cli.underline_position, cli.underline_thickness / 100.0);
     let strikethrough = LineDecoration::new(
         cli.strikethrough_position,
@@ -59,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Generate the font
-    let bitmap_font = BitmapFontGenerator::new_with_family(
+    let bitmap_font = AtlasFontGenerator::new_with_family(
         selected_font.clone(),
         cli.font_size,
         cli.line_height,
@@ -72,6 +82,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let atlas = &bitmap_font.atlas_data;
     println!("\nBitmap font generated!");
+    println!("Font family: {}", selected_font.name);
+    println!("Font size: {:.3}", atlas.font_size);
     println!(
         "Texture size: {}x{}x{}",
         atlas.texture_dimensions.0, atlas.texture_dimensions.1, atlas.texture_dimensions.2
@@ -112,20 +124,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Represents a bitmap font with all its associated metadata
-#[derive(Debug)]
-pub struct BitmapFont {
-    /// The properties of the font
-    atlas_data: FontAtlasData,
-}
-
-impl BitmapFont {
-    /// Save bitmap font and metadata to a file
-    pub fn save(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let metadata = &self.atlas_data;
-        let mut file = File::create(path)?;
-        Write::write_all(&mut file, &metadata.to_binary())?;
-
-        Ok(())
-    }
-}
