@@ -66,7 +66,7 @@ impl<'a> GlyphRasterizer<'a> {
 
 pub(super) fn create_text_attrs(font_family: &str, style: FontStyle) -> Attrs {
     let attrs = Attrs::new()
-        .family(Family::Monospace)
+        .family(Family::Name(font_family))
         .style(Style::Normal)
         .weight(Weight::NORMAL);
 
