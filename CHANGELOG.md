@@ -7,10 +7,12 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(renderer)* Add `TerminalBuilder::enable_debug_api`. When enabled, a debug API will be available at `window.__beamterm_debug`.
+- *(atlas)* Font size automatically resized to better fill the cell
 
 ### 🐛 Bug Fixes
 
 - *(mouse)* Handle cursor leaving terminal during selection
+- *(atlas)* Fix font face using system defaults instead of user-selected fonts
 
 ### ⚙️ Miscellaneous Tasks
 
