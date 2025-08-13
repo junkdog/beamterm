@@ -7,20 +7,19 @@ use ratatui::{
 };
 use tracing::{debug, error, info, warn};
 
-use crate::{
+use beamterm_atlas::{
     atlas_generator::AtlasFontGenerator,
     font_discovery::{FontDiscovery, FontFamily},
-    font_preview::{
-        block_render::BlockRenderer,
-        event::FocusedWidget,
-        theme::Theme,
-        widgets::{
-            font_display::{FontDisplay, FontDisplayState, GlyphImage},
-            font_selector::{FontSelector, FontSelectorState},
-            parameter_input::{ParameterInput, ParameterInputState},
-        },
-    },
     glyph_bounds::GlyphBounds,
+};
+use crate::{
+    event::FocusedWidget,
+    theme::Theme,
+    widgets::{
+        font_display::{FontDisplay, FontDisplayState, GlyphImage},
+        font_selector::{FontSelector, FontSelectorState},
+        parameter_input::{ParameterInput, ParameterInputState},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,7 +58,6 @@ pub struct UI {
 
     // Font rendering
     current_font_generator: Option<AtlasFontGenerator>,
-    block_renderer: BlockRenderer,
 
     // Font parameter caching
     cached_font_parameters: Option<FontParameters>,
@@ -88,7 +86,6 @@ impl UI {
             status_message: None,
             font_discovery,
             current_font_generator: None,
-            block_renderer: BlockRenderer::new(10, 8), // Terminal cells for glyph display
 
             // Initialize cached parameters as None
             cached_font_parameters: None,

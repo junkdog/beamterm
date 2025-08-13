@@ -7,7 +7,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 
-use crate::font_preview::event::{EventHandler, FontPreviewEvent};
+use crate::event::{EventHandler, FontPreviewEvent};
 
 pub type CrosstermTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 

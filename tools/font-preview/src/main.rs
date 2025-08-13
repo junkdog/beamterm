@@ -1,25 +1,21 @@
-mod atlas_generator;
-mod bitmap_font;
-mod cli;
-mod coordinate;
-mod font_discovery;
-mod font_preview;
-mod glyph_bounds;
-mod glyph_rasterizer;
-mod glyph_set;
-mod grapheme;
-mod logging;
-mod raster_config;
+mod app;
+mod event;
+mod input_multiplexer;
+mod input_processor;
+mod theme;
+mod tui;
+mod ui;
+mod widgets;
 
-use std::{io::Write, panic};
+use std::panic;
 
+use app::FontPreviewApp;
+use beamterm_atlas::logging::{init_logging, LoggingConfig};
 use color_eyre::Result;
 use crossterm::{
     event::DisableMouseCapture,
     terminal::{self, LeaveAlternateScreen},
 };
-use font_preview::FontPreviewApp;
-use logging::{init_logging, LoggingConfig};
 
 fn main() -> Result<()> {
     // Install color-eyre first to get its panic hook

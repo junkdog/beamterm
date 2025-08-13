@@ -5,7 +5,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::{font_discovery::FontFamily, font_preview::theme::Theme};
+use beamterm_atlas::font_discovery::FontFamily;
+use crate::theme::Theme;
 
 #[derive(Default)]
 pub struct FontSelectorState {

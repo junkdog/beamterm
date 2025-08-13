@@ -14,7 +14,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use crate::font_preview::ui::UI;
+use crate::ui::UI;
 
 #[derive(Debug, Clone)]
 pub enum Event {

@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 
-use crate::font_preview::theme::Theme;
+use crate::theme::Theme;
 
 pub struct GlyphImage {
     pub bitmap_data: Vec<(i32, i32, Color)>,

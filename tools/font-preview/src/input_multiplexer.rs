@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 
 use color_eyre::Result;
 
-use crate::font_preview::{
+use crate::{
     event::FontPreviewEvent,
     input_processor::{InputProcessor, MainInputProcessor},
     ui::UI,

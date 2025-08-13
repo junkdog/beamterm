@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Paragraph, StatefulWidget, Widget},
 };
 
-use crate::font_preview::theme::Theme;
+use crate::theme::Theme;
 
 #[derive(Default, Clone)]
 pub struct ParameterInputState {

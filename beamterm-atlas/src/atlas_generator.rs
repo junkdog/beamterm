@@ -18,7 +18,7 @@ use crate::{
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
-pub(crate) struct GlyphBitmap {
+pub struct GlyphBitmap {
     pub data: Vec<(i32, i32, Color)>, // (x, y, color)
     pub bounds: GlyphBounds,
 }
@@ -52,7 +52,7 @@ impl GlyphBitmap {
     }
 }
 
-pub(super) struct AtlasFontGenerator {
+pub struct AtlasFontGenerator {
     font_system: FontSystem,
     cache: SwashCache,
     line_height: f32,
@@ -248,7 +248,7 @@ impl AtlasFontGenerator {
         LineDecoration::new(nudged_position, decoration.thickness)
     }
 
-    pub(super) fn rasterize_symbol(
+    pub fn rasterize_symbol(
         &mut self,
         symbol: &str,
         style: FontStyle,
@@ -392,7 +392,7 @@ impl AtlasFontGenerator {
         buffer
     }
 
-    pub(crate) fn calculate_optimized_cell_dimensions(&mut self) -> GlyphBounds {
+    pub fn calculate_optimized_cell_dimensions(&mut self) -> GlyphBounds {
         let reference_glyph = Glyph {
             id: 0,
             symbol: "\u{2588}".to_compact_string(), // Full block character

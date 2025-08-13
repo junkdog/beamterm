@@ -3,7 +3,7 @@ use std::sync::mpsc::Sender;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::font_preview::{
+use crate::{
     event::{Dispatcher, FontPreviewEvent},
     ui::UI,
 };

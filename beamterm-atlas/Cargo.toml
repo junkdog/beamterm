@@ -18,10 +18,8 @@ clap = { version = "4.5", features = ["derive"] }
 color-eyre = "0.6.5"
 colored = "3.0.0"
 cosmic-text = "0.14.2"
-crossterm = "0.28"
 directories = "6.0.0"
-emojis = "0.7.1"
-ratatui = "0.29"
+emojis = "0.7.2"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 tracing-appender = "0.2.3"
@@ -32,10 +30,6 @@ compact_str.workspace = true
 [[bin]]
 name = "beamterm-atlas"
 path = "src/main.rs"
-
-[[bin]]
-name = "font-preview"
-path = "src/font_preview_main.rs"
 
 [[bin]]
 name = "verify-atlas"

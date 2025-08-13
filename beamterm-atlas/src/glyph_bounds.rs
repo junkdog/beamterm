@@ -2,7 +2,7 @@ use cosmic_text::{BorrowedWithFontSystem, Buffer, Color, SwashCache};
 
 /// Glyph bounds information
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct GlyphBounds {
+pub struct GlyphBounds {
     max_x: i32,
     max_y: i32,
     min_x: i32,

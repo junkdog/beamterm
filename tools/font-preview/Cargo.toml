@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "font-preview"
+description = "Interactive TUI for font selection and preview before atlas generation"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+authors = ["Adrian Papari <junkdog@angelhill.net>"]
+repository = "https://github.com/junkdog/beamterm"
+homepage = "https://github.com/junkdog/beamterm"
+
+[dependencies]
+beamterm-atlas = { path = "../../beamterm-atlas" }
+beamterm-data = { path = "../../beamterm-data" }
+color-eyre = "0.6.5"
+cosmic-text = "0.14.2"
+crossterm = "0.28"
+ratatui = "0.29"
+tracing = "0.1.41"
