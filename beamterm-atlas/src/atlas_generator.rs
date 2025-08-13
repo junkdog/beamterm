@@ -118,7 +118,6 @@ impl AtlasFontGenerator {
         // let bounds = self.calculate_cell_dimensions(&test_glyphs);
         let bounds = self.calculate_optimized_cell_dimensions();
         let config = RasterizationConfig::new(bounds, &glyphs);
-
         info!(
             bounds = ?bounds,
             texture_width = config.texture_width,
@@ -151,10 +150,42 @@ impl AtlasFontGenerator {
             })
             .collect::<Vec<u8>>();
 
+        // Nudge strikethrough and underline positions to nearest 0.5 pixel for perfect centering
+        let cell_height = bounds.height() as f32;
+        let nudged_underline = Self::nudge_decoration_to_half_pixel(self.underline, cell_height);
+        let nudged_strikethrough =
+            Self::nudge_decoration_to_half_pixel(self.strikethrough, cell_height);
+
+        println!("Position Summary:");
+        println!("  Cell height: {}", cell_height);
+        println!(
+            "  Underline - Provided: {:.4} ({:.1}px) -> Actual: {:.4} ({:.1}px)",
+            self.underline.position,
+            cell_height * self.underline.position,
+            nudged_underline.position,
+            cell_height * nudged_underline.position
+        );
+        println!(
+            "  Strikethrough - Provided: {:.4} ({:.1}px) -> Actual: {:.4} ({:.1}px)",
+            self.strikethrough.position,
+            cell_height * self.strikethrough.position,
+            nudged_strikethrough.position,
+            cell_height * nudged_strikethrough.position
+        );
+
         info!(
             font_family = %self.font_family_name,
             glyph_count = rasterized_glyphs.len(),
             texture_size_bytes = texture_data.len(),
+            cell_height = cell_height,
+            underline_provided_pos = self.underline.position,
+            underline_provided_pixel = cell_height * self.underline.position,
+            underline_actual_pos = nudged_underline.position,
+            underline_actual_pixel = cell_height * nudged_underline.position,
+            strikethrough_provided_pos = self.strikethrough.position,
+            strikethrough_provided_pixel = cell_height * self.strikethrough.position,
+            strikethrough_actual_pos = nudged_strikethrough.position,
+            strikethrough_actual_pixel = cell_height * nudged_strikethrough.position,
             "Font generation completed successfully"
         );
 
@@ -164,8 +195,8 @@ impl AtlasFontGenerator {
                 font_size: self.metrics.font_size,
                 texture_dimensions: (config.texture_width, config.texture_height, config.layers),
                 cell_size: config.padded_cell_size(),
-                underline: self.underline,
-                strikethrough: self.strikethrough,
+                underline: nudged_underline,
+                strikethrough: nudged_strikethrough,
                 glyphs: rasterized_glyphs,
                 texture_data,
             },
@@ -204,6 +235,17 @@ impl AtlasFontGenerator {
     pub(crate) fn calculate_glyph_bounds(&mut self) -> GlyphBounds {
         let test_glyphs = create_test_glyphs_for_cell_calculation();
         self.calculate_cell_dimensions(&test_glyphs)
+    }
+
+    /// Nudges a line decoration position to the nearest 0.5 pixel for perfect centering
+    fn nudge_decoration_to_half_pixel(
+        decoration: LineDecoration,
+        cell_height: f32,
+    ) -> LineDecoration {
+        let pixel_pos = cell_height * decoration.position;
+        let nudged_pixel = (pixel_pos - 0.5).round() + 0.5;
+        let nudged_position = nudged_pixel / cell_height;
+        LineDecoration::new(nudged_position, decoration.thickness)
     }
 
     pub(super) fn rasterize_symbol(

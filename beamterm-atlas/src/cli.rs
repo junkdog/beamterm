@@ -61,7 +61,10 @@ impl Cli {
             return Err("No complete monospace font families found!".to_string());
         }
 
-        let font = self.font.as_ref().ok_or("Font selection required")?;
+        let font = self
+            .font
+            .as_ref()
+            .ok_or("Font selection required")?;
 
         // Try parsing as index first (1-based)
         if let Ok(idx) = font.parse::<usize>() {
