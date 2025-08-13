@@ -63,11 +63,11 @@ impl Glyph {
     /// Italic flag - selects the italic variant of the glyph from the texture atlas.
     pub const ITALIC_FLAG: u16        = 0b0000_0100_0000_0000; // 0x0400
     /// Emoji flag - indicates this glyph represents an emoji character requiring special handling.
-    pub const EMOJI_FLAG: u16         = 0b0000_1000_0000_0000; // 0x8000
+    pub const EMOJI_FLAG: u16         = 0b0000_1000_0000_0000; // 0x0800
     /// Underline flag - renders a horizontal line below the character baseline.
-    pub const UNDERLINE_FLAG: u16     = 0b0001_0000_0000_0000; // 0x0800
+    pub const UNDERLINE_FLAG: u16     = 0b0001_0000_0000_0000; // 0x1000
     /// Strikethrough flag - renders a horizontal line through the middle of the character.
-    pub const STRIKETHROUGH_FLAG: u16 = 0b0010_0000_0000_0000; // 0x1000
+    pub const STRIKETHROUGH_FLAG: u16 = 0b0010_0000_0000_0000; // 0x2000
 }
 
 impl Glyph {
