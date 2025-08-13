@@ -10,8 +10,8 @@ use crate::font_discovery::{FontDiscovery, FontFamily};
 )]
 pub struct Cli {
     /// Font selection: name (partial match) or 1-based index
-    #[arg(value_name = "FONT")]
-    pub font: String,
+    #[arg(value_name = "FONT", required_unless_present = "list_fonts")]
+    pub font: Option<String>,
 
     /// Font size in points
     #[arg(short = 's', long, default_value = "15.0", value_name = "SIZE")]
@@ -61,8 +61,10 @@ impl Cli {
             return Err("No complete monospace font families found!".to_string());
         }
 
+        let font = self.font.as_ref().ok_or("Font selection required")?;
+
         // Try parsing as index first (1-based)
-        if let Ok(idx) = self.font.parse::<usize>() {
+        if let Ok(idx) = font.parse::<usize>() {
             if idx > 0 && idx <= available_fonts.len() {
                 return Ok(&available_fonts[idx - 1]);
             } else {
@@ -80,9 +82,9 @@ impl Cli {
             .find(|f| {
                 f.name
                     .to_lowercase()
-                    .contains(&self.font.to_lowercase())
+                    .contains(&font.to_lowercase())
             })
-            .ok_or_else(|| format!("Font '{}' not found", self.font))
+            .ok_or_else(|| format!("Font '{}' not found", font))
     }
 
     /// Displays the list of available fonts
@@ -174,7 +176,7 @@ mod tests {
     #[test]
     fn test_cli_validation() {
         let cli = Cli {
-            font: "test".to_string(),
+            font: Some("test".to_string()),
             font_size: 15.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
@@ -191,7 +193,7 @@ mod tests {
     #[test]
     fn test_invalid_font_size() {
         let cli = Cli {
-            font: "test".to_string(),
+            font: Some("test".to_string()),
             font_size: -1.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
@@ -208,7 +210,7 @@ mod tests {
     #[test]
     fn test_invalid_position() {
         let cli = Cli {
-            font: "test".to_string(),
+            font: Some("test".to_string()),
             font_size: 15.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
