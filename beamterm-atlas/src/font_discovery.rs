@@ -102,3 +102,9 @@ impl FontDiscovery {
         self.font_system
     }
 }
+
+impl Default for FontDiscovery {
+    fn default() -> Self {
+        Self::new()
+    }
+}

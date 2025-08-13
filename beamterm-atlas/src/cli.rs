@@ -87,7 +87,7 @@ impl Cli {
                     .to_lowercase()
                     .contains(&font.to_lowercase())
             })
-            .ok_or_else(|| format!("Font '{}' not found", font))
+            .ok_or_else(|| format!("Font '{font}' not found"))
     }
 
     /// Displays the list of available fonts

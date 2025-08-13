@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - *(renderer)* Add `TerminalBuilder::enable_debug_api`. When enabled, a debug API will be available at `window.__beamterm_debug`.
 - *(atlas)* Font size automatically resized to better fill the cell
+- *(atlas)* Nudge line decoration positions to half-pixel boundaries
 
 ### 🐛 Bug Fixes
 
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(atlas)* More glyphs
+- *(font)* Hack 16.6pt (12x20)
 
 ## [beamterm-v0.5.0] - 2025-06-29
 

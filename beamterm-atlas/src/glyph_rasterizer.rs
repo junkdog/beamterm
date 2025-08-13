@@ -10,7 +10,7 @@ pub struct GlyphRasterizer<'a> {
     monospace_width: Option<u32>,
 }
 
-pub fn create_rasterizer(symbol: &str) -> GlyphRasterizer {
+pub fn create_rasterizer(symbol: &str) -> GlyphRasterizer<'_> {
     GlyphRasterizer::new(symbol)
 }
 
@@ -66,7 +66,7 @@ impl<'a> GlyphRasterizer<'a> {
     }
 }
 
-pub(super) fn create_text_attrs(font_family: &str, style: FontStyle) -> Attrs {
+pub(super) fn create_text_attrs(font_family: &str, style: FontStyle) -> Attrs<'_> {
     let attrs = Attrs::new()
         .family(Family::Name(font_family))
         .style(Style::Normal)

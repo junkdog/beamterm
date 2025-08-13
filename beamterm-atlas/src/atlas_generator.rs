@@ -157,7 +157,7 @@ impl AtlasFontGenerator {
             Self::nudge_decoration_to_half_pixel(self.strikethrough, cell_height);
 
         println!("Position Summary:");
-        println!("  Cell height: {}", cell_height);
+        println!("  Cell height: {cell_height}");
         println!(
             "  Underline - Provided: {:.4} ({:.1}px) -> Actual: {:.4} ({:.1}px)",
             self.underline.position,

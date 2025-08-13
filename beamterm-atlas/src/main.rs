@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize structured logging
     let logging_config = LoggingConfig::from_env();
     let (_guard, _reload_handle) =
-        init_logging(logging_config).map_err(|e| format!("Failed to initialize logging: {}", e))?;
+        init_logging(logging_config).map_err(|e| format!("Failed to initialize logging: {e}"))?;
 
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
