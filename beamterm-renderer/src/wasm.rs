@@ -389,7 +389,7 @@ impl Cell {
 }
 
 impl Cell {
-    pub fn as_cell_data(&self) -> CellData {
+    pub fn as_cell_data(&self) -> CellData<'_> {
         CellData::new_with_style_bits(&self.symbol, self.style, self.fg, self.bg)
     }
 }

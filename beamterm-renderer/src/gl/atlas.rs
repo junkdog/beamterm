@@ -115,7 +115,7 @@ impl FontAtlas {
     }
 
     /// Returns the symbol for the given glyph ID, if it exists
-    pub fn get_symbol(&self, glyph_id: u16) -> Option<Cow<str>> {
+    pub fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
         let base_glyph_id = glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG);
 
         if (0x20..0x80).contains(&base_glyph_id) {

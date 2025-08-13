@@ -182,7 +182,7 @@ impl TerminalGrid {
         text
     }
 
-    fn get_cell_symbol(&self, idx: usize) -> Cow<str> {
+    fn get_cell_symbol(&self, idx: usize) -> Cow<'_, str> {
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
             self.atlas
@@ -407,7 +407,7 @@ impl TerminalGrid {
         self.atlas.get_base_glyph_id(symbol)
     }
 
-    fn fallback_symbol(&self) -> Cow<str> {
+    fn fallback_symbol(&self) -> Cow<'_, str> {
         self.atlas
             .get_symbol(self.fallback_glyph)
             .unwrap_or(Cow::Borrowed(" "))
