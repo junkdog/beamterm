@@ -25,7 +25,7 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beamterm-data = { path = "../beamterm-data", version = "0.5.0" }
+beamterm-data = { path = "../beamterm-data", version = "0.6.0" }
 compact_str = { workspace = true }
 console_error_panic_hook = { workspace = true }
 thiserror = { workspace = true }
