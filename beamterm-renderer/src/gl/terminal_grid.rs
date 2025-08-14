@@ -879,8 +879,8 @@ impl CellDynamic {
         ((self.data[5] as u32) << 16) | ((self.data[6] as u32) << 8) | (self.data[7] as u32)
     }
 
+    /// Returns the glyph ID for this cell, excluding style bits.
     pub fn get_style(&self) -> u16 {
-        // unpack glyph ID from the first two bytes
         self.glyph_id() & !(Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)
     }
 
