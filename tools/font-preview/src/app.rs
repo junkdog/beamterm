@@ -41,6 +41,8 @@ pub enum Action {
     PrevWidget,
     Increment,
     Decrement,
+    NextGlyph,
+    PrevGlyph,
 }
 
 pub struct FontPreviewApp {
@@ -133,6 +135,12 @@ impl FontPreviewApp {
                 KeyCode::Down | KeyCode::Char('-') => {
                     self.handle_action(Action::Decrement)?;
                 },
+                KeyCode::Left => {
+                    self.handle_action(Action::PrevGlyph)?;
+                },
+                KeyCode::Right => {
+                    self.handle_action(Action::NextGlyph)?;
+                },
                 KeyCode::Char(c) => {
                     if c.is_alphanumeric() || c.is_ascii_punctuation() || c == ' ' {
                         tracing::debug!("Key pressed: '{}', updating symbol", c);
@@ -183,6 +191,12 @@ impl FontPreviewApp {
             },
             Action::ResetDefaults => {
                 self.ui.reset_defaults()?;
+            },
+            Action::NextGlyph => {
+                self.ui.next_glyph()?;
+            },
+            Action::PrevGlyph => {
+                self.ui.prev_glyph()?;
             },
             _ => {
                 // Handle other actions

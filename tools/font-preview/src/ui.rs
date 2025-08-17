@@ -12,6 +12,7 @@ use beamterm_atlas::{
     font_discovery::{FontDiscovery, FontFamily},
     glyph_bounds::GlyphBounds,
 };
+use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     event::FocusedWidget,
     theme::Theme,
@@ -61,12 +62,26 @@ pub struct UI {
 
     // Font parameter caching
     cached_font_parameters: Option<FontParameters>,
+
+    // Glyph navigation
+    current_glyph_index: usize,
+    available_glyphs: Vec<String>,
 }
 
 impl UI {
     pub fn new() -> Result<Self> {
         let font_discovery = FontDiscovery::new();
         let available_fonts = font_discovery.discover_complete_monospace_families();
+
+        // Create list of available glyphs from beamterm-atlas glyph set (non-emoji)
+        let glyph_set = beamterm_atlas::glyph_set::GLYPHS;
+        let available_glyphs: Vec<String> = glyph_set
+            .graphemes(true)
+            .filter(|g| !g.trim().is_empty()) // Remove whitespace-only graphemes
+            .filter(|g| emojis::get(g).is_none()) // Filter out emoji
+            .map(|g| g.to_string())
+            .collect();
+        let default_glyph_index = available_glyphs.iter().position(|g| g == "█").unwrap_or(0);
 
         let mut ui = Self {
             theme: Theme::default(),
@@ -89,6 +104,10 @@ impl UI {
 
             // Initialize cached parameters as None
             cached_font_parameters: None,
+
+            // Glyph navigation
+            current_glyph_index: default_glyph_index,
+            available_glyphs,
         };
 
         ui.update_focus();
@@ -273,12 +292,14 @@ impl UI {
         } else {
             Line::from(vec![
                 Span::styled("[", self.theme.status_bar),
+                Span::styled("←/→", self.theme.shortcut_mnemonic),
+                Span::styled("]glyphs  [", self.theme.status_bar),
                 Span::styled("L", self.theme.shortcut_mnemonic),
                 Span::styled("]ist fonts  [", self.theme.status_bar),
                 Span::styled("S", self.theme.shortcut_mnemonic),
                 Span::styled("]ave atlas  [", self.theme.status_bar),
                 Span::styled("R", self.theme.shortcut_mnemonic),
-                Span::styled("]eset defaults  [", self.theme.status_bar),
+                Span::styled("]eset  [", self.theme.status_bar),
                 Span::styled("Q", self.theme.shortcut_mnemonic),
                 Span::styled("]uit", self.theme.status_bar),
             ])
@@ -452,6 +473,32 @@ impl UI {
 
         self.status_message = Some("Reset to defaults".to_string());
         self.update_font_display()
+    }
+
+    pub fn next_glyph(&mut self) -> Result<()> {
+        if !self.available_glyphs.is_empty() {
+            self.current_glyph_index = (self.current_glyph_index + 1) % self.available_glyphs.len();
+            let new_glyph = &self.available_glyphs[self.current_glyph_index];
+            self.symbol_input = new_glyph.clone();
+            self.status_message = Some(format!("Glyph: '{}' ({}/{})", new_glyph, self.current_glyph_index + 1, self.available_glyphs.len()));
+            self.update_font_display()?;
+        }
+        Ok(())
+    }
+
+    pub fn prev_glyph(&mut self) -> Result<()> {
+        if !self.available_glyphs.is_empty() {
+            self.current_glyph_index = if self.current_glyph_index == 0 {
+                self.available_glyphs.len() - 1
+            } else {
+                self.current_glyph_index - 1
+            };
+            let new_glyph = &self.available_glyphs[self.current_glyph_index];
+            self.symbol_input = new_glyph.clone();
+            self.status_message = Some(format!("Glyph: '{}' ({}/{})", new_glyph, self.current_glyph_index + 1, self.available_glyphs.len()));
+            self.update_font_display()?;
+        }
+        Ok(())
     }
 
     fn update_focus(&mut self) {
