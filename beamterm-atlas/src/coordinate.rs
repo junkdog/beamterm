@@ -5,13 +5,13 @@ use crate::raster_config::RasterizationConfig;
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AtlasCoordinate {
     pub(super) layer: u16,      // Depth in the 2D Texture Array
-    pub(super) glyph_index: u8, // 0..=15; each layer contains 16 glyphs
+    pub(super) glyph_index: u8, // 0..=31; each layer contains 32 glyphs
 }
 
 impl AtlasCoordinate {
     pub(super) fn from_glyph_id(id: u16) -> Self {
-        // 16 glyphs per layer, indexed from 0 to 15
-        Self { layer: id >> 4, glyph_index: (id & 0xF) as u8 }
+        // 32 glyphs per layer, indexed from 0 to 31
+        Self { layer: id >> 5, glyph_index: (id & 0x1F) as u8 }
     }
 
     pub(super) fn xy(&self, config: &RasterizationConfig) -> (i32, i32) {

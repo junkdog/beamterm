@@ -13,7 +13,7 @@ including emoji, and automatic grapheme clustering.
 
 The crate consists of:
 - **Font rasterization engine** using cosmic-text for high-quality text rendering
-- **2D texture array packer** organizing glyphs into 16×1 grids per texture layer
+- **2D texture array packer** organizing glyphs into 32×1 grids per texture layer
 - **Binary serializer** with zlib compression for efficient storage
 - **Atlas verification tool** for debugging and visualization
 
@@ -26,16 +26,16 @@ The system uses a 16-bit glyph ID that encodes both the base character and its s
 
 | Bit Range | Purpose       | Description                            |
 |-----------|---------------|----------------------------------------|
-| 0-8       | Base Glyph ID | 512 possible base glyphs (0x000-0x1FF) |
-| 9         | Bold Flag     | Selects bold variant (0x0200)          |
-| 10        | Italic Flag   | Selects italic variant (0x0400)        |
-| 11        | Emoji Flag    | Indicates emoji glyph (0x0800)         |
-| 12        | Underline     | Underline effect (0x1000)              |
-| 13        | Strikethrough | Strikethrough effect (0x2000)          |
-| 14-15     | Reserved      | Reserved for future use                |
+| 0-9       | Base Glyph ID | 1024 possible base glyphs (0x000-0x3FF) |
+| 10        | Bold Flag     | Selects bold variant (0x0400)          |
+| 11        | Italic Flag   | Selects italic variant (0x0800)        |
+| 12        | Emoji Flag    | Indicates emoji glyph (0x1000)         |
+| 13        | Underline     | Underline effect (0x2000)              |
+| 14        | Strikethrough | Strikethrough effect (0x4000)          |
+| 15        | Reserved      | Reserved for future use                |
 
-The atlas only encodes glyphs with the first 12 bits. Bits 12 and 13 are applied
-at runtime for text decoration effects, while bits 14-15 are reserved for future extensions.
+The atlas only encodes glyphs with the first 13 bits. Bits 13 and 14 are applied
+at runtime for text decoration effects, while bit 15 is reserved for future extensions.
 
 ### Font Style Encoding
 
@@ -86,22 +86,22 @@ For a typical atlas with ~500 base glyphs + 100 emoji:
 
 ### Layer Layout
 
-Each texture layer contains a 16×1 grid of glyphs:
+Each texture layer contains a 32×1 grid of glyphs:
 
 ```
-Position in layer = ID & 0x0F (modulo 16)
-Grid X = Position (0-15)
+Position in layer = ID & 0x1F (modulo 32)
+Grid X = Position (0-31)
 Grid Y = 0 (always single row)
-Layer = ID ÷ 16
+Layer = ID ÷ 32
 ```
 
 ### Memory Layout
 
 The 2D texture array uses RGBA format with dimensions:
 
-- Width: cell_width × 16
+- Width: cell_width × 32
 - Height: cell_height × 1
-- Layers: max_glyph_id ÷ 16
+- Layers: max_glyph_id ÷ 32
 
 The RGBA format is required for emoji support - while monochrome glyphs could use a single channel,
 emoji glyphs need full color information.

@@ -151,24 +151,24 @@ Each terminal cell requires:
 
 ## Font Atlas 2D Texture Array Architecture
 
-The font atlas uses a WebGL 2D texture array where each layer contains a 16×1 grid of glyphs (16 
+The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32 
 per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1) 
-coordinate lookups through simple bit operations. The system supports 512 base glyphs × 4 styles + 
+coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles + 
 emoji.
 
 ### 2D Texture Array Coordinate System
 
-The font atlas uses a 2D texture array organized as multiple layers, each containing a 16×1 grid 
+The font atlas uses a 2D texture array organized as multiple layers, each containing a 32×1 grid 
 of glyphs:
 
 | Dimension  | Size        | Formula            | Description             |
 |------------|-------------|--------------------|-------------------------|
-| **Width**  | Cell × 16   | 12 × 16 = 192px    | 16 glyphs horizontally  |
+| **Width**  | Cell × 32   | 12 × 32 = 384px    | 32 glyphs horizontally  |
 | **Height** | Cell × 1    | 18 × 1 = 18px      | 1 glyph vertically      |
-| **Layers** | ⌈Glyphs/16⌉ | max(glyph.id) / 16 | One layer per 16 glyphs |
+| **Layers** | ⌈Glyphs/32⌉ | max(glyph.id) / 32 | One layer per 32 glyphs |
 
-The layers are densely packed, but there might be gaps beween font variants
-and before the first emoji layer, unless all 512 glyphs are used.
+The layers are densely packed, but there might be gaps between font variants
+and before the first emoji layer, unless all 1024 glyphs are used.
 
 ### Glyph ID Encoding and Mapping
 
@@ -180,13 +180,13 @@ packed representation is passed directly to the GPU.
 
 | Bit(s) | Flag Name     | Hex Mask | Binary Mask           | Description               |
 |--------|---------------|----------|-----------------------|---------------------------|
-| 0-8    | GLYPH_ID      | `0x01FF` | `0000_0001_1111_1111` | Base glyph identifier     |
-| 9      | BOLD          | `0x0200` | `0000_0010_0000_0000` | Bold font style           |
-| 10     | ITALIC        | `0x0400` | `0000_0100_0000_0000` | Italic font style         |
-| 11     | EMOJI         | `0x0800` | `0000_1000_0000_0000` | Emoji character flag      |
-| 12     | UNDERLINE     | `0x1000` | `0001_0000_0000_0000` | Underline effect          |
-| 13     | STRIKETHROUGH | `0x2000` | `0010_0000_0000_0000` | Strikethrough effect      |
-| 14-15  | RESERVED      | `0xC000` | `1100_0000_0000_0000` | Reserved for future use   |
+| 0-9    | GLYPH_ID      | `0x03FF` | `0000_0011_1111_1111` | Base glyph identifier     |
+| 10     | BOLD          | `0x0400` | `0000_0100_0000_0000` | Bold font style           |
+| 11     | ITALIC        | `0x0800` | `0000_1000_0000_0000` | Italic font style         |
+| 12     | EMOJI         | `0x1000` | `0001_0000_0000_0000` | Emoji character flag      |
+| 13     | UNDERLINE     | `0x2000` | `0010_0000_0000_0000` | Underline effect          |
+| 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
+| 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
 
 #### ID to 2D Array Position Examples
 
@@ -260,13 +260,13 @@ For a typical 12×18 pixel font with 2560 glyphs:
 
 | Component            | Size      | Details                                    |
 |----------------------|-----------|--------------------------------------------|
-| **2D Texture Array** | ~2.73 MB  | 16(12+2)×(18+2)×128 RGBA (16 glyphs/layer) |
+| **2D Texture Array** | ~5.46 MB  | 32(12+2)×(18+2)×128 RGBA (32 glyphs/layer) |
 | **Vertex Buffers**   | ~200 KB   | For 200×80 terminal                        |
 | **Cache Efficiency** | Good      | Sequential glyphs in same layer            |
 | **Memory Access**    | Coalesced | 64-bit aligned instance data               |
 
-The 16×1 grid layout ensures that adjacent terminal cells often access the same texture layer,
-maximizing GPU cache hits. ASCII characters (the most common) are packed into the first 8 layers,
+The 32×1 grid layout ensures that adjacent terminal cells often access the same texture layer,
+maximizing GPU cache hits. ASCII characters (the most common) are packed into the first 4 layers,
 providing optimal memory locality for typical terminal content.
 
 ### Shader Pipeline
@@ -284,7 +284,7 @@ Transforms cell geometry from grid space to screen space using per-instance attr
 Performs the core rendering logic with efficient 2D array texture lookups:
 
 - Extracts 16-bit glyph ID from packed instance data
-- Masks with 0x0FFF to exclude effect flags before computing layer index (glyph_id → layer/position)
+- Masks with 0x1FFF to exclude effect flags before computing layer index (glyph_id → layer/position)
 - Computes layer index and horizontal position using bit operations
 - Samples from 2D texture array using direct layer indexing
 - Detects emoji glyphs via bit 11 for special color handling
@@ -324,7 +324,7 @@ trunk build --release
 
 - **GPU compatibility**: Single-row layout maximizes horizontal cache coherence and minimizes 
 texture sampling overhead
-- **Simplified math**: Position within layer is just a matter of `glyph_id & 0x0F`
+- **Simplified math**: Position within layer is just a matter of `glyph_id & 0x1F`
 - **Cache efficiency**: Sequential glyphs (e.g., ASCII characters) are horizontally contiguous, 
 improving texture cache hit rates
 
