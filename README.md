@@ -284,7 +284,7 @@ Transforms cell geometry from grid space to screen space using per-instance attr
 Performs the core rendering logic with efficient 2D array texture lookups:
 
 - Extracts 16-bit glyph ID from packed instance data
-- Masks with 0x1FFF to exclude effect flags before computing layer index (glyph_id → layer/position)
+- Masks with `0x1FFF` to exclude effect flags before computing layer index (glyph_id → layer/position)
 - Computes layer index and horizontal position using bit operations
 - Samples from 2D texture array using direct layer indexing
 - Detects emoji glyphs via bit 11 for special color handling
@@ -342,17 +342,6 @@ improving texture cache hit rates
 - Single font family and font size per atlas
 
 
-## TODO
-- [x] **Text Effects**: Underline, strikethrough
-- [x] **Font Variants**: Bold, italic, and other font weight support
-- [x] **Complete Glyph Set**: Report (e.g. via logging) when glyphs are missing from the atlas
-- [x] **Emoji support**: Currently renders with only the foreground color
-
-## Undecided|Lower Prio Features
-- [ ] **Double Buffering**: Are there any benefits to double buffering for terminal rendering?
-- [ ] **Dynamic Atlases**: Runtime glyph addition without regeneration
-- [ ] **Partial Updates**: Only update changed cells instead of full grid
-- [ ] **Context Loss Recovery**: Buffer architecture designed for WebGL context restoration
 
 [API Badge]: https://docs.rs/beamterm-renderer/badge.svg
 [API]: https://docs.rs/beamterm-renderer
