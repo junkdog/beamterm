@@ -128,10 +128,7 @@ impl GlyphEffect {
             0x2000 => GlyphEffect::Underline,
             0x4000 => GlyphEffect::Strikethrough,
             0x6000 => GlyphEffect::Strikethrough,
-            _ => {
-                println!("Unknown glyph effect 0x{v:x}");
-                panic!("yolo panic");
-            },
+            _ => GlyphEffect::None,
         }
     }
 }

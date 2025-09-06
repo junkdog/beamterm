@@ -239,7 +239,8 @@ impl Serializable for FontAtlasData {
                 message: format_compact!(
                     "Atlas version mismatch: expected v{}, found v{}. \
                      Please regenerate atlas with current beamterm-atlas version.",
-                    ATLAS_VERSION, version
+                    ATLAS_VERSION,
+                    version
                 ),
             });
         }
