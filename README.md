@@ -81,15 +81,15 @@ for large terminals (200×80 cells = 16,000 instances).
 
 ### Total Memory Requirements
 
-For a 200×80 terminal with 2560 glyphs:
+For a 200×80 terminal with ~5100 glyphs:
 
 | Component      | Size        | Type                        |
 |----------------|-------------|-----------------------------|
-| Font Atlas     | 2.73 MB     | Texture memory              |
+| Font Atlas     | 8.7 MB      | Texture memory              |
 | Static Buffers | ~63 KB      | Vertex + Instance positions |
 | Dynamic Buffer | ~125 KB     | Cell content                |
 | Overhead       | ~10 KB      | VAO, shaders, uniforms      |
-| **Total**      | **~2.9 MB** | GPU memory                  |
+| **Total**      | **~8.9 MB** | GPU memory                  |
 
 
 ## Terminal Renderer API
@@ -192,9 +192,9 @@ packed representation is passed directly to the GPU.
 
 | Character | Style       | Glyph ID | Calculation            | Result                | 
 |-----------|-------------|----------|------------------------|-----------------------|
-| ' ' (32)  | Normal      | 0x0020   | 32÷16=2, 32%16=0       | Layer 2, Position 0   |
-| 'A' (65)  | Normal      | 0x0041   | 65÷16=4, 65%16=1       | Layer 4, Position 1   |
-| 'A' (65)  | Bold+Italic | 0x0641   | 1601÷16=100, 1601%16=1 | Layer 100, Position 1 |
+| ' ' (32)  | Normal      | 0x0020   | 32÷32=1, 32%32=0       | Layer 1, Position 0   |
+| 'A' (65)  | Normal      | 0x0041   | 65÷32=2, 65%32=1       | Layer 2, Position 1   |
+| 'A' (65)  | Bold+Italic | 0x0641   | 1601÷32=50, 1601%32=1  | Layer 50, Position 1  |
 | '€'       | Normal      | 0x0080   | Mapped to ID 128       | Layer 8, Position 0   |
 | '🚀'      | Emoji       | 0x0881   | With emoji bit set     | Layer 136, Position 1 |
 
@@ -256,11 +256,11 @@ Layout](#glyph-id-bit-layout-16-bit) section.
 
 ### Memory Layout and Performance
 
-For a typical 12×18 pixel font with 2560 glyphs:
+For a typical 12×18 pixel font with ~5100 glyphs:
 
 | Component            | Size      | Details                                    |
 |----------------------|-----------|--------------------------------------------|
-| **2D Texture Array** | ~5.46 MB  | 32(12+2)×(18+2)×128 RGBA (32 glyphs/layer) |
+| **2D Texture Array** | ~8.7 MB   | 32(12+2)×(18+2)×160 RGBA (32 glyphs/layer) |
 | **Vertex Buffers**   | ~200 KB   | For 200×80 terminal                        |
 | **Cache Efficiency** | Good      | Sequential glyphs in same layer            |
 | **Memory Access**    | Coalesced | 64-bit aligned instance data               |
@@ -320,7 +320,7 @@ trunk build --release
 
 ## Design Decisions
 
-### Why 16×1 Grid Per Layer?
+### Why 32×1 Grid Per Layer?
 
 - **GPU compatibility**: Single-row layout maximizes horizontal cache coherence and minimizes 
 texture sampling overhead
@@ -336,7 +336,7 @@ improving texture cache hit rates
 
 ## Limitations
 
-- Maximum 512 base glyphs (9-bit addressing)
+- Maximum 1024 base glyphs (10-bit addressing)
 - Fixed 4 style variants per glyph
 - Monospace fonts only
 - Single font family and font size per atlas
