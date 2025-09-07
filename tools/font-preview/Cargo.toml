@@ -16,5 +16,7 @@ beamterm-data = { path = "../../beamterm-data" }
 color-eyre = "0.6.5"
 cosmic-text = "0.14.2"
 crossterm = "0.28"
+emojis = "0.6"
 ratatui = "0.29"
 tracing = "0.1.41"
+unicode-segmentation = "1.12"

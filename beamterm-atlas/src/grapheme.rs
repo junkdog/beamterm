@@ -33,7 +33,7 @@ impl<'a> GraphemeSet<'a> {
         }
         let non_emoji_glyphs = ascii.len() + unicode.len();
         assert!(
-            non_emoji_glyphs <= 512,
+            non_emoji_glyphs <= 1024,
             "Too many unique graphemes: {non_emoji_glyphs}"
         );
 

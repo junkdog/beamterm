@@ -4,6 +4,7 @@ pub mod coordinate;
 pub mod font_discovery;
 pub mod glyph_bounds;
 pub mod glyph_rasterizer;
+pub mod glyph_set;
 pub mod grapheme;
 pub mod logging;
 pub mod raster_config;

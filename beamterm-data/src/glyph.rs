@@ -15,15 +15,15 @@ use compact_str::{CompactString, ToCompactString};
 ///
 /// | Bit(s) | Flag Name     | Hex Mask | Binary Mask           | Description               |
 /// |--------|---------------|----------|-----------------------|---------------------------|
-/// | 0-8    | GLYPH_ID      | `0x01FF` | `0000_0001_1111_1111` | Base glyph identifier     |
-/// | 9      | BOLD          | `0x0200` | `0000_0010_0000_0000` | Bold font style           |
-/// | 10     | ITALIC        | `0x0400` | `0000_0100_0000_0000` | Italic font style         |
-/// | 11     | EMOJI         | `0x0800` | `0000_1000_0000_0000` | Emoji character flag      |
-/// | 12     | UNDERLINE     | `0x1000` | `0001_0000_0000_0000` | Underline effect          |
-/// | 13     | STRIKETHROUGH | `0x2000` | `0010_0000_0000_0000` | Strikethrough effect      |
-/// | 14-15  | RESERVED      | `0xC000` | `1100_0000_0000_0000` | Reserved for future use   |
+/// | 0-9    | GLYPH_ID      | `0x03FF` | `0000_0011_1111_1111` | Base glyph identifier     |
+/// | 10     | BOLD          | `0x0400` | `0000_0100_0000_0000` | Bold font style           |
+/// | 11     | ITALIC        | `0x0800` | `0000_1000_0000_0000` | Italic font style         |
+/// | 12     | EMOJI         | `0x1000` | `0001_0000_0000_0000` | Emoji character flag      |
+/// | 13     | UNDERLINE     | `0x2000` | `0010_0000_0000_0000` | Underline effect          |
+/// | 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
+/// | 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
 ///
-/// - The first 9 bits (0-8) represent the base glyph ID, allowing for 512 unique glyphs.
+/// - The first 10 bits (0-9) represent the base glyph ID, allowing for 1024 unique glyphs.
 /// - Emoji glyphs implicitly clear any other font style bits.
 /// - The fragment shader uses the glyph ID to decode the texture coordinates and effects.
 ///
@@ -32,10 +32,10 @@ use compact_str::{CompactString, ToCompactString};
 /// | Character   | Style            | Binary Representation | Hex Value | Description         |
 /// |-------------|------------------|-----------------------|-----------|---------------------|
 /// | 'A' (0x41)  | Normal           | `0000_0000_0100_0001` | `0x0041`  | Plain 'A'           |
-/// | 'A' (0x41)  | Bold             | `0000_0010_0100_0001` | `0x0241`  | Bold 'A'            |
-/// | 'A' (0x41)  | Bold + Italic    | `0000_0110_0100_0001` | `0x0641`  | Bold italic 'A'     |
-/// | 'A' (0x41)  | Bold + Underline | `0000_1010_0100_0001` | `0x0A41`  | Bold underlined 'A' |
-/// | '🚀' (0x81) | Emoji            | `1000_0000_1000_0001` | `0x0881`  | "rocket" emoji      |
+/// | 'A' (0x41)  | Bold             | `0000_0100_0100_0001` | `0x0441`  | Bold 'A'            |
+/// | 'A' (0x41)  | Bold + Italic    | `0000_1100_0100_0001` | `0x0C41`  | Bold italic 'A'     |
+/// | 'A' (0x41)  | Bold + Underline | `0010_0100_0100_0001` | `0x2441`  | Bold underlined 'A' |
+/// | '🚀' (0x81) | Emoji            | `0001_0000_1000_0001` | `0x1081`  | "rocket" emoji      |
 #[derive(Debug, Eq, PartialEq)]
 pub struct Glyph {
     /// The glyph ID; encodes the 3d texture coordinates
@@ -55,19 +55,19 @@ impl Glyph {
     /// The ID is used as a short-lived placeholder until the actual ID is assigned.
     pub const UNASSIGNED_ID: u16 = 0xFFFF;
 
-    /// Glyph ID mask - extracts the base glyph identifier (bits 0-8).
-    /// Supports 512 unique base glyphs (0x000 to 0x1FF) in the texture atlas.
-    pub const GLYPH_ID_MASK: u16      = 0b0000_0001_1111_1111; // 0x01FF
+    /// Glyph ID mask - extracts the base glyph identifier (bits 0-9).
+    /// Supports 1024 unique base glyphs (0x000 to 0x3FF) in the texture atlas.
+    pub const GLYPH_ID_MASK: u16      = 0b0000_0011_1111_1111; // 0x03FF
     /// Bold flag - selects the bold variant of the glyph from the texture atlas.
-    pub const BOLD_FLAG: u16          = 0b0000_0010_0000_0000; // 0x0200
+    pub const BOLD_FLAG: u16          = 0b0000_0100_0000_0000; // 0x0400
     /// Italic flag - selects the italic variant of the glyph from the texture atlas.
-    pub const ITALIC_FLAG: u16        = 0b0000_0100_0000_0000; // 0x0400
+    pub const ITALIC_FLAG: u16        = 0b0000_1000_0000_0000; // 0x0800
     /// Emoji flag - indicates this glyph represents an emoji character requiring special handling.
-    pub const EMOJI_FLAG: u16         = 0b0000_1000_0000_0000; // 0x0800
+    pub const EMOJI_FLAG: u16         = 0b0001_0000_0000_0000; // 0x1000
     /// Underline flag - renders a horizontal line below the character baseline.
-    pub const UNDERLINE_FLAG: u16     = 0b0001_0000_0000_0000; // 0x1000
+    pub const UNDERLINE_FLAG: u16     = 0b0010_0000_0000_0000; // 0x2000
     /// Strikethrough flag - renders a horizontal line through the middle of the character.
-    pub const STRIKETHROUGH_FLAG: u16 = 0b0010_0000_0000_0000; // 0x2000
+    pub const STRIKETHROUGH_FLAG: u16 = 0b0100_0000_0000_0000; // 0x4000
 }
 
 impl Glyph {
@@ -116,22 +116,19 @@ pub enum GlyphEffect {
     /// No special effect applied to the glyph.
     None = 0x0,
     /// Underline effect applied below the glyph.
-    Underline = 0x1000,
+    Underline = 0x2000,
     /// Strikethrough effect applied through the glyph.
-    Strikethrough = 0x2000,
+    Strikethrough = 0x4000,
 }
 
 impl GlyphEffect {
     pub fn from_u16(v: u16) -> GlyphEffect {
         match v {
             0x0000 => GlyphEffect::None,
-            0x1000 => GlyphEffect::Underline,
-            0x2000 => GlyphEffect::Strikethrough,
-            0x3000 => GlyphEffect::Strikethrough,
-            _ => {
-                println!("Unknown glyph effect 0x{v:x}");
-                panic!("yolo panic");
-            },
+            0x2000 => GlyphEffect::Underline,
+            0x4000 => GlyphEffect::Strikethrough,
+            0x6000 => GlyphEffect::Strikethrough,
+            _ => GlyphEffect::None,
         }
     }
 }
@@ -139,9 +136,9 @@ impl GlyphEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontStyle {
     Normal = 0x0000,
-    Bold = 0x0200,
-    Italic = 0x0400,
-    BoldItalic = 0x0600,
+    Bold = 0x0400,
+    Italic = 0x0800,
+    BoldItalic = 0x0C00,
 }
 
 impl FontStyle {
@@ -151,9 +148,9 @@ impl FontStyle {
     pub fn from_u16(v: u16) -> FontStyle {
         match v {
             0x0000 => FontStyle::Normal,
-            0x0200 => FontStyle::Bold,
-            0x0400 => FontStyle::Italic,
-            0x0600 => FontStyle::BoldItalic,
+            0x0400 => FontStyle::Bold,
+            0x0800 => FontStyle::Italic,
+            0x0C00 => FontStyle::BoldItalic,
             _ => panic!("Invalid font style value: {v}"),
         }
     }

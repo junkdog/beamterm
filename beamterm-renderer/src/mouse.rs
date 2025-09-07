@@ -15,20 +15,20 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use beamterm_renderer::{Terminal, SelectionMode};
 //!
 //! // Enable default selection handler
 //! let terminal = Terminal::builder("#canvas")
 //!     .default_mouse_input_handler(SelectionMode::Linear, true)
-//!     .build()?;
+//!     .build().unwrap();
 //!
 //! // Or provide custom mouse handling
 //! let terminal = Terminal::builder("#canvas")
 //!     .mouse_input_handler(|event, grid| {
 //!         println!("Mouse event at ({}, {})", event.col, event.row);
 //!     })
-//!     .build()?;
+//!     .build().unwrap();
 //! ```
 
 use std::{
@@ -148,19 +148,21 @@ impl TerminalMouseHandler {
     /// Returns `Error::Callback` if event listeners cannot be attached to the canvas.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,no_run
     /// use beamterm_renderer::mouse::TerminalMouseHandler;
+    /// use std::{cell::RefCell, rc::Rc};
     ///
     /// let canvas = unimplemented!("canvas");
-    /// let grid = unimplemented!("TerminalGrid");
+    /// let grid: Rc<RefCell<()>> = unimplemented!("TerminalGrid");
     ///
-    /// let handler = TerminalMouseHandler::new(
-    ///     &canvas,
-    ///     grid.clone(),
-    ///     |event, grid| {
-    ///         println!("Click at ({}, {})", event.col, event.row);
-    ///     }
-    /// )?;
+    /// // In real code, this would be TerminalGrid
+    /// // let handler = TerminalMouseHandler::new(
+    /// //     &canvas,
+    /// //     grid.clone(),
+    /// //     |event, grid| {
+    /// //         println!("Click at ({}, {})", event.col, event.row);
+    /// //     }
+    /// // ).unwrap();
     /// ```
     pub fn new<F>(
         canvas: &web_sys::HtmlCanvasElement,

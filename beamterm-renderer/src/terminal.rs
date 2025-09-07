@@ -22,40 +22,40 @@ use crate::{
 /// The renderer supports mouse-driven text selection with automatic clipboard
 /// integration:
 ///
-/// ```rust
+/// ```rust,no_run
 /// // Enable default selection handler
 /// use beamterm_renderer::{SelectionMode, Terminal};
 ///
 /// let terminal = Terminal::builder("#canvas")
 ///     .default_mouse_input_handler(SelectionMode::Linear, true)
-///     .build()?;
+///     .build().unwrap();
 ///
 /// // Or implement custom mouse handling
 /// let terminal = Terminal::builder("#canvas")
 ///     .mouse_input_handler(|event, grid| {
 ///         // Custom handler logic
 ///     })
-///     .build()?;
+///     .build().unwrap();
 ///```
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,no_run
 /// use beamterm_renderer::{CellData, Terminal};
 ///
 /// // Create and render a simple terminal
-/// let mut terminal = Terminal::builder("#canvas").build()?;
+/// let mut terminal = Terminal::builder("#canvas").build().unwrap();
 ///
 /// // Update cells with content
 /// let cells: Vec<CellData> = unimplemented!();
-/// terminal.update_cells(cells.into_iter())?;
+/// terminal.update_cells(cells.into_iter()).unwrap();
 ///
 /// // Render frame
-/// terminal.render_frame()?;
+/// terminal.render_frame().unwrap();
 ///
 /// // Handle window resize
 /// let (new_width, new_height) = (800, 600);
-/// terminal.resize(new_width, new_height)?;
+/// terminal.resize(new_width, new_height).unwrap();
 /// ```
 #[derive(Debug)]
 pub struct Terminal {
@@ -72,16 +72,16 @@ impl Terminal {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// // Using CSS selector
     /// use web_sys::HtmlCanvasElement;
     /// use beamterm_renderer::Terminal;
     ///
-    /// let terminal = Terminal::builder("my-terminal").build()?;
+    /// let terminal = Terminal::builder("my-terminal").build().unwrap();
     ///
     /// // Using canvas element
     /// let canvas: &HtmlCanvasElement = unimplemented!("document.get_element_by_id(...)");
-    /// let terminal = Terminal::builder(canvas).build()?;
+    /// let terminal = Terminal::builder(canvas).build().unwrap();
     /// ```
     #[allow(private_bounds)]
     pub fn builder(canvas: impl Into<CanvasSource>) -> TerminalBuilder {
@@ -263,18 +263,18 @@ enum CanvasSource {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,no_run
 /// // Simple terminal with default configuration
 /// use beamterm_renderer::{FontAtlas, FontAtlasData, Terminal};
 ///
-/// let terminal = Terminal::builder("#canvas").build()?;
+/// let terminal = Terminal::builder("#canvas").build().unwrap();
 ///
 /// // Terminal with custom font atlas
-/// let atlas = FontAtlasData::from_binary(unimplemented!(".atlas data"))?;
+/// let atlas = FontAtlasData::from_binary(unimplemented!(".atlas data")).unwrap();
 /// let terminal = Terminal::builder("#canvas")
 ///     .font_atlas(atlas)
 ///     .fallback_glyph("X".into())
-///     .build()?;
+///     .build().unwrap();
 /// ```
 pub struct TerminalBuilder {
     canvas: CanvasSource,

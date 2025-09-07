@@ -7,7 +7,7 @@ use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable};
 /// Font atlas data for GPU-accelerated terminal rendering.
 ///
 /// Contains a pre-rasterized font atlas stored as a 2D texture array, where each layer
-/// holds 16 glyphs in a 16×1 grid. The atlas includes multiple font styles (normal, bold,
+/// holds 32 glyphs in a 32×1 grid. The atlas includes multiple font styles (normal, bold,
 /// italic, bold+italic) and full Unicode support including emoji.
 #[derive(PartialEq)]
 pub struct FontAtlasData {
@@ -44,7 +44,7 @@ impl Debug for FontAtlasData {
 
 impl FontAtlasData {
     pub const PADDING: i32 = 1;
-    pub const CELLS_PER_SLICE: i32 = 16;
+    pub const CELLS_PER_SLICE: i32 = 32;
 
     pub fn from_binary(serialized: &[u8]) -> Result<Self, FontAtlasDeserializationError> {
         let mut deserializer = Deserializer::new(serialized);

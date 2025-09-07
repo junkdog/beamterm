@@ -3,7 +3,7 @@ use compact_str::{format_compact, CompactString};
 use crate::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
-const ATLAS_VERSION: u8 = 0x01; // dictates the format of the serialized data
+const ATLAS_VERSION: u8 = 0x02; // dictates the format of the serialized data
 
 #[derive(Debug)]
 pub struct SerializationError {
@@ -236,7 +236,12 @@ impl Serializable for FontAtlasData {
         let version = deser.read_u8()?;
         if version != ATLAS_VERSION {
             return Err(SerializationError {
-                message: format_compact!("Unsupported font atlas version 0x{:02x}", version),
+                message: format_compact!(
+                    "Atlas version mismatch: expected v{}, found v{}. \
+                     Please regenerate atlas with current beamterm-atlas version.",
+                    ATLAS_VERSION,
+                    version
+                ),
             });
         }
 
