@@ -7,10 +7,11 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(atlas)* Double glyph capacity from 512 to 1024 glyphs per font style (#27)
+- *(atlas)* Add `--check-missing` option to CLI
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(font)* IBM Plex Mono 15pt (11x20)
+- *(font)* Hack 14.94pt, 11x18px
 
 ## [beamterm-v0.6.0] - 2025-08-14
 
