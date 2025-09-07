@@ -18,6 +18,19 @@ use crate::{
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
+#[derive(Debug, Clone)]
+pub struct MissingGlyph {
+    pub symbol: String,
+    pub style: FontStyle,
+}
+
+#[derive(Debug)]
+pub struct MissingGlyphReport {
+    pub missing_glyphs: Vec<MissingGlyph>,
+    pub total_checked: usize,
+    pub font_family_name: String,
+}
+
 pub struct GlyphBitmap {
     pub data: Vec<(i32, i32, Color)>, // (x, y, color)
     pub bounds: GlyphBounds,
@@ -95,7 +108,7 @@ impl AtlasFontGenerator {
             line_height,
             underline,
             strikethrough,
-            font_family_name: font_family.name,
+            font_family_name: font_family.name.clone(),
         })
     }
 
@@ -565,6 +578,51 @@ impl AtlasFontGenerator {
 
         bounds
     }
+
+    /// Checks which glyphs are missing from the font and returns a detailed report
+    /// Uses rasterization to detect missing glyphs - if rasterization produces no visible pixels,
+    /// the glyph is considered missing from the font.
+    pub fn check_missing_glyphs(&mut self, chars: &str) -> MissingGlyphReport {
+        let grapheme_set = GraphemeSet::new(chars);
+        let glyphs = grapheme_set.into_glyphs();
+
+        let mut missing_glyphs = Vec::new();
+        let mut total_checked = 0;
+
+        // Use the same glyph bounds as the main generation
+        let bounds = self.calculate_optimized_cell_dimensions();
+
+        for glyph in &glyphs {
+            // Skip emoji glyphs as they use different rendering path
+            if glyph.is_emoji {
+                continue;
+            }
+
+            total_checked += 1;
+
+            // Try to rasterize the glyph - if it produces no visible pixels, it's missing
+            let rasterized = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
+            let is_supported = !rasterized.data.is_empty();
+
+            if !is_supported {
+                debug!(
+                    symbol = %glyph.symbol,
+                    style = ?glyph.style,
+                    "Glyph not supported - rasterization produced no pixels"
+                );
+                missing_glyphs.push(MissingGlyph {
+                    symbol: glyph.symbol.to_string(),
+                    style: glyph.style,
+                });
+            }
+        }
+
+        MissingGlyphReport {
+            missing_glyphs,
+            total_checked,
+            font_family_name: self.font_family_name.clone(),
+        }
+    }
 }
 
 /// Creates comprehensive test glyphs for accurate cell dimension calculation across all font styles
@@ -599,4 +657,66 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
             .map(move |style| Glyph::new(ch, style, (0, 0)))
     })
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::font_discovery::FontDiscovery;
+
+    #[test]
+    fn test_missing_glyph_detection() {
+        // Create a font discovery instance and get available fonts
+        let discovery = FontDiscovery::new();
+        let available_fonts = discovery.discover_complete_monospace_families();
+
+        if available_fonts.is_empty() {
+            println!("No fonts available for testing");
+            return;
+        }
+
+        // Use the first available font
+        let font_family = available_fonts[0].clone();
+
+        // Create a generator
+        let mut generator = AtlasFontGenerator::new_with_family(
+            font_family.clone(),
+            15.0,
+            1.0,
+            beamterm_data::LineDecoration::new(0.85, 0.05),
+            beamterm_data::LineDecoration::new(0.5, 0.05),
+        )
+        .expect("Failed to create generator");
+
+        // Test with simple ASCII characters that should definitely be supported
+        let test_chars = "ABC123";
+        let report = generator.check_missing_glyphs(test_chars);
+
+        // Verify basic properties of the report
+        assert_eq!(report.font_family_name, font_family.name);
+        assert_eq!(report.total_checked, 24); // 6 chars × 4 styles = 24 glyphs (excluding emoji)
+
+        // These basic ASCII characters should be supported by any reasonable font
+        // If they're all missing, something is wrong with our detection logic
+        let missing_basic_chars = report
+            .missing_glyphs
+            .iter()
+            .filter(|g| "ABC123".contains(&g.symbol))
+            .count();
+
+        assert_eq!(
+            missing_basic_chars, 0,
+            "Basic ASCII characters should not be missing"
+        );
+
+        // The missing count should be reasonable (most glyphs should be supported)
+        let coverage_percent = ((report.total_checked - report.missing_glyphs.len()) as f64
+            / report.total_checked as f64)
+            * 100.0;
+        assert!(
+            coverage_percent > 90.0,
+            "Font coverage should be above 90%, got {:.1}%",
+            coverage_percent
+        );
+    }
 }

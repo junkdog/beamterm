@@ -72,14 +72,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Generate the font
-    let bitmap_font = AtlasFontGenerator::new_with_family(
+    let mut generator = AtlasFontGenerator::new_with_family(
         selected_font.clone(),
         cli.font_size,
         cli.line_height,
         underline,
         strikethrough,
-    )?
-    .generate(GLYPHS);
+    )?;
+
+    let bitmap_font = generator.generate(GLYPHS);
 
     bitmap_font.save(&cli.output)?;
 
@@ -124,5 +125,74 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0)
     );
 
+    // Check for missing glyphs if requested
+    if cli.check_missing {
+        report_missing_glyphs(&mut generator);
+    }
+
     Ok(())
+}
+
+fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
+    println!("\n🔍 Checking for missing glyphs...");
+    let missing_report = generator.check_missing_glyphs(GLYPHS);
+
+    if missing_report.missing_glyphs.is_empty() {
+        println!(
+            "✅ All {} glyphs are supported by font '{}'",
+            missing_report.total_checked, missing_report.font_family_name
+        );
+    } else {
+        println!(
+            "⚠️  Found {} missing glyphs out of {} checked in font '{}':",
+            missing_report.missing_glyphs.len(),
+            missing_report.total_checked,
+            missing_report.font_family_name
+        );
+
+        // Group missing glyphs by style for better readability
+        for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic]
+        {
+            let mut glyphs: Vec<_> = missing_report
+                .missing_glyphs
+                .iter()
+                .filter(|g| g.style == style)
+                .collect();
+
+            if !glyphs.is_empty() {
+                // Sort glyphs by symbol for consistent output
+                glyphs.sort_by_key(|g| &g.symbol);
+
+                println!("  {:?}:", style);
+
+                // Print 8 glyphs per line
+                for chunk in glyphs.chunks(8) {
+                    let line = chunk
+                        .iter()
+                        .map(|glyph| {
+                            let first_char = glyph.symbol.chars().next().unwrap_or('\0');
+                            let codepoint = first_char as u32;
+
+                            let display_symbol =
+                                if first_char.is_control() || first_char.is_whitespace() {
+                                    format!("U+{:04X}", codepoint)
+                                } else {
+                                    format!("'{}'", glyph.symbol)
+                                };
+                            format!("{} (0x{:04X})", display_symbol, codepoint)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    println!("    {}", line);
+                }
+            }
+        }
+
+        let success_rate = ((missing_report.total_checked - missing_report.missing_glyphs.len())
+            as f64
+            / missing_report.total_checked as f64)
+            * 100.0;
+
+        println!("📊 Font coverage: {:.1}%", success_rate);
+    }
 }

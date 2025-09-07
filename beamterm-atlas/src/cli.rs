@@ -49,6 +49,10 @@ pub struct Cli {
     /// List available fonts and exit
     #[arg(short = 'L', long)]
     pub list_fonts: bool,
+
+    /// Check for missing glyphs and show detailed coverage report
+    #[arg(long)]
+    pub check_missing: bool,
 }
 
 impl Cli {
@@ -188,6 +192,7 @@ mod tests {
             strikethrough_position: 0.5,
             strikethrough_thickness: 5.0,
             list_fonts: false,
+            check_missing: false,
         };
 
         assert!(cli.validate().is_ok());
@@ -205,6 +210,7 @@ mod tests {
             strikethrough_position: 0.5,
             strikethrough_thickness: 5.0,
             list_fonts: false,
+            check_missing: false,
         };
 
         assert!(cli.validate().is_err());
@@ -222,6 +228,7 @@ mod tests {
             strikethrough_position: 0.5,
             strikethrough_thickness: 5.0,
             list_fonts: false,
+            check_missing: false,
         };
 
         assert!(cli.validate().is_err());
