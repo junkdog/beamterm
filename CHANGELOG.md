@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(atlas)* Double glyph capacity from 512 to 1024 glyphs per font style (#27)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(font)* IBM Plex Mono 15pt (11x20)
+
 ## [beamterm-v0.6.0] - 2025-08-14
 
 ### 🚀 Features
@@ -19,6 +29,7 @@ All notable changes to this project will be documented in this file.
 
 - *(atlas)* More glyphs
 - *(font)* Hack 16.6pt (12x20)
+- Release beamterm 0.6.0
 
 ## [beamterm-v0.5.0] - 2025-06-29
 
