@@ -182,7 +182,7 @@ impl Iterator for LinearCellIterator {
         let idx = self.current_idx;
 
         // Check if we need a newline before this cell (except for the first cell)
-        let is_row_start = idx % self.cols as usize == 0;
+        let is_row_start = idx.is_multiple_of(self.cols as usize);
         let is_first_cell = idx == self.current_idx;
         let needs_newline_before = is_row_start && !is_first_cell;
 
@@ -193,7 +193,8 @@ impl Iterator for LinearCellIterator {
 
         // Check if NEXT cell will need a newline before it
         let needs_newline_after = if self.current_idx <= self.end_idx {
-            self.current_idx % self.cols as usize == 0
+            self.current_idx
+                .is_multiple_of(self.cols as usize)
         } else {
             false
         };

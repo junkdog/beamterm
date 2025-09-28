@@ -185,8 +185,8 @@ fn render_slice_row(atlas: &FontAtlasData, slice: usize, y: usize, output: &mut 
             (false, false) => {
                 // Empty pixel
                 let on_h_grid = x % atlas.cell_size.0 as usize == 0;
-                let on_v_grid_top = y % atlas.cell_size.1 as usize == 0;
-                let on_v_grid_bottom = (y + 1) % atlas.cell_size.1 as usize == 0;
+                let on_v_grid_top = y.is_multiple_of(atlas.cell_size.1 as usize);
+                let on_v_grid_bottom = (y + 1).is_multiple_of(atlas.cell_size.1 as usize);
 
                 if on_h_grid && on_v_grid_top {
                     // Top pixel is at cell start
