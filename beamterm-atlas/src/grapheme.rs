@@ -46,7 +46,7 @@ impl<'a> GraphemeSet<'a> {
         // pre-assigned glyphs (in the range 0x000-0x07F)
         let mut used_ids = HashSet::new();
         for c in self.ascii.iter() {
-            used_ids.insert(c.chars().next().unwrap() as u16);
+            used_ids.insert(c.chars().next().unwrap() as u32);
             for style in FontStyle::ALL {
                 glyphs.push(Glyph::new(c, style, (0, 0)));
             }
@@ -73,11 +73,11 @@ fn is_ascii_control(s: &str) -> bool {
     s.is_ascii() && (s.chars().next().unwrap() as u32) < 0x20
 }
 
-fn assign_missing_glyph_ids(used_ids: HashSet<u16>, symbols: &[&str]) -> Vec<Glyph> {
+fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[&str]) -> Vec<Glyph> {
     let mut next_id: i32 = -1; // initial value to -1
     let mut next_glyph_id = || {
         let mut id = next_id;
-        while id == -1 || used_ids.contains(&(id as u16)) {
+        while id == -1 || used_ids.contains(&(id as u32)) {
             id += 1;
         }
 
