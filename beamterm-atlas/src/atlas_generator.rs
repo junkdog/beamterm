@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use color_eyre::Report;
 use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
@@ -83,7 +84,7 @@ impl AtlasFontGenerator {
         line_height: f32,
         underline: LineDecoration,
         strikethrough: LineDecoration,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, Report> {
         info!(
             font_family = %font_family.name,
             font_size = font_size,

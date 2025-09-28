@@ -12,6 +12,7 @@ mod raster_config;
 
 use beamterm_data::*;
 use clap::Parser;
+use color_eyre::eyre::{Context, Result};
 
 use crate::{
     atlas_generator::AtlasFontGenerator,
@@ -21,14 +22,14 @@ use crate::{
     logging::{init_logging, LoggingConfig},
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     // panic hook
     color_eyre::install()?;
 
     // Initialize structured logging
     let logging_config = LoggingConfig::from_env();
     let (_guard, _reload_handle) =
-        init_logging(logging_config).map_err(|e| format!("Failed to initialize logging: {e}"))?;
+        init_logging(logging_config).wrap_err("Failed to initialize logging")?;
 
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),

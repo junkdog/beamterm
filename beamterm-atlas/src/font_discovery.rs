@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use color_eyre::{eyre::eyre, Report};
 use cosmic_text::{fontdb, FontSystem, Style, Weight};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,7 +79,7 @@ impl FontDiscovery {
     pub fn load_font_family(
         font_system: &mut FontSystem,
         family: &FontFamily,
-    ) -> Result<(), String> {
+    ) -> Result<(), Report> {
         let db = font_system.db();
 
         let all_fonts = [
@@ -91,7 +92,7 @@ impl FontDiscovery {
         // verify all fonts exist
         for id in all_fonts.into_iter() {
             if db.face(id).is_none() {
-                return Err(format!("Font ID {id} not found in database"));
+                return Err(eyre!("Font ID {id} not found in database"));
             }
         }
 

@@ -1,6 +1,7 @@
 use std::{fs::File, io::Write};
 
 use beamterm_data::FontAtlasData;
+use color_eyre::Report;
 
 /// Represents a bitmap font with all its associated metadata
 #[derive(Debug)]
@@ -11,7 +12,7 @@ pub struct BitmapFont {
 
 impl BitmapFont {
     /// Save bitmap font and metadata to a file
-    pub fn save(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self, path: &str) -> Result<(), Report> {
         let metadata = &self.atlas_data;
         let mut file = File::create(path)?;
         Write::write_all(&mut file, &metadata.to_binary())?;

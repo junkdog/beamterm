@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use color_eyre::Report;
 use directories::ProjectDirs;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -120,7 +121,7 @@ impl LoggingConfig {
 /// Initialize the logging system with the given configuration
 pub fn init_logging(
     config: LoggingConfig,
-) -> Result<(Option<WorkerGuard>, LoggingReloadHandle), Box<dyn std::error::Error>> {
+) -> Result<(Option<WorkerGuard>, LoggingReloadHandle), Report> {
     let mut layers = vec![];
     let mut guard = None;
     let mut reload_handle = LoggingReloadHandle {

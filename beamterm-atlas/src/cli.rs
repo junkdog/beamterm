@@ -1,4 +1,5 @@
 use clap::Parser;
+use color_eyre::{eyre::eyre, Report};
 
 use crate::font_discovery::{FontDiscovery, FontFamily};
 
@@ -60,22 +61,22 @@ impl Cli {
     pub fn select_font<'a>(
         &self,
         available_fonts: &'a [FontFamily],
-    ) -> Result<&'a FontFamily, String> {
+    ) -> Result<&'a FontFamily, Report> {
         if available_fonts.is_empty() {
-            return Err("No complete monospace font families found!".to_string());
+            return Err(eyre!("No complete monospace font families found!"));
         }
 
         let font = self
             .font
             .as_ref()
-            .ok_or("Font selection required")?;
+            .ok_or_else(|| eyre!("Font selection required"))?;
 
         // Try parsing as index first (1-based)
         if let Ok(idx) = font.parse::<usize>() {
             if idx > 0 && idx <= available_fonts.len() {
                 return Ok(&available_fonts[idx - 1]);
             } else {
-                return Err(format!(
+                return Err(eyre!(
                     "Font index {} out of range (1-{})",
                     idx,
                     available_fonts.len()
@@ -91,7 +92,7 @@ impl Cli {
                     .to_lowercase()
                     .contains(&font.to_lowercase())
             })
-            .ok_or_else(|| format!("Font '{font}' not found"))
+            .ok_or_else(|| eyre!("Font '{font}' not found"))
     }
 
     /// Displays the list of available fonts
@@ -120,31 +121,35 @@ impl Cli {
     }
 
     /// Validates the CLI arguments
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), Report> {
         if self.font_size <= 0.0 {
-            return Err("Font size must be positive".to_string());
+            return Err(eyre!("Font size must be positive"));
         }
 
         if self.line_height <= 0.0 {
-            return Err("Line height must be positive".to_string());
+            return Err(eyre!("Line height must be positive"));
         }
 
         // Validate position values are in [0.0, 1.0]
         if self.underline_position < 0.0 || self.underline_position > 1.0 {
-            return Err("Underline position must be between 0.0 and 1.0".to_string());
+            return Err(eyre!("Underline position must be between 0.0 and 1.0"));
         }
 
         if self.strikethrough_position < 0.0 || self.strikethrough_position > 1.0 {
-            return Err("Strikethrough position must be between 0.0 and 1.0".to_string());
+            return Err(eyre!("Strikethrough position must be between 0.0 and 1.0"));
         }
 
         // Validate thickness values are reasonable percentages
         if self.underline_thickness <= 0.0 || self.underline_thickness > 100.0 {
-            return Err("Underline thickness must be between 0 and 100 percent".to_string());
+            return Err(eyre!(
+                "Underline thickness must be between 0 and 100 percent"
+            ));
         }
 
         if self.strikethrough_thickness <= 0.0 || self.strikethrough_thickness > 100.0 {
-            return Err("Strikethrough thickness must be between 0 and 100 percent".to_string());
+            return Err(eyre!(
+                "Strikethrough thickness must be between 0 and 100 percent"
+            ));
         }
 
         Ok(())
