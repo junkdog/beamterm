@@ -21,7 +21,7 @@ categories = ["graphics", "wasm", "web-programming"]
 compact_str = "0.9.0"
 console_error_panic_hook = "0.1.7"
 js-sys = "0.3.77"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.226", features = ["derive"] }
 serde_json = "1.0.143"
 thiserror = "2.0.16"
 unicode-segmentation = "1.12.0"
