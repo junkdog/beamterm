@@ -1,12 +1,12 @@
-use std::collections::HashSet;
-
+use std::collections::{BTreeSet, HashSet};
+use std::ops::RangeInclusive;
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use color_eyre::Report;
 use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
-
+use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     bitmap_font::BitmapFont,
     coordinate::AtlasCoordinate,
@@ -113,16 +113,21 @@ impl AtlasFontGenerator {
         })
     }
 
-    pub fn generate(&mut self, chars: &str) -> BitmapFont {
+    pub fn generate(
+        &mut self,
+        unicode_ranges: &[RangeInclusive<char>],
+        emoji: &str,
+    ) -> BitmapFont {
+        let char_count = unicode_ranges.iter().map(|r| r.clone().into_iter().count()).sum::<usize>();
         info!(
             font_family = %self.font_family_name,
-            char_count = chars.chars().count(),
-            chars = %chars,
+            char_count = char_count,
+            char_dbl_count = emoji.graphemes(true).count(),
             "Starting font generation"
         );
 
         // categorize and allocate IDs
-        let grapheme_set = GraphemeSet::new(chars);
+        let grapheme_set = GraphemeSet::new(unicode_ranges, emoji);
         let glyphs = grapheme_set.into_glyphs();
 
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
@@ -158,10 +163,7 @@ impl AtlasFontGenerator {
 
         let texture_data = texture_data
             .iter()
-            .flat_map(|&color| {
-                let [a, b, g, r] = color.to_le_bytes();
-                [r, g, b, a]
-            })
+            .flat_map(|&color| color.to_be_bytes()) // rgba
             .collect::<Vec<u8>>();
 
         // Nudge strikethrough and underline positions to nearest 0.5 pixel for perfect centering
@@ -584,7 +586,7 @@ impl AtlasFontGenerator {
     /// Uses rasterization to detect missing glyphs - if rasterization produces no visible pixels,
     /// the glyph is considered missing from the font.
     pub fn check_missing_glyphs(&mut self, chars: &str) -> MissingGlyphReport {
-        let grapheme_set = GraphemeSet::new(chars);
+        let grapheme_set = GraphemeSet::new_from_str(chars);
         let glyphs = grapheme_set.into_glyphs();
 
         let mut missing_glyphs = Vec::new();
@@ -659,6 +661,7 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
     })
     .collect()
 }
+
 
 #[cfg(test)]
 mod tests {

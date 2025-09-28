@@ -10,6 +10,7 @@ mod grapheme;
 mod logging;
 mod raster_config;
 
+use std::collections::BTreeSet;
 use beamterm_data::*;
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
@@ -81,8 +82,18 @@ fn main() -> Result<()> {
         strikethrough,
     )?;
 
-    let bitmap_font = generator.generate(GLYPHS);
+    let ranges = if cli.ranges.is_empty() {
+        default_unicode_ranges()
+    } else {
+        let mut ranges = cli.ranges.clone();
+        ranges.push('\u{0020}'..='\u{007E}');
+        ranges.sort_by(|a, b| a.start().cmp(b.start()));
+        ranges.dedup();
+        ranges
+    };
 
+    let emoji = cli.read_emoji_file()?;
+    let bitmap_font = generator.generate(&ranges, &emoji);
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -134,7 +145,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
+fn report_missing_glyphs(
+    generator: &mut AtlasFontGenerator
+) {
     println!("\n🔍 Checking for missing glyphs...");
     let missing_report = generator.check_missing_glyphs(GLYPHS);
 
@@ -196,4 +209,21 @@ fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
 
         println!("📊 Font coverage: {:.1}%", success_rate);
     }
+}
+
+fn default_unicode_ranges() -> Vec<std::ops::RangeInclusive<char>> {
+    vec![
+        '\u{0020}'..='\u{007E}', // Basic Latin
+        '\u{00A0}'..='\u{00FF}', // Latin-1 Supplement
+        '\u{0100}'..='\u{017F}', // Latin Extended-A
+        // '\u{0180}'..='\u{024F}', // Latin Extended-B
+        '\u{231A}'..='\u{231B}', // ⌚, ⌛ (Miscellaneous Technical)
+        '\u{23CE}'..='\u{23CF}', // ⏎, ⏏ (Miscellaneous Technical)
+        '\u{23E9}'..='\u{23FC}', // excerpt fr Miscellaneous Technical
+        '\u{2500}'..='\u{257F}', // Box Drawing
+        '\u{2580}'..='\u{259F}', // Block Elements
+        '\u{25A0}'..='\u{25CF}', // Geometric Shapes (excerpt)
+        '\u{25E2}'..='\u{25FF}', // Geometric Shapes (excerpt)
+        '\u{2800}'..='\u{28FF}', // Braille Patterns
+    ]
 }
