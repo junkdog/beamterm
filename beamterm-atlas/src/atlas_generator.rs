@@ -133,16 +133,17 @@ impl AtlasFontGenerator {
             "Starting font generation"
         );
 
+        // calculate texture dimensions using all font styles to ensure proper cell sizing
+        let bounds = self.calculate_optimized_cell_dimensions();
+
         // categorize and allocate IDs
         let grapheme_set = GraphemeSet::new(unicode_ranges, emoji);
-        let glyphs = grapheme_set.into_glyphs();
+        let glyphs = grapheme_set.into_glyphs(bounds);
 
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
 
-        // calculate texture dimensions using all font styles to ensure proper cell sizing
         // let test_glyphs = create_test_glyphs_for_cell_calculation();
         // let bounds = self.calculate_cell_dimensions(&test_glyphs);
-        let bounds = self.calculate_optimized_cell_dimensions();
         let config = RasterizationConfig::new(bounds, &glyphs);
         info!(
             bounds = ?bounds,
@@ -155,17 +156,9 @@ impl AtlasFontGenerator {
         // allocate 3d rgba texture data
         let mut texture_data = vec![0u32; config.texture_size()];
 
-        // rasterize glyphs into 3d texture
-        let mut rasterized_glyphs = Vec::with_capacity(glyphs.len());
-        for glyph in glyphs.into_iter() {
-            let coord = AtlasCoordinate::from_glyph_id(glyph.id);
-
-            self.place_glyph_in_3d_texture(&glyph, &config, &mut texture_data, coord);
-
-            // update glyph with actual texture coordinates
-            let mut updated_glyph = glyph;
-            updated_glyph.pixel_coords = coord.xy(&config);
-            rasterized_glyphs.push(updated_glyph);
+        // rasterize glyphs and copy into texture
+        for glyph in &glyphs {
+            self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data);
         }
 
         let texture_data = texture_data
@@ -198,7 +191,7 @@ impl AtlasFontGenerator {
 
         info!(
             font_family = %self.font_family_name,
-            glyph_count = rasterized_glyphs.len(),
+            glyph_count = glyphs.len(),
             texture_size_bytes = texture_data.len(),
             cell_height = cell_height,
             underline_provided_pos = self.underline.position,
@@ -220,7 +213,7 @@ impl AtlasFontGenerator {
                 cell_size: config.padded_cell_size(),
                 underline: nudged_underline,
                 strikethrough: nudged_strikethrough,
-                glyphs: rasterized_glyphs,
+                glyphs,
                 texture_data,
             },
         }
@@ -232,7 +225,6 @@ impl AtlasFontGenerator {
         glyph: &Glyph,
         config: &RasterizationConfig,
         texture: &mut [u32],
-        coord: AtlasCoordinate,
     ) {
         debug!(
             symbol = %glyph.symbol,
@@ -242,6 +234,7 @@ impl AtlasFontGenerator {
             "Rasterizing glyph"
         );
 
+
         let pixels = self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds())
             // .checkered()
             .data
@@ -250,7 +243,8 @@ impl AtlasFontGenerator {
             .collect::<Vec<_>>();
 
         // render pixels to texture
-        let cell_offset = coord.cell_offset_in_px(config);
+        let coord = AtlasCoordinate::from_glyph_id(glyph.id);
+        let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
         self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
     }
 
@@ -641,14 +635,15 @@ impl AtlasFontGenerator {
     /// Uses rasterization to detect missing glyphs - if rasterization produces no visible pixels,
     /// the glyph is considered missing from the font.
     pub fn check_missing_glyphs(&mut self, chars: &str) -> MissingGlyphReport {
+        // Use the same glyph bounds as the main generation
+        let bounds = self.calculate_optimized_cell_dimensions();
+
         let grapheme_set = GraphemeSet::new_from_str(chars);
-        let glyphs = grapheme_set.into_glyphs();
+        let glyphs = grapheme_set.into_glyphs(bounds);
 
         let mut missing_glyphs = Vec::new();
         let mut total_checked = 0;
 
-        // Use the same glyph bounds as the main generation
-        let bounds = self.calculate_optimized_cell_dimensions();
 
         for glyph in &glyphs {
             // Skip emoji glyphs as they use different rendering path

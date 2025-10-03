@@ -42,8 +42,8 @@ impl RasterizationConfig {
 
     pub(super) fn padded_cell_size(&self) -> (i32, i32) {
         (
-            self.bounds.width() + 2 * FontAtlasData::PADDING,
-            self.bounds.height() + 2 * FontAtlasData::PADDING,
+            self.bounds.width_with_padding(),
+            self.bounds.height_with_padding(),
         )
     }
 }
