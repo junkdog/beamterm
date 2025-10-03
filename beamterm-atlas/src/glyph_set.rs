@@ -58,17 +58,18 @@ qrstuvwxyz{|}~¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶¸¹º»¼½¾¿ÀÁÂÃ
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::{collections::BTreeSet, fs};
+
     use super::*;
-    use std::fs;
 
     #[test]
     #[ignore]
     fn test_extract_emoji_from_glyphs() {
         // Use the existing emoji detection logic from the codebase
-        let emoji_chars: BTreeSet<&str> = unicode_segmentation::UnicodeSegmentation::graphemes(GLYPHS, true)
-            .filter(|&g| emojis::get(g).is_some())
-            .collect();
+        let emoji_chars: BTreeSet<&str> =
+            unicode_segmentation::UnicodeSegmentation::graphemes(GLYPHS, true)
+                .filter(|&g| emojis::get(g).is_some())
+                .collect();
         let emoji_chars: Vec<&str> = emoji_chars.into_iter().collect();
 
         println!("Found {} emoji characters", emoji_chars.len());
@@ -81,7 +82,12 @@ mod tests {
         assert!(!emoji_chars.is_empty(), "No emoji found in GLYPHS constant");
 
         // Print some statistics
-        let sample: String = emoji_chars.iter().take(20).map(|&s| s).collect::<Vec<&str>>().join("");
+        let sample: String = emoji_chars
+            .iter()
+            .take(20)
+            .map(|&s| s)
+            .collect::<Vec<&str>>()
+            .join("");
         println!("Sample emoji: {}", sample);
         println!("Emoji written to: emoji_from_glyphs.txt");
     }

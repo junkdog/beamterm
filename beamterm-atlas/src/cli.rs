@@ -1,5 +1,5 @@
-use std::ops::RangeInclusive;
-use std::path::PathBuf;
+use std::{ops::RangeInclusive, path::PathBuf};
+
 use clap::Parser;
 use color_eyre::{eyre::eyre, Report};
 
@@ -167,8 +167,13 @@ impl Cli {
     }
 
     pub fn read_emoji_file(&self) -> Result<String, Report> {
-        std::fs::read_to_string(&self.emoji_file)
-            .map_err(|e| eyre!("Failed to read emoji file '{}': {}", self.emoji_file.display(), e))
+        std::fs::read_to_string(&self.emoji_file).map_err(|e| {
+            eyre!(
+                "Failed to read emoji file '{}': {}",
+                self.emoji_file.display(),
+                e
+            )
+        })
     }
 
     /// Prints a summary of the configuration

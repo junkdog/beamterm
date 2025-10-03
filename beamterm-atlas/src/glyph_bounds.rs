@@ -47,6 +47,10 @@ impl GlyphBounds {
     pub fn height(&self) -> i32 {
         1 + self.max_y - self.min_y
     }
+
+    pub fn has_content(&self) -> bool {
+        self.width() > 0 && self.height() > 0
+    }
 }
 
 /// Measures precise glyph bounds with pixel-level accuracy using cosmic-text drawing

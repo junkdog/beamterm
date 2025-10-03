@@ -1,7 +1,10 @@
-use std::collections::{BTreeSet, HashSet};
-use std::ops::RangeInclusive;
-use compact_str::ToCompactString;
+use std::{
+    collections::{BTreeSet, HashSet},
+    ops::RangeInclusive,
+};
+
 use beamterm_data::{FontStyle, Glyph};
+use compact_str::ToCompactString;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub struct GraphemeSet<'a> {
@@ -26,7 +29,7 @@ impl<'a> GraphemeSet<'a> {
         for g in graphemes {
             if g.len() == 1 && g.is_ascii() {
                 ascii.push(g.chars().next().unwrap());
-            } else if emojis::get(g).is_some() {
+            } else if is_emoji(g) {
                 emoji.push(g);
             } else {
                 debug_assert!(
@@ -47,10 +50,7 @@ impl<'a> GraphemeSet<'a> {
         Self { ascii, unicode, emoji }
     }
 
-    pub fn new(
-        unicode_ranges: &[RangeInclusive<char>],
-        emoji: &'a str,
-    ) -> Self {
+    pub fn new(unicode_ranges: &[RangeInclusive<char>], emoji: &'a str) -> Self {
         let mut ascii = vec![];
         let mut unicode = vec![];
         for g in single_width_chars(unicode_ranges) {
@@ -61,9 +61,10 @@ impl<'a> GraphemeSet<'a> {
             }
         }
 
-        let mut emoji = emoji.graphemes(true)
+        let mut emoji = emoji
+            .graphemes(true)
             .filter(|g| !is_ascii_control(g))
-            .filter(|g| emojis::get(g).is_some())
+            .filter(|g| is_emoji(g))
             .collect::<Vec<&str>>();
         emoji.sort();
         emoji.dedup();
@@ -158,4 +159,7 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
             ]
         })
         .collect()
+}
+fn is_emoji(s: &str) -> bool {
+    emojis::get(s).is_some()
 }

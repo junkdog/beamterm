@@ -8,6 +8,7 @@ pub struct GlyphRasterizer<'a> {
     font_family_name: Option<&'a str>,
     font_style: FontStyle,
     monospace_width: Option<u32>,
+    buffer_size: Option<(f32, f32)>,
 }
 
 pub fn create_rasterizer(symbol: &str) -> GlyphRasterizer<'_> {
@@ -21,6 +22,7 @@ impl<'a> GlyphRasterizer<'a> {
             font_family_name: None,
             font_style: Normal,
             monospace_width: None,
+            buffer_size: None,
         }
     }
 
@@ -39,6 +41,11 @@ impl<'a> GlyphRasterizer<'a> {
         self
     }
 
+    pub fn buffer_size(mut self, width: f32, height: f32) -> Self {
+        self.buffer_size = Some((width, height));
+        self
+    }
+
     pub fn rasterize(
         self,
         font_system: &mut cosmic_text::FontSystem,
@@ -49,8 +56,8 @@ impl<'a> GlyphRasterizer<'a> {
             .ok_or_eyre("font family name must be set before rasterizing")?;
 
         let mut buffer = cosmic_text::Buffer::new(font_system, metrics);
-        // buffer.set_size(font_system, Some(self.inner_cell_w), Some(self.inner_cell_h));
-        buffer.set_size(font_system, Some(200.0), Some(200.0)); // use large size to avoid issues
+        let (width, height) = self.buffer_size.unwrap_or((200.0, 200.0));
+        buffer.set_size(font_system, Some(width), Some(height));
         buffer.set_monospace_width(font_system, self.monospace_width.map(|w| w as f32));
 
         let attrs = create_text_attrs(font_family_name, self.font_style);

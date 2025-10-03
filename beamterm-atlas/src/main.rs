@@ -11,6 +11,7 @@ mod logging;
 mod raster_config;
 
 use std::collections::BTreeSet;
+
 use beamterm_data::*;
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
@@ -145,9 +146,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn report_missing_glyphs(
-    generator: &mut AtlasFontGenerator
-) {
+fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
     println!("\n🔍 Checking for missing glyphs...");
     let missing_report = generator.check_missing_glyphs(GLYPHS);
 

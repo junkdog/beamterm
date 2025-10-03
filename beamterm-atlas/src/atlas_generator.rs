@@ -1,5 +1,5 @@
-use std::collections::{BTreeSet, HashSet};
-use std::ops::RangeInclusive;
+use std::{collections::HashSet, ops::RangeInclusive};
+
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use color_eyre::Report;
 use compact_str::ToCompactString;
@@ -7,6 +7,7 @@ use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
 use unicode_segmentation::UnicodeSegmentation;
+
 use crate::{
     bitmap_font::BitmapFont,
     coordinate::AtlasCoordinate,
@@ -18,6 +19,13 @@ use crate::{
 };
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GlyphWidthInfo {
+    SingleWidth,
+    DoubleWidth,
+    Missing(String),
+}
 
 #[derive(Debug, Clone)]
 pub struct MissingGlyph {
@@ -113,12 +121,11 @@ impl AtlasFontGenerator {
         })
     }
 
-    pub fn generate(
-        &mut self,
-        unicode_ranges: &[RangeInclusive<char>],
-        emoji: &str,
-    ) -> BitmapFont {
-        let char_count = unicode_ranges.iter().map(|r| r.clone().into_iter().count()).sum::<usize>();
+    pub fn generate(&mut self, unicode_ranges: &[RangeInclusive<char>], emoji: &str) -> BitmapFont {
+        let char_count = unicode_ranges
+            .iter()
+            .map(|r| r.clone().into_iter().count())
+            .sum::<usize>();
         info!(
             font_family = %self.font_family_name,
             char_count = char_count,
@@ -163,7 +170,7 @@ impl AtlasFontGenerator {
 
         let texture_data = texture_data
             .iter()
-            .flat_map(|&color| color.to_be_bytes()) // rgba
+            .flat_map(|&color| color.to_be_bytes())
             .collect::<Vec<u8>>();
 
         // Nudge strikethrough and underline positions to nearest 0.5 pixel for perfect centering
@@ -346,6 +353,69 @@ impl AtlasFontGenerator {
             as usize
     }
 
+    /// Classifies a glyph as single-width, double-width, or missing by measuring its actual pixel width
+    pub fn classify_glyph_width(
+        &mut self,
+        glyph: impl Into<String>,
+        inner_cell_w: f32,
+        inner_cell_h: f32,
+    ) -> GlyphWidthInfo {
+        // Measure at 4× size (same approach as rasterize_emoji)
+        let measure_size = self.metrics.font_size * 4.0;
+        let measure_metrics = Metrics::new(measure_size, measure_size * self.line_height);
+        let scale_factor = 8.0;
+
+        let glyph = glyph.into();
+        let mut measure_buffer = create_rasterizer(&glyph)
+            .font_family_name(&self.font_family_name)
+            .font_style(FontStyle::Normal)
+            .buffer_size(inner_cell_w * scale_factor, inner_cell_h * scale_factor)
+            .rasterize(&mut self.font_system, measure_metrics)
+            .expect("glyph to rasterize to Buffer");
+
+        let mut measure_buffer = measure_buffer.borrow_with(&mut self.font_system);
+        let bounds = measure_glyph_bounds(&mut measure_buffer, &mut self.cache);
+
+        if !bounds.has_content() {
+            // Check if this is an intentionally empty glyph (space character)
+            // If it's a space, treat as single-width; otherwise it's missing
+            if is_space_character(&glyph) {
+                debug!(
+                    glyph = glyph,
+                    "Classified as single-width (space character)"
+                );
+                return GlyphWidthInfo::SingleWidth;
+            } else {
+                debug!(glyph = glyph, "Classified as missing (no pixels)");
+                return GlyphWidthInfo::Missing(glyph);
+            }
+        }
+
+        let actual_width = bounds.width();
+
+        // Buffer is 8× cell size, so scale back to cell space for comparison
+        let actual_width_in_cell_space = actual_width as f32 / scale_factor;
+
+        // Consider double-width if actual width is >= 1.5× cell width
+        // This threshold accounts for glyphs that render at ~2× cell width
+        let glyph_info = if actual_width_in_cell_space >= inner_cell_w * 1.5 {
+            GlyphWidthInfo::DoubleWidth
+        } else {
+            GlyphWidthInfo::SingleWidth
+        };
+
+        debug!(
+            glyph = glyph,
+            actual_width_px = actual_width,
+            actual_width_cells = actual_width_in_cell_space,
+            cell_width = inner_cell_w,
+            glyph_info = ?glyph_info,
+            "Classified glyph width"
+        );
+
+        glyph_info
+    }
+
     fn rasterize_emoji(&mut self, emoji: &str, inner_cell_w: f32, inner_cell_h: f32) -> Buffer {
         let f = &mut self.font_system;
 
@@ -360,25 +430,10 @@ impl AtlasFontGenerator {
         measure_buffer.set_text(f, emoji, &attrs, cosmic_text::Shaping::Advanced);
         measure_buffer.shape_until_scroll(f, true);
 
-        // Measure actual bounds
-        let mut min_x = i32::MAX;
-        let mut max_x = i32::MIN;
-        let mut min_y = i32::MAX;
-        let mut max_y = i32::MIN;
-        let mut has_content = false;
-
         let mut measure_buffer = measure_buffer.borrow_with(f);
-        measure_buffer.draw(&mut self.cache, WHITE, |x, y, _w, _h, color| {
-            if color.a() > 0 {
-                has_content = true;
-                min_x = min_x.min(x);
-                max_x = max_x.max(x);
-                min_y = min_y.min(y);
-                max_y = max_y.max(y);
-            }
-        });
+        let bounds = measure_glyph_bounds(&mut measure_buffer, &mut self.cache);
 
-        if !has_content {
+        if !bounds.has_content() {
             // Fallback for emojis that don't render
             return create_rasterizer(emoji)
                 .font_family_name(&self.font_family_name)
@@ -387,8 +442,8 @@ impl AtlasFontGenerator {
         }
 
         // calculate actual dimensions
-        let actual_width = (max_x - min_x + 1) as f32;
-        let actual_height = (max_y - min_y + 1) as f32;
+        let actual_width = bounds.width() as f32;
+        let actual_height = bounds.height() as f32;
 
         // calculate scale factor; overscale slightly to ensure it fits better
         let scale_x = inner_cell_w / actual_width;
@@ -662,11 +717,57 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
     .collect()
 }
 
+/// Checks if a string represents a space character (intentionally empty glyph)
+fn is_space_character(s: &str) -> bool {
+    if let Some(ch) = s.chars().next() {
+        s.chars().count() == 1
+            && matches!(
+                ch,
+                '\u{0020}' |  // SPACE
+            '\u{00A0}' |  // NO-BREAK SPACE
+            '\u{1680}' |  // OGHAM SPACE MARK
+            '\u{2000}' |  // EN QUAD
+            '\u{2001}' |  // EM QUAD
+            '\u{2002}' |  // EN SPACE
+            '\u{2003}' |  // EM SPACE
+            '\u{2004}' |  // THREE-PER-EM SPACE
+            '\u{2005}' |  // FOUR-PER-EM SPACE
+            '\u{2006}' |  // SIX-PER-EM SPACE
+            '\u{2007}' |  // FIGURE SPACE
+            '\u{2008}' |  // PUNCTUATION SPACE
+            '\u{2009}' |  // THIN SPACE
+            '\u{200A}' |  // HAIR SPACE
+            '\u{200B}' |  // ZERO WIDTH SPACE
+            '\u{202F}' |  // NARROW NO-BREAK SPACE
+            '\u{205F}' |  // MEDIUM MATHEMATICAL SPACE
+            '\u{3000}' // IDEOGRAPHIC SPACE
+            )
+    } else {
+        false
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::font_discovery::FontDiscovery;
+
+    #[test]
+    fn test_space_character_detection() {
+        // Test common space characters
+        assert!(super::is_space_character(" ")); // U+0020 SPACE
+        assert!(super::is_space_character("\u{00A0}")); // NO-BREAK SPACE
+        assert!(super::is_space_character("\u{2003}")); // EM SPACE
+        assert!(super::is_space_character("\u{200B}")); // ZERO WIDTH SPACE
+        assert!(super::is_space_character("\u{3000}")); // IDEOGRAPHIC SPACE
+
+        // Test non-space characters
+        assert!(!super::is_space_character("A"));
+        assert!(!super::is_space_character("0"));
+        assert!(!super::is_space_character("█"));
+        assert!(!super::is_space_character("")); // Empty string
+        assert!(!super::is_space_character("AB")); // Multi-char
+    }
 
     #[test]
     fn test_missing_glyph_detection() {
