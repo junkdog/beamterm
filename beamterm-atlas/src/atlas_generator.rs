@@ -365,23 +365,17 @@ impl AtlasFontGenerator {
             let right = GlyphBitmap::split_right(bitmap.data, cell_w);
 
             // Render left half to current glyph position
-            let coord = glyph.atlas_coordinate();
-            let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
             self.render_pixels_to_texture(
                 left.pixels(),
-                cell_offset,
-                coord.layer as i32,
+                glyph.atlas_coordinate(),
                 config,
                 texture,
             );
 
             // Render right half to next glyph position (id + 1)
-            let right_coord = AtlasCoordinate::from(glyph.id + 1);
-            let right_cell_offset = right_coord.cell_offset_in_px(config.glyph_bounds());
             self.render_pixels_to_texture(
                 right.pixels(),
-                right_cell_offset,
-                right_coord.layer as i32,
+                AtlasCoordinate::from(glyph.id + 1),
                 config,
                 texture,
             );
@@ -398,9 +392,7 @@ impl AtlasFontGenerator {
                 .rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds())
                 .pixels();
 
-            let coord = glyph.atlas_coordinate();
-            let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
-            self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
+            self.render_pixels_to_texture(pixels, glyph.atlas_coordinate(), config, texture);
         }
     }
 
@@ -484,11 +476,11 @@ impl AtlasFontGenerator {
     fn render_pixels_to_texture(
         &self,
         pixels: Vec<(i32, i32, Color)>,
-        cell_offset: (i32, i32),
-        layer: i32,
+        coord: AtlasCoordinate,
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) {
+        let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
         let (cell_w, cell_h) = config.padded_cell_size();
 
         for (x, y, color) in pixels {
@@ -500,7 +492,7 @@ impl AtlasFontGenerator {
             let py = y + cell_offset.1;
 
             if px >= 0 && px < config.texture_width && py >= 0 && py < config.texture_height {
-                let idx = self.texture_index(px, py, layer, config);
+                let idx = self.texture_index(px, py, coord.layer as i32, config);
 
                 if idx < texture.len() {
                     let [r, g, b, a] = color.as_rgba().map(|c| c as u32);
