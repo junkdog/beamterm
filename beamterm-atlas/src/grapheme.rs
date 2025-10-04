@@ -6,8 +6,8 @@ use std::{
 use beamterm_data::{FontStyle, Glyph};
 use compact_str::ToCompactString;
 use unicode_segmentation::UnicodeSegmentation;
-use crate::coordinate::AtlasCoordinate;
-use crate::glyph_bounds::GlyphBounds;
+
+use crate::{coordinate::AtlasCoordinate, glyph_bounds::GlyphBounds};
 
 pub struct GraphemeSet<'a> {
     ascii: Vec<char>,
@@ -112,13 +112,12 @@ impl<'a> GraphemeSet<'a> {
 
         glyphs.sort_by_key(|g| g.id);
 
-        
         // update glyphs with actual texture coordinates
         for glyph in &mut glyphs {
             let coord = AtlasCoordinate::from_glyph_id(glyph.id);
             glyph.pixel_coords = coord.xy(cell_dimensions);
         }
-        
+
         glyphs
     }
 }

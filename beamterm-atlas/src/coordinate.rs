@@ -1,6 +1,6 @@
 use beamterm_data::FontAtlasData;
-use crate::glyph_bounds::GlyphBounds;
-use crate::raster_config::RasterizationConfig;
+
+use crate::{glyph_bounds::GlyphBounds, raster_config::RasterizationConfig};
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AtlasCoordinate {
