@@ -55,7 +55,8 @@ impl<'a> GraphemeSet<'a> {
 
         // emoji glyphs are assigned IDs starting from 0x1000
         for (i, c) in self.emoji.iter().enumerate() {
-            let id = i as u16 | Glyph::EMOJI_FLAG;
+            // double-width emoji occupy two cells, so spans two IDs
+            let id = (i * 2) as u16 | Glyph::EMOJI_FLAG;
             let mut glyph = Glyph::new_with_id(id, c, FontStyle::Normal, (0, 0));
             glyph.is_emoji = true;
             glyphs.push(glyph);
@@ -66,7 +67,7 @@ impl<'a> GraphemeSet<'a> {
         // update glyphs with actual texture coordinates
         for glyph in &mut glyphs {
             let coord = glyph.atlas_coordinate();
-            glyph.pixel_coords = coord.xy(cell_dimensions);
+            glyph.pixel_coords = coord.to_pixel_xy(cell_dimensions);
         }
 
         glyphs

@@ -87,6 +87,74 @@ impl GlyphBitmap {
 
         Self { data, bounds: self.bounds }
     }
+
+    /// Splits double-width emoji pixels into left half (x < split_point).
+    fn split_left(pixels: Vec<(i32, i32, Color)>, cell_w: i32) -> Self {
+        let data: Vec<_> = pixels
+            .into_iter()
+            .filter(|(x, _, _)| *x < cell_w)
+            .collect();
+
+        let bounds = Self::calculate_bounds(&data, cell_w);
+        Self { data, bounds }
+    }
+
+    /// Splits double-width emoji pixels into right half (x >= split_point), normalized to 0-based.
+    fn split_right(pixels: Vec<(i32, i32, Color)>, cell_w: i32) -> Self {
+        let data: Vec<_> = pixels
+            .into_iter()
+            .filter(|(x, _, _)| *x >= cell_w)
+            .map(|(x, y, c)| (x - cell_w, y, c)) // Normalize x to 0-based
+            .collect();
+
+        let bounds = Self::calculate_bounds(&data, cell_w);
+        Self { data, bounds }
+    }
+
+    fn pixels(&self) -> Vec<(i32, i32, Color)> {
+        self.data
+            .iter()
+            .copied()
+            .map(|(x, y, color)| {
+                (
+                    x + FontAtlasData::PADDING,
+                    y + FontAtlasData::PADDING,
+                    color,
+                )
+            })
+            .collect()
+    }
+
+    /// Calculates bounding box from pixel data.
+    fn calculate_bounds(pixels: &[(i32, i32, Color)], cell_w: i32) -> GlyphBounds {
+        if pixels.is_empty() {
+            return GlyphBounds::empty();
+        }
+
+        let min_x = pixels
+            .iter()
+            .map(|(x, _, _)| *x)
+            .min()
+            .unwrap_or(0);
+        let max_x = pixels
+            .iter()
+            .map(|(x, _, _)| *x)
+            .max()
+            .unwrap_or(0)
+            .max(cell_w - 1);
+        let min_y = pixels
+            .iter()
+            .map(|(_, y, _)| *y)
+            .min()
+            .unwrap_or(0);
+        let max_y = pixels
+            .iter()
+            .map(|(_, y, _)| *y)
+            .max()
+            .unwrap_or(0);
+
+        GlyphBounds { min_x, max_x, min_y, max_y }
+    }
 }
 
 /// Generator for creating GPU-optimized bitmap font atlases from TrueType/OpenType fonts.
@@ -272,6 +340,7 @@ impl AtlasFontGenerator {
     }
 
     /// Rasterizes a glyph and writes its pixels into the 3D texture at the computed atlas position.
+    /// For emoji, splits the double-width rendering into left and right halves placed in consecutive cells.
     fn place_glyph_in_3d_texture(
         &mut self,
         glyph: &Glyph,
@@ -286,17 +355,53 @@ impl AtlasFontGenerator {
             "Rasterizing glyph"
         );
 
-        let pixels = self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds())
-            // .checkered()
-            .data
-            .into_iter()
-            .map(|(x, y, color)| (x + FontAtlasData::PADDING, y + FontAtlasData::PADDING, color))
-            .collect::<Vec<_>>();
+        if glyph.is_emoji {
+            // Render emoji at 2× width and split into left/right halves
+            let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
+            let cell_w = config.glyph_bounds().width();
 
-        // render pixels to texture
-        let coord = glyph.atlas_coordinate();
-        let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
-        self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
+            // Split into left and right halves
+            let left = GlyphBitmap::split_left(bitmap.data.clone(), cell_w);
+            let right = GlyphBitmap::split_right(bitmap.data, cell_w);
+
+            // Render left half to current glyph position
+            let coord = glyph.atlas_coordinate();
+            let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
+            self.render_pixels_to_texture(
+                left.pixels(),
+                cell_offset,
+                coord.layer as i32,
+                config,
+                texture,
+            );
+
+            // Render right half to next glyph position (id + 1)
+            let right_coord = AtlasCoordinate::from(glyph.id + 1);
+            let right_cell_offset = right_coord.cell_offset_in_px(config.glyph_bounds());
+            self.render_pixels_to_texture(
+                right.pixels(),
+                right_cell_offset,
+                right_coord.layer as i32,
+                config,
+                texture,
+            );
+
+            debug!(
+                symbol = %glyph.symbol,
+                left_id = format_args!("0x{:04X}", glyph.id),
+                right_id = format_args!("0x{:04X}", glyph.id + 1),
+                "Split double-width emoji into two cells"
+            );
+        } else {
+            // Normal glyph rendering
+            let pixels = self
+                .rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds())
+                .pixels();
+
+            let coord = glyph.atlas_coordinate();
+            let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
+            self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
+        }
     }
 
     /// Adjusts decoration position to the nearest half-pixel boundary for crisp rendering.
@@ -493,15 +598,19 @@ impl AtlasFontGenerator {
     }
 
     /// Rasterizes emoji with dynamic scaling to fit within the target cell dimensions.
+    /// For double-width emoji, renders at 2× cell width.
     fn rasterize_emoji(&mut self, emoji: &str, inner_cell_w: f32, inner_cell_h: f32) -> Buffer {
         let f = &mut self.font_system;
+
+        // Double-width emoji render at 2× cell width
+        let target_width = inner_cell_w * 2.0;
 
         // First pass: measure at default size
         let measure_size = self.metrics.font_size * 4.0; // Start larger
         let measure_metrics = Metrics::new(measure_size, measure_size * self.line_height);
 
         let mut measure_buffer = Buffer::new(f, measure_metrics);
-        measure_buffer.set_size(f, Some(inner_cell_w * 8.0), Some(inner_cell_h * 8.0));
+        measure_buffer.set_size(f, Some(target_width * 8.0), Some(inner_cell_h * 8.0));
 
         let attrs = create_text_attrs(&self.font_family_name, FontStyle::Normal);
         measure_buffer.set_text(f, emoji, &attrs, cosmic_text::Shaping::Advanced);
@@ -522,18 +631,18 @@ impl AtlasFontGenerator {
         let actual_width = bounds.width() as f32;
         let actual_height = bounds.height() as f32;
 
-        // calculate scale factor; overscale slightly to ensure it fits better
-        let scale_x = inner_cell_w / actual_width;
+        // calculate scale factor to fit target_width (2× for double-width)
+        let scale_x = target_width / actual_width;
         let scale_y = inner_cell_h / actual_height;
 
         let scale = scale_x.min(scale_y).min(1.0); // Don't scale up
 
-        // render at scaled size
+        // render at scaled size with target width
         let scaled_size = measure_size * scale;
         let scaled_metrics = Metrics::new(scaled_size, scaled_size * self.line_height);
 
         let mut buffer = Buffer::new(f, scaled_metrics);
-        buffer.set_size(f, Some(inner_cell_w), Some(inner_cell_w));
+        buffer.set_size(f, Some(target_width), Some(inner_cell_h));
         buffer.set_text(f, emoji, &attrs, cosmic_text::Shaping::Advanced);
         buffer.shape_until_scroll(f, true);
 
@@ -770,11 +879,6 @@ impl AtlasFontGenerator {
         let mut total_checked = 0;
 
         for glyph in &glyphs {
-            // todo: check emoji too, when all the other related stuff is done
-            if glyph.is_emoji {
-                continue;
-            }
-
             total_checked += 1;
 
             // skip intentionally empty glyphs (space characters)
