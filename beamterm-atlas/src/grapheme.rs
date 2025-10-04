@@ -7,71 +7,22 @@ use beamterm_data::{FontStyle, Glyph};
 use compact_str::ToCompactString;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{coordinate::AtlasCoordinate, glyph_bounds::GlyphBounds};
+use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
+
+// printable ASCII range
+const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
 
 pub struct GraphemeSet<'a> {
-    ascii: Vec<char>,
     unicode: Vec<char>,
     emoji: Vec<&'a str>,
 }
 
 impl<'a> GraphemeSet<'a> {
-    pub fn new_from_str(chars: &'a str) -> Self {
-        let mut graphemes = chars
-            .graphemes(true)
-            .filter(|g| !is_ascii_control(g))
-            .collect::<Vec<&str>>();
-        graphemes.sort();
-        graphemes.dedup();
+    pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &'a str) -> Self {
+        let (emoji, unicode) = partition_emoji_and_unicode(other_symbols);
+        let unicode = flatten_sorted(unicode_ranges, &unicode);
 
-        let mut ascii = vec![];
-        let mut unicode = vec![];
-        let mut emoji = vec![];
-
-        for g in graphemes {
-            if g.len() == 1 && g.is_ascii() {
-                ascii.push(g.chars().next().unwrap());
-            } else if is_emoji(g) {
-                emoji.push(g);
-            } else {
-                debug_assert!(
-                    g.chars().count() == 1,
-                    "Non-emoji grapheme must be a single char: {g}"
-                );
-
-                let ch = g.chars().next().unwrap();
-                unicode.push(ch);
-            }
-        }
-        let non_emoji_glyphs = ascii.len() + unicode.len();
-        assert!(
-            non_emoji_glyphs <= 1024,
-            "Too many unique graphemes: {non_emoji_glyphs}"
-        );
-
-        Self { ascii, unicode, emoji }
-    }
-
-    pub fn new(unicode_ranges: &[RangeInclusive<char>], emoji: &'a str) -> Self {
-        let mut ascii = vec![];
-        let mut unicode = vec![];
-        for g in single_width_chars(unicode_ranges) {
-            if g.is_ascii() {
-                ascii.push(g);
-            } else {
-                unicode.push(g);
-            }
-        }
-
-        let mut emoji = emoji
-            .graphemes(true)
-            .filter(|g| !is_ascii_control(g))
-            .filter(|g| is_emoji(g))
-            .collect::<Vec<&str>>();
-        emoji.sort();
-        emoji.dedup();
-
-        let non_emoji_glyphs = ascii.len() + unicode.len();
+        let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + unicode.len();
         assert!(
             non_emoji_glyphs <= 1024,
             "Too many unique graphemes: {non_emoji_glyphs}"
@@ -83,7 +34,7 @@ impl<'a> GraphemeSet<'a> {
             "Too many unique graphemes: {emoji_glyphs}"
         );
 
-        Self { ascii, unicode, emoji }
+        Self { unicode, emoji }
     }
 
     pub(super) fn into_glyphs(self, cell_dimensions: GlyphBounds) -> Vec<Glyph> {
@@ -91,8 +42,8 @@ impl<'a> GraphemeSet<'a> {
 
         // pre-assigned glyphs (in the range 0x000-0x07F)
         let mut used_ids = HashSet::new();
-        for c in self.ascii.iter() {
-            used_ids.insert(*c as u32); // \o/ fixed it
+        for c in ASCII_RANGE {
+            used_ids.insert(c as u32); // \o/ fixed it
             for style in FontStyle::ALL {
                 let s = c.to_compact_string();
                 glyphs.push(Glyph::new(&s, style, (0, 0)));
@@ -114,7 +65,7 @@ impl<'a> GraphemeSet<'a> {
 
         // update glyphs with actual texture coordinates
         for glyph in &mut glyphs {
-            let coord = AtlasCoordinate::from_glyph_id(glyph.id);
+            let coord = glyph.atlas_coordinate();
             glyph.pixel_coords = coord.xy(cell_dimensions);
         }
 
@@ -122,8 +73,28 @@ impl<'a> GraphemeSet<'a> {
     }
 }
 
+fn partition_emoji_and_unicode(chars: &str) -> (Vec<&str>, Vec<char>) {
+    let (mut emoji, other_symbols): (Vec<&str>, Vec<&str>) = chars
+        .graphemes(true)
+        .filter(|s| !is_ascii_control(s))
+        .filter(|s| !s.is_ascii()) // always inserted
+        .partition(|s| is_emoji(s));
+
+    emoji.sort();
+    emoji.dedup();
+
+    let mut other_symbols: Vec<char> = other_symbols
+        .into_iter()
+        .map(|s: &str| s.chars().next().unwrap())
+        .collect();
+    other_symbols.sort();
+    other_symbols.dedup();
+
+    (emoji, other_symbols)
+}
+
 fn is_ascii_control(s: &str) -> bool {
-    s.is_ascii() && (s.chars().next().unwrap() as u32) < 0x20
+    is_ascii_control_char(s.chars().next().unwrap())
 }
 
 fn is_ascii_control_char(ch: char) -> bool {
@@ -131,13 +102,15 @@ fn is_ascii_control_char(ch: char) -> bool {
     ch < 0x20 || ch == 0x7F
 }
 
-fn single_width_chars(ranges: &[RangeInclusive<char>]) -> Vec<char> {
-    let chars: BTreeSet<char> = ranges
+fn flatten_sorted(ranges: &[RangeInclusive<char>], additional_chars: &[char]) -> Vec<char> {
+    let mut chars: BTreeSet<char> = ranges
         .into_iter()
         .cloned()
         .flat_map(|r| r.into_iter())
         .filter(|&c| !is_ascii_control_char(c))
         .collect();
+
+    chars.extend(additional_chars);
 
     chars.into_iter().collect()
 }

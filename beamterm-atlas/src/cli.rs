@@ -16,9 +16,9 @@ pub struct Cli {
     #[arg(value_name = "FONT", required_unless_present = "list_fonts")]
     pub font: Option<String>,
 
-    /// Emoji set to include in the generated atlas
+    /// File containing symbols (including emoji) to include in the atlas (optional if ranges cover all needed symbols)
     #[arg(long, value_parser = validate_file_exists)]
-    pub emoji_file: PathBuf,
+    pub symbols_file: Option<PathBuf>,
 
     /// Unicode ranges in hex format (e.g., 0x2580..0x259F) from which to include glyphs. ASCII
     /// (0x20-0x7F) is always included.
@@ -166,14 +166,12 @@ impl Cli {
         Ok(())
     }
 
-    pub fn read_emoji_file(&self) -> Result<String, Report> {
-        std::fs::read_to_string(&self.emoji_file).map_err(|e| {
-            eyre!(
-                "Failed to read emoji file '{}': {}",
-                self.emoji_file.display(),
-                e
-            )
-        })
+    pub fn read_symbols_file(&self) -> Result<String, Report> {
+        match &self.symbols_file {
+            Some(path) => std::fs::read_to_string(path)
+                .map_err(|e| eyre!("Failed to read symbols file '{}': {}", path.display(), e)),
+            None => Ok(String::new()),
+        }
     }
 
     /// Prints a summary of the configuration
@@ -254,7 +252,7 @@ mod tests {
     fn test_cli_validation() {
         let cli = Cli {
             font: Some("test".to_string()),
-            emoji_file: PathBuf::from("/dev/null"),
+            symbols_file: Some(PathBuf::from("/dev/null")),
             ranges: vec![],
             font_size: 15.0,
             line_height: 1.0,
@@ -274,7 +272,7 @@ mod tests {
     fn test_invalid_font_size() {
         let cli = Cli {
             font: Some("test".to_string()),
-            emoji_file: PathBuf::from("/dev/null"),
+            symbols_file: None,
             ranges: vec![],
             font_size: -1.0,
             line_height: 1.0,
@@ -294,7 +292,7 @@ mod tests {
     fn test_invalid_position() {
         let cli = Cli {
             font: Some("test".to_string()),
-            emoji_file: PathBuf::from("/dev/null"),
+            symbols_file: None,
             ranges: vec![],
             font_size: 15.0,
             line_height: 1.0,

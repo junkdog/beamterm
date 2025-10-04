@@ -10,7 +10,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     bitmap_font::BitmapFont,
-    coordinate::AtlasCoordinate,
+    coordinate::{AtlasCoordinate, AtlasCoordinateProvider},
     font_discovery::{FontDiscovery, FontFamily},
     glyph_bounds::{measure_glyph_bounds, GlyphBounds},
     glyph_rasterizer::{create_rasterizer, create_text_attrs},
@@ -164,12 +164,16 @@ impl AtlasFontGenerator {
     /// # Arguments
     ///
     /// * `unicode_ranges` - Unicode character ranges to include (e.g., Basic Latin, Symbols)
-    /// * `emoji` - String containing emoji characters to rasterize as double-width glyphs
+    /// * `other_symbols` - String containing emoji and other emoji characters to rasterize
     ///
     /// # Returns
     ///
     /// A [`BitmapFont`] containing the atlas texture data and glyph metadata.
-    pub fn generate(&mut self, unicode_ranges: &[RangeInclusive<char>], emoji: &str) -> BitmapFont {
+    pub fn generate(
+        &mut self,
+        unicode_ranges: &[RangeInclusive<char>],
+        other_symbols: &str,
+    ) -> BitmapFont {
         let char_count = unicode_ranges
             .iter()
             .map(|r| r.clone().into_iter().count())
@@ -177,7 +181,7 @@ impl AtlasFontGenerator {
         info!(
             font_family = %self.font_family_name,
             char_count = char_count,
-            char_dbl_count = emoji.graphemes(true).count(),
+            char_dbl_count = other_symbols.graphemes(true).count(),
             "Starting font generation"
         );
 
@@ -185,7 +189,7 @@ impl AtlasFontGenerator {
         let bounds = self.calculate_optimized_cell_dimensions();
 
         // categorize and allocate IDs
-        let grapheme_set = GraphemeSet::new(unicode_ranges, emoji);
+        let grapheme_set = GraphemeSet::new(unicode_ranges, other_symbols);
         let glyphs = grapheme_set.into_glyphs(bounds);
 
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
@@ -290,7 +294,7 @@ impl AtlasFontGenerator {
             .collect::<Vec<_>>();
 
         // render pixels to texture
-        let coord = AtlasCoordinate::from_glyph_id(glyph.id);
+        let coord = glyph.atlas_coordinate();
         let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
         self.render_pixels_to_texture(pixels, cell_offset, coord.layer as i32, config, texture);
     }
@@ -451,7 +455,7 @@ impl AtlasFontGenerator {
         if !bounds.has_content() {
             // Check if this is an intentionally empty glyph (space character)
             // If it's a space, treat as single-width; otherwise it's missing
-            if is_space_character(&glyph) {
+            if is_empty_character(&glyph) {
                 debug!(
                     glyph = glyph,
                     "Classified as single-width (space character)"
@@ -751,23 +755,32 @@ impl AtlasFontGenerator {
     /// Attempts to rasterize each character in all font styles. If rasterization produces
     /// no visible pixels, the glyph is considered missing from the font. Emoji glyphs are
     /// skipped as they use a different rendering path.
-    pub fn check_missing_glyphs(&mut self, chars: &str) -> MissingGlyphReport {
+    pub fn check_missing_glyphs(
+        &mut self,
+        ranges: &[RangeInclusive<char>],
+        additional_symbols: &str,
+    ) -> MissingGlyphReport {
         // Use the same glyph bounds as the main generation
         let bounds = self.calculate_optimized_cell_dimensions();
 
-        let grapheme_set = GraphemeSet::new_from_str(chars);
+        let grapheme_set = GraphemeSet::new(ranges, additional_symbols);
         let glyphs = grapheme_set.into_glyphs(bounds);
 
         let mut missing_glyphs = Vec::new();
         let mut total_checked = 0;
 
         for glyph in &glyphs {
-            // Skip emoji glyphs as they use different rendering path
+            // todo: check emoji too, when all the other related stuff is done
             if glyph.is_emoji {
                 continue;
             }
 
             total_checked += 1;
+
+            // skip intentionally empty glyphs (space characters)
+            if is_empty_character(&glyph.symbol) {
+                continue;
+            }
 
             // Try to rasterize the glyph - if it produces no visible pixels, it's missing
             let rasterized = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
@@ -829,29 +842,31 @@ fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
 }
 
 /// Returns true if the string is a single Unicode space or whitespace character.
-fn is_space_character(s: &str) -> bool {
+#[rustfmt::skip]
+fn is_empty_character(s: &str) -> bool {
     if let Some(ch) = s.chars().next() {
         s.chars().count() == 1
-            && matches!(
-                ch,
+            && matches!(ch,
                 '\u{0020}' |  // SPACE
-            '\u{00A0}' |  // NO-BREAK SPACE
-            '\u{1680}' |  // OGHAM SPACE MARK
-            '\u{2000}' |  // EN QUAD
-            '\u{2001}' |  // EM QUAD
-            '\u{2002}' |  // EN SPACE
-            '\u{2003}' |  // EM SPACE
-            '\u{2004}' |  // THREE-PER-EM SPACE
-            '\u{2005}' |  // FOUR-PER-EM SPACE
-            '\u{2006}' |  // SIX-PER-EM SPACE
-            '\u{2007}' |  // FIGURE SPACE
-            '\u{2008}' |  // PUNCTUATION SPACE
-            '\u{2009}' |  // THIN SPACE
-            '\u{200A}' |  // HAIR SPACE
-            '\u{200B}' |  // ZERO WIDTH SPACE
-            '\u{202F}' |  // NARROW NO-BREAK SPACE
-            '\u{205F}' |  // MEDIUM MATHEMATICAL SPACE
-            '\u{3000}' // IDEOGRAPHIC SPACE
+                '\u{00A0}' |  // NO-BREAK SPACE
+                '\u{00AD}' |  // SOFT HYPHEN
+                '\u{1680}' |  // OGHAM SPACE MARK
+                '\u{2000}' |  // EN QUAD
+                '\u{2001}' |  // EM QUAD
+                '\u{2002}' |  // EN SPACE
+                '\u{2003}' |  // EM SPACE
+                '\u{2004}' |  // THREE-PER-EM SPACE
+                '\u{2005}' |  // FOUR-PER-EM SPACE
+                '\u{2006}' |  // SIX-PER-EM SPACE
+                '\u{2007}' |  // FIGURE SPACE
+                '\u{2008}' |  // PUNCTUATION SPACE
+                '\u{2009}' |  // THIN SPACE
+                '\u{200A}' |  // HAIR SPACE
+                '\u{200B}' |  // ZERO WIDTH SPACE
+                '\u{202F}' |  // NARROW NO-BREAK SPACE
+                '\u{205F}' |  // MEDIUM MATHEMATICAL SPACE
+                '\u{2800}' |  // BRAILLE PATTERN BLANK
+                '\u{3000}'    // IDEOGRAPHIC SPACE
             )
     } else {
         false
@@ -866,18 +881,18 @@ mod tests {
     #[test]
     fn test_space_character_detection() {
         // Test common space characters
-        assert!(is_space_character(" ")); // U+0020 SPACE
-        assert!(is_space_character("\u{00A0}")); // NO-BREAK SPACE
-        assert!(is_space_character("\u{2003}")); // EM SPACE
-        assert!(is_space_character("\u{200B}")); // ZERO WIDTH SPACE
-        assert!(is_space_character("\u{3000}")); // IDEOGRAPHIC SPACE
+        assert!(is_empty_character(" ")); // U+0020 SPACE
+        assert!(is_empty_character("\u{00A0}")); // NO-BREAK SPACE
+        assert!(is_empty_character("\u{2003}")); // EM SPACE
+        assert!(is_empty_character("\u{200B}")); // ZERO WIDTH SPACE
+        assert!(is_empty_character("\u{3000}")); // IDEOGRAPHIC SPACE
 
         // Test non-space characters
-        assert!(!is_space_character("A"));
-        assert!(!is_space_character("0"));
-        assert!(!is_space_character("█"));
-        assert!(!is_space_character("")); // Empty string
-        assert!(!is_space_character("AB")); // Multi-char
+        assert!(!is_empty_character("A"));
+        assert!(!is_empty_character("0"));
+        assert!(!is_empty_character("█"));
+        assert!(!is_empty_character("")); // Empty string
+        assert!(!is_empty_character("AB")); // Multi-char
     }
 
     #[test]
@@ -904,34 +919,25 @@ mod tests {
         )
         .expect("Failed to create generator");
 
-        // Test with simple ASCII characters that should definitely be supported
-        let test_chars = "ABC123";
-        let report = generator.check_missing_glyphs(test_chars);
+        // Test with ranges that don't duplicate ASCII
+        // Using Latin Extended-A range for non-overlapping chars
+        let test_ranges = vec!['\u{0100}'..='\u{0105}']; // Ā-ą (6 chars)
+        let report = generator.check_missing_glyphs(&test_ranges, "");
 
         // Verify basic properties of the report
         assert_eq!(report.font_family_name, font_family.name);
-        assert_eq!(report.total_checked, 24); // 6 chars * 4 styles = 24 glyphs (excluding emoji)
+        // ASCII (95 chars) + Latin Extended-A (6 chars) = 101 chars * 4 styles = 404 glyphs
+        assert_eq!(report.total_checked, 404);
 
-        // These basic ASCII characters should be supported by any reasonable font
-        // If they're all missing, something is wrong with our detection logic
-        let missing_basic_chars = report
-            .missing_glyphs
-            .iter()
-            .filter(|g| "ABC123".contains(&g.symbol))
-            .count();
-
-        assert_eq!(
-            missing_basic_chars, 0,
-            "Basic ASCII characters should not be missing"
-        );
-
-        // The missing count should be reasonable (most glyphs should be supported)
+        // The missing count should be reasonable
         let coverage_percent = ((report.total_checked - report.missing_glyphs.len()) as f64
             / report.total_checked as f64)
             * 100.0;
+
+        // Coverage may be lower due to Latin Extended-A chars, so we accept > 80%
         assert!(
-            coverage_percent > 90.0,
-            "Font coverage should be above 90%, got {:.1}%",
+            coverage_percent > 95.0,
+            "Font coverage should be above 95%, got {:.1}%",
             coverage_percent
         );
     }

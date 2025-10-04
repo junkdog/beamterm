@@ -86,15 +86,11 @@ fn main() -> Result<()> {
     let ranges = if cli.ranges.is_empty() {
         default_unicode_ranges()
     } else {
-        let mut ranges = cli.ranges.clone();
-        ranges.push('\u{0020}'..='\u{007E}');
-        ranges.sort_by(|a, b| a.start().cmp(b.start()));
-        ranges.dedup();
-        ranges
+        cli.ranges.clone()
     };
 
-    let emoji = cli.read_emoji_file()?;
-    let bitmap_font = generator.generate(&ranges, &emoji);
+    let additional_symbols = cli.read_symbols_file()?;
+    let bitmap_font = generator.generate(&ranges, &additional_symbols);
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -140,15 +136,19 @@ fn main() -> Result<()> {
 
     // Check for missing glyphs if requested
     if cli.check_missing {
-        report_missing_glyphs(&mut generator);
+        report_missing_glyphs(&mut generator, &ranges, &additional_symbols);
     }
 
     Ok(())
 }
 
-fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
+fn report_missing_glyphs(
+    generator: &mut AtlasFontGenerator,
+    ranges: &[std::ops::RangeInclusive<char>],
+    additional_symbols: &str,
+) {
     println!("\n🔍 Checking for missing glyphs...");
-    let missing_report = generator.check_missing_glyphs(GLYPHS);
+    let missing_report = generator.check_missing_glyphs(ranges, additional_symbols);
 
     if missing_report.missing_glyphs.is_empty() {
         println!(
