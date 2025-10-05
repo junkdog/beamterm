@@ -5,7 +5,6 @@ mod coordinate;
 mod font_discovery;
 mod glyph_bounds;
 mod glyph_rasterizer;
-mod glyph_set;
 mod grapheme;
 mod logging;
 mod raster_config;
@@ -20,7 +19,6 @@ use crate::{
     atlas_generator::AtlasFontGenerator,
     cli::Cli,
     font_discovery::FontDiscovery,
-    glyph_set::GLYPHS,
     logging::{init_logging, LoggingConfig},
 };
 

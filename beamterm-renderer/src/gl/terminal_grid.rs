@@ -249,13 +249,15 @@ impl TerminalGrid {
 
                 *cell = if let Some(second_cell) = pending_cell.take() {
                     second_cell
+                } else if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
+                    // Emoji: don't apply style bits, use base_glyph_id directly
+                    let glyph_id = base_glyph_id;
+                    // storing a double-width emoji, reserve next cell with right-half id
+                    pending_cell = Some(CellDynamic::new(glyph_id + 1, data.fg, data.bg));
+                    CellDynamic::new(glyph_id, data.fg, data.bg)
                 } else {
+                    // Normal glyph: apply style bits
                     let glyph_id = base_glyph_id | data.style_bits;
-                    if glyph_id & Glyph::EMOJI_FLAG != 0 {
-                        // storing a double-width emoji, reserve next cell
-                        pending_cell = Some(CellDynamic::new(glyph_id, data.fg, data.bg));
-                    }
-
                     CellDynamic::new(glyph_id, data.fg, data.bg)
                 }
             });
@@ -283,12 +285,19 @@ impl TerminalGrid {
                     .get_base_glyph_id(cell.symbol)
                     .unwrap_or(fallback_glyph);
 
-                let glyph_id = base_glyph_id | cell.style_bits;
-                self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
-                if glyph_id & Glyph::EMOJI_FLAG != 0 {
+                if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
+                    let glyph_id = base_glyph_id;
+
+                    // render left half in current cell
+                    self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
+
+                    // render right half in next cell, if within bounds
                     self.cells.get_mut(idx + 1).map(|c| {
                         *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg)
                     });
+                } else {
+                    let glyph_id = base_glyph_id | cell.style_bits;
+                    self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
                 }
             });
 
@@ -316,12 +325,17 @@ impl TerminalGrid {
             .get_base_glyph_id(cell_data.symbol)
             .unwrap_or(fallback_glyph);
 
-        let glyph_id = base_glyph_id | cell_data.style_bits;
-        self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
-        if glyph_id & Glyph::EMOJI_FLAG != 0 {
+        if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
+            // Emoji: don't apply style bits
+            let glyph_id = base_glyph_id;
+            self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
             self.cells.get_mut(idx + 1).map(|c| {
                 *c = CellDynamic::new(glyph_id + 1, cell_data.fg, cell_data.bg)
             });
+        } else {
+            // Normal glyph: apply style bits
+            let glyph_id = base_glyph_id | cell_data.style_bits;
+            self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
         }
 
         self.cells_pending_flush = true;
