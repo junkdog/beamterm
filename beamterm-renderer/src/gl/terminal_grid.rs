@@ -236,15 +236,28 @@ impl TerminalGrid {
         let atlas = &self.atlas;
 
         let fallback_glyph = self.fallback_glyph;
+
+        // handle double-width emoji that span two cells
+        let mut pending_cell: Option<CellDynamic> = None;
         self.cells
             .iter_mut()
             .zip(cells)
             .for_each(|(cell, data)| {
-                let glyph_id = atlas
+                let base_glyph_id = atlas
                     .get_base_glyph_id(data.symbol)
                     .unwrap_or(fallback_glyph);
 
-                *cell = CellDynamic::new(glyph_id | data.style_bits, data.fg, data.bg);
+                *cell = if let Some(second_cell) = pending_cell.take() {
+                    second_cell
+                } else {
+                    let glyph_id = base_glyph_id | data.style_bits;
+                    if glyph_id & Glyph::EMOJI_FLAG != 0 {
+                        // storing a double-width emoji, reserve next cell
+                        pending_cell = Some(CellDynamic::new(glyph_id, data.fg, data.bg));
+                    }
+
+                    CellDynamic::new(glyph_id, data.fg, data.bg)
+                }
             });
 
         self.cells_pending_flush = true;
@@ -266,10 +279,17 @@ impl TerminalGrid {
             .map(|(x, y, cell)| (w * y as usize + x as usize, cell))
             .filter(|(idx, _)| *idx < cell_count)
             .for_each(|(idx, cell)| {
-                let glyph_id = atlas
+                let base_glyph_id = atlas
                     .get_base_glyph_id(cell.symbol)
                     .unwrap_or(fallback_glyph);
-                self.cells[idx] = CellDynamic::new(glyph_id | cell.style_bits, cell.fg, cell.bg);
+
+                let glyph_id = base_glyph_id | cell.style_bits;
+                self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
+                if glyph_id & Glyph::EMOJI_FLAG != 0 {
+                    self.cells.get_mut(idx + 1).map(|c| {
+                        *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg)
+                    });
+                }
             });
 
         self.cells_pending_flush = true;
@@ -292,12 +312,17 @@ impl TerminalGrid {
 
         let atlas = &self.atlas;
         let fallback_glyph = self.fallback_glyph;
-        let glyph_id = atlas
+        let base_glyph_id = atlas
             .get_base_glyph_id(cell_data.symbol)
             .unwrap_or(fallback_glyph);
 
-        self.cells[idx] =
-            CellDynamic::new(glyph_id | cell_data.style_bits, cell_data.fg, cell_data.bg);
+        let glyph_id = base_glyph_id | cell_data.style_bits;
+        self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
+        if glyph_id & Glyph::EMOJI_FLAG != 0 {
+            self.cells.get_mut(idx + 1).map(|c| {
+                *c = CellDynamic::new(glyph_id + 1, cell_data.fg, cell_data.bg)
+            });
+        }
 
         self.cells_pending_flush = true;
     }
@@ -806,6 +831,11 @@ impl CellStatic {
 }
 
 impl CellDynamic {
+    const GLYPH_STYLE_MASK: u16 = Glyph::BOLD_FLAG
+        | Glyph::ITALIC_FLAG
+        | Glyph::UNDERLINE_FLAG
+        | Glyph::STRIKETHROUGH_FLAG;
+
     #[inline]
     pub fn new(glyph_id: u16, fg: u32, bg: u32) -> Self {
         let mut data = [0; 8];
@@ -830,13 +860,9 @@ impl CellDynamic {
 
     /// Overwrites the current cell style bits with the provided style bits.
     pub fn style(&mut self, style_bits: u16) {
-        let glyph_id = u16::from_le_bytes([self.data[0], self.data[1]]);
-        let glyph_id = glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG);
-        let glyph_id = glyph_id | style_bits;
-
-        let glyph_id = glyph_id.to_le_bytes();
-        self.data[0] = glyph_id[0];
-        self.data[1] = glyph_id[1];
+        let glyph_id = (self.glyph_id() & !Self::GLYPH_STYLE_MASK) | style_bits;
+        self.data[..2]
+            .copy_from_slice(&glyph_id.to_le_bytes());
     }
 
     /// Sets the foreground color of the cell.
@@ -879,11 +905,17 @@ impl CellDynamic {
         ((self.data[5] as u32) << 16) | ((self.data[6] as u32) << 8) | (self.data[7] as u32)
     }
 
-    /// Returns the glyph ID for this cell, excluding style bits.
+    /// Returns the style bits for this cell, excluding id and emoji bits.
     pub fn get_style(&self) -> u16 {
-        self.glyph_id() & !(Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)
+        self.glyph_id() & Self::GLYPH_STYLE_MASK
     }
 
+    /// Returns true if the glyph is an emoji.
+    pub fn is_emoji(&self) -> bool {
+        self.glyph_id() & Glyph::EMOJI_FLAG != 0
+    }
+
+    #[inline]
     fn glyph_id(&self) -> u16 {
         u16::from_le_bytes([self.data[0], self.data[1]])
     }
