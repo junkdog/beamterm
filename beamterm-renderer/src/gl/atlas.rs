@@ -70,10 +70,14 @@ impl FontAtlas {
         let mut symbol_lookup = HashMap::new();
 
         // we only store the normal-styled glyphs (incl emoji) in the atlas lookup,
-        // as the correct layer id can be derived from the base glyph id plus font style
+        // as the correct layer id can be derived from the base glyph id plus font style.
+        //
+        // emoji are (currently all) double-width and occupy two consecutive glyph ids,
+        // but we only store the first id in the lookup.
         config.glyphs.iter()
             .filter(|g| g.style == FontStyle::Normal) // only normal style glyphs
             .filter(|g| !g.is_ascii())                // only non-ascii glyphs
+            .filter(|g| !g.is_emoji || (g.is_emoji && g.id & 1 == 0))  // only even emoji ids
             .for_each(|g| {
                 symbol_lookup.insert(g.id, g.symbol.clone());
                 layers.insert(g.symbol.clone(), g.id);

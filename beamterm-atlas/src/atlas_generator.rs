@@ -355,23 +355,21 @@ impl AtlasFontGenerator {
             // Render emoji at 2× width and split into left/right halves
             let bounds = config.double_width_glyph_bounds();
             let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
-            let cell_w = bounds.width();
+            let cell_w = config.glyph_bounds().width();
 
-            // Render left half to current glyph position
+            let half_bitmap = if glyph.id & 1 == 0 {
+                GlyphBitmap::split_left(&bitmap, cell_w)
+            } else {
+                GlyphBitmap::split_right(&bitmap, cell_w)
+            };
+
             self.render_pixels_to_texture(
-                GlyphBitmap::split_left(&bitmap, cell_w).pixels(),
-                AtlasCoordinate::from(glyph.id),
+                half_bitmap.pixels(),
+                glyph.atlas_coordinate(),
                 config,
                 texture,
             );
 
-            // Render right half to next glyph position (id + 1)
-            self.render_pixels_to_texture(
-                GlyphBitmap::split_right(&bitmap, cell_w).pixels(),
-                AtlasCoordinate::from(glyph.id + 1),
-                config,
-                texture,
-            );
         } else {
             // Normal glyph rendering
             let pixels = self
@@ -424,18 +422,18 @@ impl AtlasFontGenerator {
         GlyphBitmap { data: pixels, bounds }
     }
 
-    /// Creates a cosmic-text buffer with the glyph rendered, using emoji path for emoji glyphs.
+    /// Creates a cosmic-text buffer with the glyph rendered.
+    ///
+    /// The `cell_w` parameter determines the rendering width:
+    /// - For normal glyphs: single cell width
+    /// - For double-width emoji: 2× cell width (via `double_width_glyph_bounds()`)
     fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, cell_h: i32) -> Buffer {
-        if glyph.is_emoji {
-            self.rasterize_emoji(&glyph.symbol, cell_w as f32, cell_h as f32)
-        } else {
-            create_rasterizer(&glyph.symbol)
-                .font_family_name(&self.font_family_name)
-                .font_style(glyph.style)
-                .monospace_width(cell_w as u32)
-                .rasterize(&mut self.font_system, self.metrics)
-                .expect("glyph to rasterize to Buffer")
-        }
+        create_rasterizer(&glyph.symbol)
+            .font_family_name(&self.font_family_name)
+            .font_style(glyph.style)
+            .monospace_width(cell_w as u32)
+            .rasterize(&mut self.font_system, self.metrics)
+            .expect("glyph to rasterize to Buffer")
     }
 
     /// Extracts pixel data from a cosmic-text buffer within the specified bounds.
@@ -573,57 +571,6 @@ impl AtlasFontGenerator {
         glyph_info
     }
 
-    /// Rasterizes emoji with dynamic scaling to fit within the target cell dimensions.
-    /// For double-width emoji, renders at 2× cell width.
-    fn rasterize_emoji(&mut self, emoji: &str, inner_cell_w: f32, inner_cell_h: f32) -> Buffer {
-        let f = &mut self.font_system;
-
-        // Double-width emoji render at 2× cell width
-        let target_width = inner_cell_w * 2.0;
-
-        // First pass: measure at default size
-        let measure_size = self.metrics.font_size * 4.0; // Start larger
-        let measure_metrics = Metrics::new(measure_size, measure_size * self.line_height);
-
-        let mut measure_buffer = Buffer::new(f, measure_metrics);
-        measure_buffer.set_size(f, Some(target_width * 8.0), Some(inner_cell_h * 8.0));
-
-        let attrs = create_text_attrs(&self.font_family_name, FontStyle::Normal);
-        measure_buffer.set_text(f, emoji, &attrs, cosmic_text::Shaping::Advanced);
-        measure_buffer.shape_until_scroll(f, true);
-
-        let mut measure_buffer = measure_buffer.borrow_with(f);
-        let bounds = measure_glyph_bounds(&mut measure_buffer, &mut self.cache);
-
-        if !bounds.has_content() {
-            // Fallback for emojis that don't render
-            return create_rasterizer(emoji)
-                .font_family_name(&self.font_family_name)
-                .rasterize(&mut self.font_system, self.metrics)
-                .expect("glyph to rasterize to Buffer");
-        }
-
-        // calculate actual dimensions
-        let actual_width = bounds.width() as f32;
-        let actual_height = bounds.height() as f32;
-
-        // calculate scale factor to fit target_width (2× for double-width)
-        let scale_x = target_width / actual_width;
-        let scale_y = inner_cell_h / actual_height;
-
-        let scale = scale_x.min(scale_y).min(1.0); // Don't scale up
-
-        // render at scaled size with target width
-        let scaled_size = measure_size * scale;
-        let scaled_metrics = Metrics::new(scaled_size, scaled_size * self.line_height);
-
-        let mut buffer = Buffer::new(f, scaled_metrics);
-        buffer.set_size(f, Some(target_width), Some(inner_cell_h));
-        buffer.set_text(f, emoji, &attrs, cosmic_text::Shaping::Advanced);
-        buffer.shape_until_scroll(f, true);
-
-        buffer
-    }
 
     /// Calculates optimal cell dimensions by iteratively tuning font size for crisp edges.
     ///

@@ -44,30 +44,29 @@ impl<'a> GraphemeSet<'a> {
         let mut used_ids = HashSet::new();
         for c in ASCII_RANGE {
             used_ids.insert(c as u32); // \o/ fixed it
+            let s = c.to_compact_string();
             for style in FontStyle::ALL {
-                let s = c.to_compact_string();
                 glyphs.push(Glyph::new(&s, style, (0, 0)));
             }
         }
 
-        // unicode glyphs fill any gaps in the ASCII range (0x000-0x1FF)
         glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
 
         // emoji glyphs are assigned IDs starting from 0x1000
         for (i, c) in self.emoji.iter().enumerate() {
             // double-width emoji occupy two cells, so spans two IDs
             let id = (i * 2) as u16 | Glyph::EMOJI_FLAG;
-            let mut glyph = Glyph::new_with_id(id, c, FontStyle::Normal, (0, 0));
-            glyph.is_emoji = true;
-            glyphs.push(glyph);
+            glyphs.push(Glyph::new_emoji(id, c, (0, 0)));
+            glyphs.push(Glyph::new_emoji(id + 1, c, (0, 0)));
         }
 
         glyphs.sort_by_key(|g| g.id);
 
         // update glyphs with actual texture coordinates
         for glyph in &mut glyphs {
-            let coord = glyph.atlas_coordinate();
-            glyph.pixel_coords = coord.to_pixel_xy(cell_dimensions);
+            glyph.pixel_coords = glyph
+                .atlas_coordinate()
+                .to_pixel_xy(cell_dimensions);
         }
 
         glyphs
