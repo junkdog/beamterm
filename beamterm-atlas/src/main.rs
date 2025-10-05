@@ -5,7 +5,6 @@ mod coordinate;
 mod font_discovery;
 mod glyph_bounds;
 mod glyph_rasterizer;
-mod glyph_set;
 mod grapheme;
 mod logging;
 mod raster_config;
@@ -18,7 +17,6 @@ use crate::{
     atlas_generator::AtlasFontGenerator,
     cli::Cli,
     font_discovery::FontDiscovery,
-    glyph_set::GLYPHS,
     logging::{init_logging, LoggingConfig},
 };
 
@@ -81,8 +79,14 @@ fn main() -> Result<()> {
         strikethrough,
     )?;
 
-    let bitmap_font = generator.generate(GLYPHS);
+    let ranges = if cli.ranges.is_empty() {
+        default_unicode_ranges()
+    } else {
+        cli.ranges.clone()
+    };
 
+    let additional_symbols = cli.read_symbols_file()?;
+    let bitmap_font = generator.generate(&ranges, &additional_symbols);
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -114,6 +118,7 @@ fn main() -> Result<()> {
             .iter()
             .filter(|g| g.is_emoji)
             .count()
+            / 2  // each emoji occupies two glyphs
     );
     println!(
         "Longest grapheme in bytes: {}",
@@ -128,15 +133,19 @@ fn main() -> Result<()> {
 
     // Check for missing glyphs if requested
     if cli.check_missing {
-        report_missing_glyphs(&mut generator);
+        report_missing_glyphs(&mut generator, &ranges, &additional_symbols);
     }
 
     Ok(())
 }
 
-fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
+fn report_missing_glyphs(
+    generator: &mut AtlasFontGenerator,
+    ranges: &[std::ops::RangeInclusive<char>],
+    additional_symbols: &str,
+) {
     println!("\n🔍 Checking for missing glyphs...");
-    let missing_report = generator.check_missing_glyphs(GLYPHS);
+    let missing_report = generator.check_missing_glyphs(ranges, additional_symbols);
 
     if missing_report.missing_glyphs.is_empty() {
         println!(
@@ -196,4 +205,21 @@ fn report_missing_glyphs(generator: &mut AtlasFontGenerator) {
 
         println!("📊 Font coverage: {:.1}%", success_rate);
     }
+}
+
+fn default_unicode_ranges() -> Vec<std::ops::RangeInclusive<char>> {
+    vec![
+        '\u{0020}'..='\u{007E}', // Basic Latin
+        '\u{00A0}'..='\u{00FF}', // Latin-1 Supplement
+        '\u{0100}'..='\u{017F}', // Latin Extended-A
+        // '\u{0180}'..='\u{024F}', // Latin Extended-B
+        '\u{231A}'..='\u{231B}', // ⌚, ⌛ (Miscellaneous Technical)
+        '\u{23CE}'..='\u{23CF}', // ⏎, ⏏ (Miscellaneous Technical)
+        '\u{23E9}'..='\u{23FC}', // excerpt fr Miscellaneous Technical
+        '\u{2500}'..='\u{257F}', // Box Drawing
+        '\u{2580}'..='\u{259F}', // Block Elements
+        '\u{25A0}'..='\u{25CF}', // Geometric Shapes (excerpt)
+        '\u{25E2}'..='\u{25FF}', // Geometric Shapes (excerpt)
+        '\u{2800}'..='\u{28FF}', // Braille Patterns
+    ]
 }

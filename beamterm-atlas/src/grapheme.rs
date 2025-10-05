@@ -1,79 +1,134 @@
-use std::collections::HashSet;
+use std::{
+    collections::{BTreeSet, HashSet},
+    ops::RangeInclusive,
+};
 
 use beamterm_data::{FontStyle, Glyph};
+use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
 
-pub struct GraphemeSet<'a> {
-    ascii: Vec<&'a str>,
-    unicode: Vec<&'a str>,
-    emoji: Vec<&'a str>,
+use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
+
+// printable ASCII range
+const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
+
+pub struct GraphemeSet {
+    unicode: Vec<char>,
+    emoji: Vec<CompactString>,
 }
 
-impl<'a> GraphemeSet<'a> {
-    pub fn new(chars: &'a str) -> Self {
-        let mut graphemes = chars
-            .graphemes(true)
-            .filter(|g| !is_ascii_control(g))
-            .collect::<Vec<&str>>();
-        graphemes.sort();
-        graphemes.dedup();
+impl GraphemeSet {
+    pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &str) -> Self {
+        let (emoji, unicode) = partition_emoji_and_unicode(unicode_ranges, other_symbols);
 
-        let mut ascii = vec![];
-        let mut unicode = vec![];
-        let mut emoji = vec![];
-
-        for g in graphemes {
-            if g.len() == 1 && g.is_ascii() {
-                ascii.push(g);
-            } else if emojis::get(g).is_some() {
-                emoji.push(g);
-            } else {
-                unicode.push(g);
-            }
-        }
-        let non_emoji_glyphs = ascii.len() + unicode.len();
+        let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + unicode.len();
         assert!(
             non_emoji_glyphs <= 1024,
             "Too many unique graphemes: {non_emoji_glyphs}"
         );
 
-        Self { ascii, unicode, emoji }
+        let emoji_glyphs = emoji.len();
+        assert!(
+            emoji_glyphs <= 2048, // each emoji takes two glyph slots
+            "Too many unique graphemes: {emoji_glyphs}"
+        );
+
+        Self { unicode, emoji }
     }
 
-    pub(super) fn into_glyphs(self) -> Vec<Glyph> {
+    pub(super) fn into_glyphs(self, cell_dimensions: GlyphBounds) -> Vec<Glyph> {
         let mut glyphs = Vec::new();
 
         // pre-assigned glyphs (in the range 0x000-0x07F)
         let mut used_ids = HashSet::new();
-        for c in self.ascii.iter() {
-            used_ids.insert(c.chars().next().unwrap() as u32);
+        for c in ASCII_RANGE {
+            used_ids.insert(c as u32); // \o/ fixed it
+            let s = c.to_compact_string();
             for style in FontStyle::ALL {
-                glyphs.push(Glyph::new(c, style, (0, 0)));
+                glyphs.push(Glyph::new(&s, style, (0, 0)));
             }
         }
 
-        // unicode glyphs fill any gaps in the ASCII range (0x000-0x1FF)
         glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
 
-        // emoji glyphs are assigned IDs starting from 0x800
+        // emoji glyphs are assigned IDs starting from 0x1000
         for (i, c) in self.emoji.iter().enumerate() {
-            let id = i as u16 | Glyph::EMOJI_FLAG;
-            let mut glyph = Glyph::new_with_id(id, c, FontStyle::Normal, (0, 0));
-            glyph.is_emoji = true;
-            glyphs.push(glyph);
+            // double-width emoji occupy two cells, so spans two IDs
+            let id = (i * 2) as u16 | Glyph::EMOJI_FLAG;
+            glyphs.push(Glyph::new_emoji(id, c, (0, 0)));
+            glyphs.push(Glyph::new_emoji(id + 1, c, (0, 0)));
         }
 
         glyphs.sort_by_key(|g| g.id);
+
+        // update glyphs with actual texture coordinates
+        for glyph in &mut glyphs {
+            glyph.pixel_coords = glyph
+                .atlas_coordinate()
+                .to_pixel_xy(cell_dimensions);
+        }
 
         glyphs
     }
 }
 
-fn is_ascii_control(s: &str) -> bool {
-    s.is_ascii() && (s.chars().next().unwrap() as u32) < 0x20
+fn partition_emoji_and_unicode(
+    ranges: &[RangeInclusive<char>],
+    chars: &str,
+) -> (Vec<CompactString>, Vec<char>) {
+    let (emoji_ranged, unicode_ranged) = flatten_ranges(ranges);
+    let emoji_ranged = emoji_ranged
+        .into_iter()
+        .map(|c| c.to_compact_string());
+
+    let (emoji, other_symbols): (Vec<&str>, Vec<&str>) = chars
+        .graphemes(true)
+        .filter(|s| !is_ascii_control(s))
+        .filter(|s| !s.is_ascii()) // always inserted
+        .partition(|s| is_emoji(s));
+
+    let mut emoji: Vec<_> = emoji
+        .into_iter()
+        .map(|s| s.to_compact_string())
+        .collect();
+    emoji.extend(emoji_ranged);
+    emoji.sort();
+    emoji.dedup();
+
+    let mut other_symbols: Vec<char> = other_symbols
+        .into_iter()
+        .map(|s: &str| s.chars().next().unwrap())
+        .collect();
+    other_symbols.extend(unicode_ranged);
+    other_symbols.sort();
+    other_symbols.dedup();
+
+    (emoji, other_symbols)
 }
 
-fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[&str]) -> Vec<Glyph> {
+fn is_ascii_control(s: &str) -> bool {
+    is_ascii_control_char(s.chars().next().unwrap())
+}
+
+fn is_ascii_control_char(ch: char) -> bool {
+    let ch = ch as u32;
+    ch < 0x20 || ch == 0x7F
+}
+
+fn flatten_ranges(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<char>) {
+    let chars: BTreeSet<char> = ranges
+        .iter()
+        .cloned()
+        .flat_map(|r| r.into_iter())
+        .filter(|&c| !is_ascii_control_char(c))
+        .collect();
+
+    chars
+        .into_iter()
+        .partition(|c| is_emoji(&c.to_compact_string()))
+}
+
+fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Glyph> {
     let mut next_id: i32 = -1; // initial value to -1
     let mut next_glyph_id = || {
         let mut id = next_id;
@@ -89,12 +144,16 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[&str]) -> Vec<Gly
         .iter()
         .flat_map(|c| {
             let base_id = next_glyph_id();
+            let s = c.to_compact_string();
             [
-                Glyph::new_with_id(base_id, c, FontStyle::Normal, (0, 0)),
-                Glyph::new_with_id(base_id, c, FontStyle::Bold, (0, 0)),
-                Glyph::new_with_id(base_id, c, FontStyle::Italic, (0, 0)),
-                Glyph::new_with_id(base_id, c, FontStyle::BoldItalic, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::Normal, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::Bold, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::Italic, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::BoldItalic, (0, 0)),
             ]
         })
         .collect()
+}
+fn is_emoji(s: &str) -> bool {
+    emojis::get(s).is_some()
 }

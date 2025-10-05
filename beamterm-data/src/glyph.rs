@@ -101,7 +101,17 @@ impl Glyph {
             symbol: symbol.to_compact_string(),
             style,
             pixel_coords,
-            is_emoji: false,
+            is_emoji: (base_id & Self::EMOJI_FLAG) != 0,
+        }
+    }
+
+    pub fn new_emoji(base_id: u16, symbol: &str, pixel_coords: (i32, i32)) -> Self {
+        Self {
+            id: base_id | Self::EMOJI_FLAG,
+            symbol: symbol.to_compact_string(),
+            style: FontStyle::Normal, // Emoji glyphs do not have style variants
+            pixel_coords,
+            is_emoji: true,
         }
     }
 

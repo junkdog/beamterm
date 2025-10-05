@@ -1,12 +1,13 @@
+use beamterm_data::FontAtlasData;
 use cosmic_text::{BorrowedWithFontSystem, Buffer, Color, SwashCache};
 
 /// Glyph bounds information
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphBounds {
-    max_x: i32,
-    max_y: i32,
-    min_x: i32,
-    min_y: i32,
+    pub(crate) max_x: i32,
+    pub(crate) max_y: i32,
+    pub(crate) min_x: i32,
+    pub(crate) min_y: i32,
 }
 
 #[allow(dead_code)] // update when tools are moved to their own crates
@@ -44,8 +45,20 @@ impl GlyphBounds {
         1 + self.max_x - self.min_x
     }
 
+    pub fn width_with_padding(&self) -> i32 {
+        self.width() + 2 * FontAtlasData::PADDING
+    }
+
+    pub fn height_with_padding(&self) -> i32 {
+        self.height() + 2 * FontAtlasData::PADDING
+    }
+
     pub fn height(&self) -> i32 {
         1 + self.max_y - self.min_y
+    }
+
+    pub fn has_content(&self) -> bool {
+        self.width() > 0 && self.height() > 0
     }
 }
 

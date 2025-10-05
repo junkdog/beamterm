@@ -1,3 +1,5 @@
+use std::{ops::RangeInclusive, path::PathBuf};
+
 use clap::Parser;
 use color_eyre::{eyre::eyre, Report};
 
@@ -13,6 +15,15 @@ pub struct Cli {
     /// Font selection: name (partial match) or 1-based index
     #[arg(value_name = "FONT", required_unless_present = "list_fonts")]
     pub font: Option<String>,
+
+    /// File containing symbols (including emoji) to include in the atlas (optional if ranges cover all needed symbols)
+    #[arg(long, value_parser = validate_file_exists)]
+    pub symbols_file: Option<PathBuf>,
+
+    /// Unicode ranges in hex format (e.g., 0x2580..0x259F) from which to include glyphs. ASCII
+    /// (0x20-0x7F) is always included.
+    #[arg(short, long = "range", value_parser = parse_unicode_range)]
+    pub ranges: Vec<RangeInclusive<char>>,
 
     /// Font size in points
     #[arg(short = 's', long, default_value = "15.0", value_name = "SIZE")]
@@ -155,6 +166,14 @@ impl Cli {
         Ok(())
     }
 
+    pub fn read_symbols_file(&self) -> Result<String, Report> {
+        match &self.symbols_file {
+            Some(path) => std::fs::read_to_string(path)
+                .map_err(|e| eyre!("Failed to read symbols file '{}': {}", path.display(), e)),
+            None => Ok(String::new()),
+        }
+    }
+
     /// Prints a summary of the configuration
     pub fn print_summary(&self, font_name: &str) {
         println!("\nGenerating font atlas:");
@@ -181,6 +200,50 @@ impl Cli {
     }
 }
 
+fn parse_unicode_range(s: &str) -> Result<RangeInclusive<char>, String> {
+    if let Some((start_str, end_str)) = s.split_once("..") {
+        let start_code = parse_hex(start_str.trim())
+            .map_err(|e| format!("Invalid start value '{}': {}", start_str, e))?;
+        let end_code = parse_hex(end_str.trim())
+            .map_err(|e| format!("Invalid end value '{}': {}", end_str, e))?;
+
+        let start_char = char::from_u32(start_code)
+            .ok_or_else(|| format!("Invalid Unicode code point: 0x{:x}", start_code))?;
+        let end_char = char::from_u32(end_code)
+            .ok_or_else(|| format!("Invalid Unicode code point: 0x{:x}", end_code))?;
+
+        if start_code > end_code {
+            return Err(format!(
+                "Start value (0x{:x}) cannot be greater than end value (0x{:x})",
+                start_code, end_code
+            ));
+        }
+
+        Ok(start_char..=end_char)
+    } else {
+        Err(format!(
+            "Invalid range format '{s}'. Expected format: 0x20..0x7f"
+        ))
+    }
+}
+
+fn parse_hex(s: &str) -> Result<u32, String> {
+    s.strip_prefix("0x")
+        .ok_or_else(|| format!("Expected hexadecimal format (0x...), got: {}", s))
+        .map(|hex_str| u32::from_str_radix(hex_str, 16))?
+        .map_err(|_| format!("Invalid hexadecimal number: {}", s))
+}
+
+fn validate_file_exists(s: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(s);
+
+    match () {
+        _ if !path.exists() => Err(format!("Input file does not exist: {s}")),
+        _ if !path.is_file() => Err(format!("Path is not a file: {s}")),
+        _ => Ok(path),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,6 +252,8 @@ mod tests {
     fn test_cli_validation() {
         let cli = Cli {
             font: Some("test".to_string()),
+            symbols_file: Some(PathBuf::from("/dev/null")),
+            ranges: vec![],
             font_size: 15.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
@@ -207,6 +272,8 @@ mod tests {
     fn test_invalid_font_size() {
         let cli = Cli {
             font: Some("test".to_string()),
+            symbols_file: None,
+            ranges: vec![],
             font_size: -1.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
@@ -225,6 +292,8 @@ mod tests {
     fn test_invalid_position() {
         let cli = Cli {
             font: Some("test".to_string()),
+            symbols_file: None,
+            ranges: vec![],
             font_size: 15.0,
             line_height: 1.0,
             output: "test.atlas".to_string(),
