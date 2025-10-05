@@ -153,8 +153,8 @@ Each terminal cell requires:
 
 The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32 
 per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1) 
-coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles + 
-emoji.
+coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles and 
+2048 double-width emoji.
 
 ### 2D Texture Array Coordinate System
 

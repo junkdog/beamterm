@@ -30,7 +30,7 @@ impl<'a> GraphemeSet<'a> {
 
         let emoji_glyphs = emoji.len();
         assert!(
-            emoji_glyphs <= 512,
+            emoji_glyphs <= 2048, // each emoji takes two glyph slots
             "Too many unique graphemes: {emoji_glyphs}"
         );
 
