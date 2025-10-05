@@ -356,9 +356,6 @@ impl AtlasFontGenerator {
             // Render emoji at 2× width and split into left/right halves
             let bounds = config.double_width_glyph_bounds();
             let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
-            let pixel_count = bitmap.data.len();
-            eprintln!("EMOJI: '{}' id={:#06x} layer={} pixels={}",
-                glyph.symbol, glyph.id, glyph.id >> 5, pixel_count);
             let cell_w = config.glyph_bounds().width();
 
             let half_bitmap = if glyph.id & 1 == 0 {
@@ -367,12 +364,8 @@ impl AtlasFontGenerator {
                 GlyphBitmap::split_right(&bitmap, cell_w)
             };
 
-            let half_pixels = half_bitmap.pixels();
-            eprintln!("  -> After split: {} pixels, half={}",
-                half_pixels.len(), if glyph.id & 1 == 0 { "LEFT" } else { "RIGHT" });
-
             self.render_pixels_to_texture(
-                half_pixels,
+                half_bitmap.pixels(),
                 glyph.atlas_coordinate(),
                 config,
                 texture,
