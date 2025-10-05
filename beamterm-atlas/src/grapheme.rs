@@ -104,7 +104,7 @@ fn is_ascii_control_char(ch: char) -> bool {
 
 fn flatten_sorted(ranges: &[RangeInclusive<char>], additional_chars: &[char]) -> Vec<char> {
     let mut chars: BTreeSet<char> = ranges
-        .into_iter()
+        .iter()
         .cloned()
         .flat_map(|r| r.into_iter())
         .filter(|&c| !is_ascii_control_char(c))

@@ -77,7 +77,7 @@ impl FontAtlas {
         config.glyphs.iter()
             .filter(|g| g.style == FontStyle::Normal) // only normal style glyphs
             .filter(|g| !g.is_ascii())                // only non-ascii glyphs
-            .filter(|g| !g.is_emoji || (g.is_emoji && g.id & 1 == 0))  // only even emoji ids
+            .filter(|g| !g.is_emoji || g.id & 1 == 0)  // only even emoji ids
             .for_each(|g| {
                 symbol_lookup.insert(g.id, g.symbol.clone());
                 layers.insert(g.symbol.clone(), g.id);
@@ -167,7 +167,7 @@ impl FontAtlas {
         let non_ascii_count = self.symbol_lookup.len() as u32;
         ascii_count + non_ascii_count
     }
-    
+
     pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
         &self.symbol_lookup
     }

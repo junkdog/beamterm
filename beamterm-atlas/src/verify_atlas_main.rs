@@ -33,14 +33,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn find_glyph_symbol(atlas: &FontAtlasData, slice: u16, pos: u16) -> Option<&Glyph> {
-    let glyph_id = (slice << 5) | pos;  // 32 glyphs per slice (shift by 5 = multiply by 32)
+    let glyph_id = (slice << 5) | pos; // 32 glyphs per slice (shift by 5 = multiply by 32)
     atlas.glyphs.iter().find(|g| g.id == glyph_id)
 }
 
-fn render_slice(
-    atlas: &FontAtlasData,
-    slice: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn render_slice(atlas: &FontAtlasData, slice: usize) -> Result<(), Box<dyn std::error::Error>> {
     let cells_per_row = 16;
     let rows = 32 / cells_per_row; // 2 rows of 16 cells
     let display_width = atlas.cell_size.0 as usize * cells_per_row;
@@ -62,7 +59,7 @@ fn render_slice(
                 write!(
                     &mut output,
                     "{}",
-                    format!("{:X}", col).blue()  // Use hex for 0-F
+                    format!("{:X}", col).blue() // Use hex for 0-F
                 )
                 .ok();
             } else {
@@ -78,7 +75,9 @@ fn render_slice(
                 write!(
                     &mut output,
                     "{:2} ",
-                    (y / atlas.cell_size.1 as usize).to_string().blue()
+                    (y / atlas.cell_size.1 as usize)
+                        .to_string()
+                        .blue()
                 )
                 .ok();
             } else {
@@ -147,15 +146,15 @@ fn render_cell(
                 let (r2, g2, b2) = rgb_components(pixel_bottom);
                 let px = "▀".truecolor(r1, g1, b1).on_truecolor(r2, g2, b2);
                 write!(output, "{px}").ok();
-            }
+            },
             (true, false) => {
                 let (r, g, b) = rgb_components(pixel_top);
                 write!(output, "{}", "▀".truecolor(r, g, b)).ok();
-            }
+            },
             (false, true) => {
                 let (r, g, b) = rgb_components(pixel_bottom);
                 write!(output, "{}", "▄".truecolor(r, g, b)).ok();
-            }
+            },
             (false, false) => {
                 // Show glyph symbol at cell boundary
                 if x == 0 && y == 0 {
@@ -172,7 +171,7 @@ fn render_cell(
                 } else {
                     write!(output, " ").ok();
                 }
-            }
+            },
         }
     }
 }

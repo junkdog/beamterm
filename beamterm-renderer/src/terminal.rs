@@ -512,9 +512,7 @@ impl TerminalDebugApi {
     pub fn get_symbol_lookup(&self) -> js_sys::Array {
         let grid = self.grid.borrow();
         let atlas = grid.atlas();
-        let mut glyphs: Vec<_> = atlas.get_symbol_lookup()
-            .iter()
-            .collect();
+        let mut glyphs: Vec<_> = atlas.get_symbol_lookup().iter().collect();
 
         glyphs.sort();
 

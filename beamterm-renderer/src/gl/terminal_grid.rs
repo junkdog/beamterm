@@ -292,9 +292,9 @@ impl TerminalGrid {
                     self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
 
                     // render right half in next cell, if within bounds
-                    self.cells.get_mut(idx + 1).map(|c| {
-                        *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg)
-                    });
+                    if let Some(c) = self.cells.get_mut(idx + 1) {
+                        *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg);
+                    }
                 } else {
                     let glyph_id = base_glyph_id | cell.style_bits;
                     self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
@@ -329,9 +329,9 @@ impl TerminalGrid {
             // Emoji: don't apply style bits
             let glyph_id = base_glyph_id;
             self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
-            self.cells.get_mut(idx + 1).map(|c| {
-                *c = CellDynamic::new(glyph_id + 1, cell_data.fg, cell_data.bg)
-            });
+            if let Some(c) = self.cells.get_mut(idx + 1) {
+                *c = CellDynamic::new(glyph_id + 1, cell_data.fg, cell_data.bg);
+            }
         } else {
             // Normal glyph: apply style bits
             let glyph_id = base_glyph_id | cell_data.style_bits;
@@ -845,10 +845,8 @@ impl CellStatic {
 }
 
 impl CellDynamic {
-    const GLYPH_STYLE_MASK: u16 = Glyph::BOLD_FLAG
-        | Glyph::ITALIC_FLAG
-        | Glyph::UNDERLINE_FLAG
-        | Glyph::STRIKETHROUGH_FLAG;
+    const GLYPH_STYLE_MASK: u16 =
+        Glyph::BOLD_FLAG | Glyph::ITALIC_FLAG | Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG;
 
     #[inline]
     pub fn new(glyph_id: u16, fg: u32, bg: u32) -> Self {
@@ -875,8 +873,7 @@ impl CellDynamic {
     /// Overwrites the current cell style bits with the provided style bits.
     pub fn style(&mut self, style_bits: u16) {
         let glyph_id = (self.glyph_id() & !Self::GLYPH_STYLE_MASK) | style_bits;
-        self.data[..2]
-            .copy_from_slice(&glyph_id.to_le_bytes());
+        self.data[..2].copy_from_slice(&glyph_id.to_le_bytes());
     }
 
     /// Sets the foreground color of the cell.

@@ -9,8 +9,6 @@ mod grapheme;
 mod logging;
 mod raster_config;
 
-use std::collections::BTreeSet;
-
 use beamterm_data::*;
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};

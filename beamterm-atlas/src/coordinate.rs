@@ -1,6 +1,6 @@
 use beamterm_data::{FontAtlasData, Glyph};
 
-use crate::{glyph_bounds::GlyphBounds, raster_config::RasterizationConfig};
+use crate::glyph_bounds::GlyphBounds;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AtlasCoordinate {
@@ -9,7 +9,7 @@ pub(super) struct AtlasCoordinate {
 }
 
 impl AtlasCoordinate {
-    pub(super) fn to_pixel_xy(&self, config: GlyphBounds) -> (i32, i32) {
+    pub(super) fn to_pixel_xy(self, config: GlyphBounds) -> (i32, i32) {
         let x = self.cell_offset_in_px(config).0 + FontAtlasData::PADDING;
         let y = FontAtlasData::PADDING;
 

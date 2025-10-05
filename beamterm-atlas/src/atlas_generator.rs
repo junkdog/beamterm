@@ -13,7 +13,7 @@ use crate::{
     coordinate::{AtlasCoordinate, AtlasCoordinateProvider},
     font_discovery::{FontDiscovery, FontFamily},
     glyph_bounds::{measure_glyph_bounds, GlyphBounds},
-    glyph_rasterizer::{create_rasterizer, create_text_attrs},
+    glyph_rasterizer::create_rasterizer,
     grapheme::GraphemeSet,
     raster_config::RasterizationConfig,
 };
@@ -21,6 +21,7 @@ use crate::{
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
 /// Classification of a glyph's width based on its rendered dimensions.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlyphWidthInfo {
     /// Glyph fits within a single terminal cell.
@@ -90,7 +91,8 @@ impl GlyphBitmap {
 
     /// Splits double-width emoji pixels into left half (x < split_point).
     fn split_left(source: &GlyphBitmap, cell_w: i32) -> Self {
-        let data: Vec<_> = source.data
+        let data: Vec<_> = source
+            .data
             .iter()
             .copied()
             .filter(|(x, _, _)| *x < cell_w)
@@ -242,7 +244,7 @@ impl AtlasFontGenerator {
     ) -> BitmapFont {
         let char_count = unicode_ranges
             .iter()
-            .map(|r| r.clone().into_iter().count())
+            .map(|r| r.clone().count())
             .sum::<usize>();
         info!(
             font_family = %self.font_family_name,
@@ -370,7 +372,6 @@ impl AtlasFontGenerator {
                 config,
                 texture,
             );
-
         } else {
             // Normal glyph rendering
             let pixels = self
@@ -428,7 +429,7 @@ impl AtlasFontGenerator {
     /// The `cell_w` parameter determines the rendering width:
     /// - For normal glyphs: single cell width
     /// - For double-width emoji: 2× cell width (via `double_width_glyph_bounds()`)
-    fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, cell_h: i32) -> Buffer {
+    fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, _cell_h: i32) -> Buffer {
         create_rasterizer(&glyph.symbol)
             .font_family_name(&self.font_family_name)
             .font_style(glyph.style)
@@ -510,6 +511,7 @@ impl AtlasFontGenerator {
     /// Renders the glyph at 4× size with 8× buffer dimensions to accurately measure its
     /// actual width, then classifies based on the threshold of 1.5× cell width.
     /// Space characters are always classified as single-width.
+    #[allow(dead_code)]
     pub fn classify_glyph_width(
         &mut self,
         glyph: impl Into<String>,
@@ -571,7 +573,6 @@ impl AtlasFontGenerator {
 
         glyph_info
     }
-
 
     /// Calculates optimal cell dimensions by iteratively tuning font size for crisp edges.
     ///
@@ -735,41 +736,6 @@ impl AtlasFontGenerator {
         )
     }
 
-    /// Calculates unified cell dimensions by measuring maximum bounds across all provided glyphs.
-    fn calculate_cell_dimensions(&mut self, glyphs: &[Glyph]) -> GlyphBounds {
-        let mut bounds = GlyphBounds::empty();
-
-        debug!(
-            "Measuring unified cell dimensions across {} glyphs",
-            glyphs.len()
-        );
-
-        // Measure all style combinations to find maximum bounds
-        for glyph in glyphs.iter() {
-            let mut buffer = create_rasterizer(&glyph.symbol)
-                .font_family_name(&self.font_family_name)
-                .font_style(glyph.style)
-                .rasterize(&mut self.font_system, self.metrics)
-                .expect("glyph to rasterize to Buffer");
-
-            // Measure actual glyph bounds with baseline awareness using new module
-            let glyph_bounds = measure_glyph_bounds(
-                &mut buffer.borrow_with(&mut self.font_system),
-                &mut self.cache,
-            );
-            bounds = bounds.merge(glyph_bounds);
-
-            debug!(
-                symbol = %glyph.symbol,
-                style = ?glyph.style,
-                bounds = ?glyph_bounds,
-                "Glyph metrics"
-            );
-        }
-
-        bounds
-    }
-
     /// Checks which glyphs are missing from the font by attempting to rasterize them.
     ///
     /// # Arguments
@@ -833,40 +799,6 @@ impl AtlasFontGenerator {
             font_family_name: self.font_family_name.clone(),
         }
     }
-}
-
-/// Creates test glyphs for cell dimension calculation using the full block character.
-fn create_test_glyphs_for_cell_calculation() -> Vec<Glyph> {
-    // todo: re-enable all glyphs when renderer supports overdrawing terminal cells.
-    // certain glyphs extend into neighboring cells (typically with negative x/y offsets),
-    // so we need to track inner and outer cell bounds.
-
-    // Use multiple test characters that stress different dimensions and baseline positions:
-    // - Block character for full block coverage
-    // - Capital letters for ascender measurement
-    // - Lowercase with descenders for full baseline range
-    // - Mixed ascender/descender combinations for edge cases
-    // - Characters that may have different metrics in different styles
-    [
-        // Block character for full coverage
-        "\u{2588}", // █
-                   // // Capital letters for ascender measurement
-                   // "M", "W", "H", "I",
-                   // // Lowercase with descenders
-                   // "g", "y", "p", "q", "j",
-                   // // Mixed ascender/descender combinations
-                   // "b", "d", "f", "h", "k", "l", "t",
-                   // // Characters that may have different metrics
-                   // "Q", "@", "#", "&"
-    ]
-    .into_iter()
-    .flat_map(|ch| {
-        FontStyle::ALL
-            .into_iter()
-            .filter(|s| *s == FontStyle::Normal)
-            .map(move |style| Glyph::new(ch, style, (0, 0)))
-    })
-    .collect()
 }
 
 /// Returns true if the string is a single Unicode space or whitespace character.
