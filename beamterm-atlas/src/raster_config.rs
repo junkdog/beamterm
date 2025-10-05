@@ -36,6 +36,13 @@ impl RasterizationConfig {
         self.bounds
     }
 
+    pub(super) fn double_width_glyph_bounds(&self) -> GlyphBounds {
+        GlyphBounds {
+            max_x: self.bounds.max_x + self.bounds.width(),
+            ..self.bounds
+        }
+    }
+
     pub(super) fn texture_size(&self) -> usize {
         (self.texture_width * self.texture_height * self.layers) as usize
     }

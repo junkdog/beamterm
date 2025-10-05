@@ -89,8 +89,9 @@ impl GlyphBitmap {
     }
 
     /// Splits double-width emoji pixels into left half (x < split_point).
-    fn split_left(pixels: Vec<(i32, i32, Color)>, cell_w: i32) -> Self {
-        let data: Vec<_> = pixels
+    fn split_left(source: &GlyphBitmap, cell_w: i32) -> Self {
+        let data: Vec<_> = source
+            .pixels()
             .into_iter()
             .filter(|(x, _, _)| *x < cell_w)
             .collect();
@@ -100,8 +101,8 @@ impl GlyphBitmap {
     }
 
     /// Splits double-width emoji pixels into right half (x >= split_point), normalized to 0-based.
-    fn split_right(pixels: Vec<(i32, i32, Color)>, cell_w: i32) -> Self {
-        let data: Vec<_> = pixels
+    fn split_right(source: &GlyphBitmap, cell_w: i32) -> Self {
+        let data: Vec<_> = source.pixels()
             .into_iter()
             .filter(|(x, _, _)| *x >= cell_w)
             .map(|(x, y, c)| (x - cell_w, y, c)) // Normalize x to 0-based
@@ -127,10 +128,6 @@ impl GlyphBitmap {
 
     /// Calculates bounding box from pixel data.
     fn calculate_bounds(pixels: &[(i32, i32, Color)], cell_w: i32) -> GlyphBounds {
-        if pixels.is_empty() {
-            return GlyphBounds::empty();
-        }
-
         let min_x = pixels
             .iter()
             .map(|(x, _, _)| *x)
@@ -263,7 +260,6 @@ impl AtlasFontGenerator {
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
 
         // let test_glyphs = create_test_glyphs_for_cell_calculation();
-        // let bounds = self.calculate_cell_dimensions(&test_glyphs);
         let config = RasterizationConfig::new(bounds, &glyphs);
         info!(
             bounds = ?bounds,
@@ -357,34 +353,24 @@ impl AtlasFontGenerator {
 
         if glyph.is_emoji {
             // Render emoji at 2× width and split into left/right halves
-            let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
-            let cell_w = config.glyph_bounds().width();
-
-            // Split into left and right halves
-            let left = GlyphBitmap::split_left(bitmap.data.clone(), cell_w);
-            let right = GlyphBitmap::split_right(bitmap.data, cell_w);
+            let bounds = config.double_width_glyph_bounds();
+            let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
+            let cell_w = bounds.width();
 
             // Render left half to current glyph position
             self.render_pixels_to_texture(
-                left.pixels(),
-                glyph.atlas_coordinate(),
+                GlyphBitmap::split_left(&bitmap, cell_w).pixels(),
+                AtlasCoordinate::from(glyph.id),
                 config,
                 texture,
             );
 
             // Render right half to next glyph position (id + 1)
             self.render_pixels_to_texture(
-                right.pixels(),
+                GlyphBitmap::split_right(&bitmap, cell_w).pixels(),
                 AtlasCoordinate::from(glyph.id + 1),
                 config,
                 texture,
-            );
-
-            debug!(
-                symbol = %glyph.symbol,
-                left_id = format_args!("0x{:04X}", glyph.id),
-                right_id = format_args!("0x{:04X}", glyph.id + 1),
-                "Split double-width emoji into two cells"
             );
         } else {
             // Normal glyph rendering
@@ -466,8 +452,6 @@ impl AtlasFontGenerator {
                 pixels.push((x, y, color));
             }
         });
-
-        // todo: fix emoji glyphs"
 
         pixels
     }
