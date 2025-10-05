@@ -167,6 +167,10 @@ impl FontAtlas {
         let non_ascii_count = self.symbol_lookup.len() as u32;
         ascii_count + non_ascii_count
     }
+    
+    pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
+        &self.symbol_lookup
+    }
 }
 
 /// Tracks glyphs that were requested but not found in the font atlas.
