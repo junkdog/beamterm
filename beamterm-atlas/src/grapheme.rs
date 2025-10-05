@@ -4,7 +4,7 @@ use std::{
 };
 
 use beamterm_data::{FontStyle, Glyph};
-use compact_str::ToCompactString;
+use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
@@ -12,15 +12,14 @@ use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
 // printable ASCII range
 const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
 
-pub struct GraphemeSet<'a> {
+pub struct GraphemeSet {
     unicode: Vec<char>,
-    emoji: Vec<&'a str>,
+    emoji: Vec<CompactString>,
 }
 
-impl<'a> GraphemeSet<'a> {
-    pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &'a str) -> Self {
-        let (emoji, unicode) = partition_emoji_and_unicode(other_symbols);
-        let unicode = flatten_sorted(unicode_ranges, &unicode);
+impl GraphemeSet {
+    pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &str) -> Self {
+        let (emoji, unicode) = partition_emoji_and_unicode(unicode_ranges, other_symbols);
 
         let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + unicode.len();
         assert!(
@@ -73,13 +72,26 @@ impl<'a> GraphemeSet<'a> {
     }
 }
 
-fn partition_emoji_and_unicode(chars: &str) -> (Vec<&str>, Vec<char>) {
-    let (mut emoji, other_symbols): (Vec<&str>, Vec<&str>) = chars
+fn partition_emoji_and_unicode(
+    ranges: &[RangeInclusive<char>],
+    chars: &str,
+) -> (Vec<CompactString>, Vec<char>) {
+    let (emoji_ranged, unicode_ranged) = flatten_ranges(ranges);
+    let emoji_ranged = emoji_ranged
+        .into_iter()
+        .map(|c| c.to_compact_string());
+
+    let (emoji, other_symbols): (Vec<&str>, Vec<&str>) = chars
         .graphemes(true)
         .filter(|s| !is_ascii_control(s))
         .filter(|s| !s.is_ascii()) // always inserted
         .partition(|s| is_emoji(s));
 
+    let mut emoji: Vec<_> = emoji
+        .into_iter()
+        .map(|s| s.to_compact_string())
+        .collect();
+    emoji.extend(emoji_ranged);
     emoji.sort();
     emoji.dedup();
 
@@ -87,6 +99,7 @@ fn partition_emoji_and_unicode(chars: &str) -> (Vec<&str>, Vec<char>) {
         .into_iter()
         .map(|s: &str| s.chars().next().unwrap())
         .collect();
+    other_symbols.extend(unicode_ranged);
     other_symbols.sort();
     other_symbols.dedup();
 
@@ -102,17 +115,17 @@ fn is_ascii_control_char(ch: char) -> bool {
     ch < 0x20 || ch == 0x7F
 }
 
-fn flatten_sorted(ranges: &[RangeInclusive<char>], additional_chars: &[char]) -> Vec<char> {
-    let mut chars: BTreeSet<char> = ranges
+fn flatten_ranges(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<char>) {
+    let chars: BTreeSet<char> = ranges
         .iter()
         .cloned()
         .flat_map(|r| r.into_iter())
         .filter(|&c| !is_ascii_control_char(c))
         .collect();
 
-    chars.extend(additional_chars);
-
-    chars.into_iter().collect()
+    chars
+        .into_iter()
+        .partition(|c| is_emoji(&c.to_compact_string()))
 }
 
 fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Glyph> {

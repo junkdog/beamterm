@@ -118,6 +118,7 @@ fn main() -> Result<()> {
             .iter()
             .filter(|g| g.is_emoji)
             .count()
+            / 2  // each emoji occupies two glyphs
     );
     println!(
         "Longest grapheme in bytes: {}",
