@@ -31,7 +31,7 @@ console_error_panic_hook = { workspace = true }
 thiserror = { workspace = true }
 js-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = "0.4.50"
+wasm-bindgen-futures = "0.4.54"
 
 [dependencies.unicode-segmentation]
 workspace = true

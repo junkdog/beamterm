@@ -21,13 +21,13 @@ categories = ["graphics", "wasm", "web-programming"]
 compact_str = "0.9.0"
 console_error_panic_hook = "0.1.7"
 emojis = "0.7.2"
-js-sys = "0.3.77"
-serde = { version = "1.0.226", features = ["derive"] }
+js-sys = "0.3.81"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 unicode-segmentation = "1.12.0"
-wasm-bindgen = { version = "0.2.77" }
-web-sys = "0.3.77"
+wasm-bindgen = { version = "0.2.104" }
+web-sys = "0.3.81"
 web-time = "1.1.0"
 
 [workspace.metadata.docs.rs]
