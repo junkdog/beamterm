@@ -20,18 +20,6 @@ use crate::{
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
-/// Classification of a glyph's width based on its rendered dimensions.
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GlyphWidthInfo {
-    /// Glyph fits within a single terminal cell.
-    SingleWidth,
-    /// Glyph requires two terminal cells (typically emoji or wide characters).
-    DoubleWidth,
-    /// Glyph cannot be rendered (contains the glyph string).
-    Missing(String),
-}
-
 /// A glyph that failed to render in a specific font style.
 #[derive(Debug, Clone)]
 pub struct MissingGlyph {
@@ -291,6 +279,12 @@ impl AtlasFontGenerator {
         let nudged_strikethrough =
             Self::nudge_decoration_to_half_pixel(self.strikethrough, cell_height);
 
+        // drop right half of double-width emoji (not needed for atlas)
+        let glyphs: Vec<_> = glyphs
+            .into_iter()
+            .filter(|g| !g.is_emoji || g.id & 1 == 0)
+            .collect();
+
         println!("Position Summary:");
         println!("  Cell height: {cell_height}");
         println!(
@@ -490,88 +484,6 @@ impl AtlasFontGenerator {
     fn texture_index(&self, x: i32, y: i32, slice: i32, config: &RasterizationConfig) -> usize {
         (slice * config.texture_width * config.texture_height + y * config.texture_width + x)
             as usize
-    }
-
-    /// Classifies a glyph as single-width, double-width, or missing by measuring its rendered width.
-    ///
-    /// # Arguments
-    ///
-    /// * `glyph` - The character or grapheme to classify
-    /// * `inner_cell_w` - Cell width (without padding) for width comparison
-    /// * `inner_cell_h` - Cell height (without padding) for rendering
-    ///
-    /// # Returns
-    ///
-    /// - [`GlyphWidthInfo::SingleWidth`] - Glyph fits within one cell (width < 1.5× cell width)
-    /// - [`GlyphWidthInfo::DoubleWidth`] - Glyph requires two cells (width ≥ 1.5× cell width)
-    /// - [`GlyphWidthInfo::Missing`] - Glyph cannot be rendered (no pixels produced)
-    ///
-    /// # Algorithm
-    ///
-    /// Renders the glyph at 4× size with 8× buffer dimensions to accurately measure its
-    /// actual width, then classifies based on the threshold of 1.5× cell width.
-    /// Space characters are always classified as single-width.
-    #[allow(dead_code)]
-    pub fn classify_glyph_width(
-        &mut self,
-        glyph: impl Into<String>,
-        inner_cell_w: f32,
-        inner_cell_h: f32,
-    ) -> GlyphWidthInfo {
-        // Measure at 4× size (same approach as rasterize_emoji)
-        let measure_size = self.metrics.font_size * 4.0;
-        let measure_metrics = Metrics::new(measure_size, measure_size * self.line_height);
-        let scale_factor = 8.0;
-
-        let glyph = glyph.into();
-        let mut measure_buffer = create_rasterizer(&glyph)
-            .font_family_name(&self.font_family_name)
-            .font_style(FontStyle::Normal)
-            .buffer_size(inner_cell_w * scale_factor, inner_cell_h * scale_factor)
-            .rasterize(&mut self.font_system, measure_metrics)
-            .expect("glyph to rasterize to Buffer");
-
-        let mut measure_buffer = measure_buffer.borrow_with(&mut self.font_system);
-        let bounds = measure_glyph_bounds(&mut measure_buffer, &mut self.cache);
-
-        if !bounds.has_content() {
-            // Check if this is an intentionally empty glyph (space character)
-            // If it's a space, treat as single-width; otherwise it's missing
-            if is_empty_character(&glyph) {
-                debug!(
-                    glyph = glyph,
-                    "Classified as single-width (space character)"
-                );
-                return GlyphWidthInfo::SingleWidth;
-            } else {
-                debug!(glyph = glyph, "Classified as missing (no pixels)");
-                return GlyphWidthInfo::Missing(glyph);
-            }
-        }
-
-        let actual_width = bounds.width();
-
-        // Buffer is 8× cell size, so scale back to cell space for comparison
-        let actual_width_in_cell_space = actual_width as f32 / scale_factor;
-
-        // Consider double-width if actual width is >= 1.5× cell width
-        // This threshold accounts for glyphs that render at ~2× cell width
-        let glyph_info = if actual_width_in_cell_space >= inner_cell_w * 1.5 {
-            GlyphWidthInfo::DoubleWidth
-        } else {
-            GlyphWidthInfo::SingleWidth
-        };
-
-        debug!(
-            glyph = glyph,
-            actual_width_px = actual_width,
-            actual_width_cells = actual_width_in_cell_space,
-            cell_width = inner_cell_w,
-            glyph_info = ?glyph_info,
-            "Classified glyph width"
-        );
-
-        glyph_info
     }
 
     /// Calculates optimal cell dimensions by iteratively tuning font size for crisp edges.

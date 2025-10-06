@@ -77,7 +77,6 @@ impl FontAtlas {
         config.glyphs.iter()
             .filter(|g| g.style == FontStyle::Normal) // only normal style glyphs
             .filter(|g| !g.is_ascii())                // only non-ascii glyphs
-            .filter(|g| !g.is_emoji || g.id & 1 == 0)  // only even emoji ids
             .for_each(|g| {
                 symbol_lookup.insert(g.id, g.symbol.clone());
                 layers.insert(g.symbol.clone(), g.id);
