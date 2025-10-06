@@ -284,7 +284,6 @@ impl Batch {
             if emojis::get(ch).is_some() {
                 width_offset += 1;
             }
-
         }
 
         Ok(())
