@@ -271,14 +271,20 @@ impl Batch {
             return Ok(()); // oob, ignore
         }
 
+        let mut width_offset: u16 = 0;
         for (i, ch) in text.graphemes(true).enumerate() {
-            let current_col = x + i as u16;
+            let current_col = x + width_offset + i as u16;
             if current_col >= cols {
                 break;
             }
 
             let cell = CellData::new_with_style_bits(ch, style.style_bits, style.fg, style.bg);
             terminal_grid.update_cell(current_col, y, cell);
+
+            if emojis::get(ch).is_some() {
+                width_offset += 1;
+            }
+
         }
 
         Ok(())

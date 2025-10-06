@@ -125,6 +125,7 @@ dependencies = [
  "beamterm-data",
  "compact_str",
  "console_error_panic_hook",
+ "emojis",
  "js-sys",
  "serde",
  "serde-wasm-bindgen",

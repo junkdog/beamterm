@@ -37,6 +37,9 @@ wasm-bindgen-futures = "0.4.50"
 workspace = true
 optional = true
 
+[dependencies.emojis]
+workspace = true
+optional = true
 
 [dependencies.serde]
 optional = true
@@ -83,6 +86,7 @@ features = [
 js-api = [
     "compact_str/serde",
 
+    "dep:emojis",
     "dep:serde",
     "dep:serde_json",
     "dep:serde-wasm-bindgen",
