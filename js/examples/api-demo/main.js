@@ -83,7 +83,7 @@ class BatchAPIDemo {
 
         // Individual cell examples
         x = 5;
-        batch.cell(x++, y, cell("🚀", style()));
+        batch.cell(x++, y, cell("🚀", style())); x++; // double-width emoji
         batch.cell(x++, y, cell("A", style().bold().fg(0xf7768e)));
         batch.cell(x++, y, cell("B", style().italic().fg(0x9ece6a)));
         batch.cell(x++, y, cell("C", style().underline().fg(0x7aa2f7)));
