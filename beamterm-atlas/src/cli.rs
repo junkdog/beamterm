@@ -16,6 +16,10 @@ pub struct Cli {
     #[arg(value_name = "FONT", required_unless_present = "list_fonts")]
     pub font: Option<String>,
 
+    /// Emoji font family name to use for emoji glyphs
+    #[arg(long, value_name = "FONT", default_value = "Noto Color Emoji")]
+    pub emoji_font: String,
+
     /// File containing symbols (including emoji) to include in the atlas (optional if ranges cover all needed symbols)
     #[arg(long, value_parser = validate_file_exists)]
     pub symbols_file: Option<PathBuf>,
@@ -178,6 +182,7 @@ impl Cli {
     pub fn print_summary(&self, font_name: &str) {
         println!("\nGenerating font atlas:");
         println!("  Font: {font_name}");
+        println!("  Emoji font: {}", self.emoji_font);
         println!("  Size: {}pt", self.font_size);
         println!("  Line height: {}x", self.line_height);
         println!("  Output: {}", self.output);
@@ -252,6 +257,7 @@ mod tests {
     fn test_cli_validation() {
         let cli = Cli {
             font: Some("test".to_string()),
+            emoji_font: "Noto Color Emoji".to_string(),
             symbols_file: Some(PathBuf::from("/dev/null")),
             ranges: vec![],
             font_size: 15.0,
@@ -272,6 +278,7 @@ mod tests {
     fn test_invalid_font_size() {
         let cli = Cli {
             font: Some("test".to_string()),
+            emoji_font: "Noto Color Emoji".to_string(),
             symbols_file: None,
             ranges: vec![],
             font_size: -1.0,
@@ -292,6 +299,7 @@ mod tests {
     fn test_invalid_position() {
         let cli = Cli {
             font: Some("test".to_string()),
+            emoji_font: "Noto Color Emoji".to_string(),
             symbols_file: None,
             ranges: vec![],
             font_size: 15.0,

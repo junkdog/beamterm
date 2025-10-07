@@ -155,5 +155,14 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
         .collect()
 }
 fn is_emoji(s: &str) -> bool {
-    emojis::get(s).is_some()
+    let result = emojis::get(s).is_some();
+    if !result && s.chars().all(|c| (c as u32) >= 0x2300) {
+        // Log non-emoji symbols that look like they might be emoji
+        tracing::debug!(
+            symbol = %s,
+            codepoint = format_args!("U+{:04X}", s.chars().next().unwrap_or('\0') as u32),
+            "Symbol not detected as emoji"
+        );
+    }
+    result
 }

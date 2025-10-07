@@ -157,6 +157,7 @@ pub struct AtlasFontGenerator {
     underline: LineDecoration,
     strikethrough: LineDecoration,
     font_family_name: String,
+    emoji_font_family_name: String,
 }
 
 impl AtlasFontGenerator {
@@ -165,6 +166,7 @@ impl AtlasFontGenerator {
     /// # Arguments
     ///
     /// * `font_family` - The font family to use for glyph rasterization
+    /// * `emoji_font_family_name` - Emoji font family name to use for emoji glyphs (defaults to "Noto Color Emoji")
     /// * `font_size` - Base font size in points
     /// * `line_height` - Line height multiplier (e.g., 1.2 for 120% line height)
     /// * `underline` - Underline decoration position and thickness
@@ -176,6 +178,7 @@ impl AtlasFontGenerator {
     /// cannot be loaded.
     pub fn new_with_family(
         font_family: FontFamily,
+        emoji_font_family_name: String,
         font_size: f32,
         line_height: f32,
         underline: LineDecoration,
@@ -206,6 +209,7 @@ impl AtlasFontGenerator {
             underline,
             strikethrough,
             font_family_name: font_family.name.clone(),
+            emoji_font_family_name,
         })
     }
 
@@ -409,7 +413,12 @@ impl AtlasFontGenerator {
         style: FontStyle,
         bounds: GlyphBounds,
     ) -> GlyphBitmap {
-        let glyph = Glyph::new(symbol, style, (0, 0));
+        let glyph = if emojis::get(symbol).is_some() {
+            Glyph::new_emoji(0, symbol, (0, 0))
+        } else {
+            Glyph::new(symbol, style, (0, 0))
+        };
+
         let mut buffer = self.render_to_buffer(&glyph, bounds.width(), bounds.height());
         let mut buffer = buffer.borrow_with(&mut self.font_system);
 
@@ -424,9 +433,27 @@ impl AtlasFontGenerator {
     /// - For normal glyphs: single cell width
     /// - For double-width emoji: 2× cell width (via `double_width_glyph_bounds()`)
     fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, _cell_h: i32) -> Buffer {
+        // Use emoji font if glyph is emoji, otherwise use main font
+        // Emoji fonts typically only have Normal style, not Bold/Italic
+        let (font_family, font_style) = if glyph.is_emoji {
+            (&self.emoji_font_family_name, FontStyle::Normal)
+        } else {
+            (&self.font_family_name, glyph.style)
+        };
+
+        if glyph.is_emoji {
+            info!(
+                symbol = %glyph.symbol,
+                codepoint = format_args!("U+{:04X}", glyph.symbol.chars().next().unwrap_or('\0') as u32),
+                font_family = %font_family,
+                font_style = ?font_style,
+                "Rendering emoji glyph"
+            );
+        }
+
         create_rasterizer(&glyph.symbol)
-            .font_family_name(&self.font_family_name)
-            .font_style(glyph.style)
+            .font_family_name(font_family)
+            .font_style(font_style)
             .monospace_width(cell_w as u32)
             .rasterize(&mut self.font_system, self.metrics)
             .expect("glyph to rasterize to Buffer")
@@ -784,6 +811,7 @@ mod tests {
         // Create a generator
         let mut generator = AtlasFontGenerator::new_with_family(
             font_family.clone(),
+            "Noto Color Emoji".to_string(),
             15.0,
             1.0,
             LineDecoration::new(0.85, 0.05),

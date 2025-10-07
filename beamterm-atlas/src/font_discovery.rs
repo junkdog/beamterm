@@ -99,6 +99,33 @@ impl FontDiscovery {
         Ok(())
     }
 
+    /// Find a font family by name (partial match, case-insensitive)
+    /// Returns the actual font family name if found
+    pub fn find_font(&self, font_name: &str) -> Option<String> {
+        let db = self.font_system.db();
+        let font_name_lower = font_name.to_lowercase();
+
+        db.faces().find_map(|face| {
+            face.families
+                .iter()
+                .find(|(name, _)| name.to_lowercase().contains(&font_name_lower))
+                .map(|(name, _)| name.clone())
+        })
+    }
+
+    /// Get all unique font family names in the system (sorted)
+    pub fn list_all_fonts(&self) -> Vec<String> {
+        let db = self.font_system.db();
+        let mut font_names: Vec<String> = db
+            .faces()
+            .flat_map(|face| face.families.iter().map(|(name, _)| name.clone()))
+            .collect();
+
+        font_names.sort();
+        font_names.dedup();
+        font_names
+    }
+
     pub fn into_font_system(self) -> FontSystem {
         self.font_system
     }
