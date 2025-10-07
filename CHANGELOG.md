@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(renderer)* Double-width emoji support (#37)
+- *(atlas)* Add emoji font selection via `--emoji-font`
 
 ### 💼 Other
 
@@ -19,6 +20,10 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - *(atlas)* Glyph mismatch from truncated conversion
+
+### ⚙️ Miscellaneous Tasks
+
+- *(font)* Hack 14.94pt 11x18 with Noto Color Emoji
 
 ## [beamterm-v0.7.0] - 2025-09-07
 
