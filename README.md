@@ -17,7 +17,6 @@ integrations.
 - **Single Draw Call** - Renders entire terminal (e.g., 200×80 cells) in one instanced draw
 - **Zero-Copy Updates** - Direct memory mapping for dynamic cell updates
 - **Unicode and Emoji Support** - Complete Unicode support with grapheme clustering
-- **ASCII Fast Path** - Direct bit operations for ASCII characters (no lookups)
 - **Selection Support** - Mouse-driven text selection with clipboard integration (Block/Linear modes)
 - **Optional JS/TS Bindings** - Provides a [JavaScript/TypeScript API](js/README.md) for easy integration
 
