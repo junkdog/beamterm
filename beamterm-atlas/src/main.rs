@@ -145,30 +145,24 @@ fn main() -> Result<()> {
         "Cell size: {}x{}",
         bitmap_font.atlas_data.cell_size.0, bitmap_font.atlas_data.cell_size.1
     );
-    println!("Total glyph count: {}", bitmap_font.atlas_data.glyphs.len());
+    let rasterized_glyphs = bitmap_font.atlas_data.glyphs;
+    println!("Total glyph count: {}", rasterized_glyphs.len());
     println!(
-        "Glyph count per variant: {}/{} (emoji: {})",
-        bitmap_font
-            .atlas_data
-            .glyphs
+        "Glyph count per variant: {} (emoji: {})",
+        rasterized_glyphs
             .iter()
             .filter(|g| !g.is_emoji)
             .count()
             / FontStyle::ALL.len(),
-        Glyph::GLYPH_ID_MASK + 1, // zero-based id/index
-        bitmap_font
-            .atlas_data
-            .glyphs
+        rasterized_glyphs
             .iter()
             .filter(|g| g.is_emoji)
             .count()
-            / 2  // each emoji occupies two glyphs
+            / 2 // each emoji occupies two glyphs
     );
     println!(
         "Longest grapheme in bytes: {}",
-        bitmap_font
-            .atlas_data
-            .glyphs
+        rasterized_glyphs
             .iter()
             .map(|g| g.symbol.len())
             .max()
@@ -253,13 +247,10 @@ fn report_missing_glyphs(
 
 fn default_unicode_ranges() -> Vec<std::ops::RangeInclusive<char>> {
     vec![
-        '\u{0020}'..='\u{007E}', // Basic Latin
         '\u{00A0}'..='\u{00FF}', // Latin-1 Supplement
         '\u{0100}'..='\u{017F}', // Latin Extended-A
-        // '\u{0180}'..='\u{024F}', // Latin Extended-B
-        '\u{231A}'..='\u{231B}', // ⌚, ⌛ (Miscellaneous Technical)
-        '\u{23CE}'..='\u{23CF}', // ⏎, ⏏ (Miscellaneous Technical)
-        '\u{23E9}'..='\u{23FC}', // excerpt fr Miscellaneous Technical
+        '\u{2300}'..='\u{232F}', // Miscellaneous Technical
+        '\u{2350}'..='\u{23FF}', // Miscellaneous Technical
         '\u{2500}'..='\u{257F}', // Box Drawing
         '\u{2580}'..='\u{259F}', // Block Elements
         '\u{25A0}'..='\u{25CF}', // Geometric Shapes (excerpt)

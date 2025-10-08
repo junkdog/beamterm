@@ -6,7 +6,6 @@ use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     bitmap_font::BitmapFont,
@@ -14,7 +13,7 @@ use crate::{
     font_discovery::{FontDiscovery, FontFamily},
     glyph_bounds::{measure_glyph_bounds, GlyphBounds},
     glyph_rasterizer::create_rasterizer,
-    grapheme::GraphemeSet,
+    grapheme::{is_emoji, GraphemeSet},
     raster_config::RasterizationConfig,
 };
 
@@ -67,10 +66,10 @@ impl GlyphBitmap {
             .cartesian_product(0..height)
             .filter(|&(x, y)| !existing_pixels.contains(&(x, y)))
             .for_each(|(x, y)| match (x + y) % 8 {
-                0 => data.push((x, y, Color::rgb(0x7F, 0x00, 0x7f))),
-                2 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x7f))),
-                4 => data.push((x, y, Color::rgb(0x00, 0x7f, 0x00))),
-                6 => data.push((x, y, Color::rgb(0x7f, 0x7f, 0x00))),
+                0 => data.push((x, y, Color::rgb(0x7F, 0x00, 0x7F))),
+                2 => data.push((x, y, Color::rgb(0x00, 0x7F, 0x7F))),
+                4 => data.push((x, y, Color::rgb(0x00, 0x7F, 0x00))),
+                6 => data.push((x, y, Color::rgb(0x7F, 0x7F, 0x00))),
                 _ => (),
             });
 
@@ -234,14 +233,8 @@ impl AtlasFontGenerator {
         unicode_ranges: &[RangeInclusive<char>],
         other_symbols: &str,
     ) -> BitmapFont {
-        let char_count = unicode_ranges
-            .iter()
-            .map(|r| r.clone().count())
-            .sum::<usize>();
         info!(
             font_family = %self.font_family_name,
-            char_count = char_count,
-            char_dbl_count = other_symbols.graphemes(true).count(),
             "Starting font generation"
         );
 
@@ -413,7 +406,7 @@ impl AtlasFontGenerator {
         style: FontStyle,
         bounds: GlyphBounds,
     ) -> GlyphBitmap {
-        let glyph = if emojis::get(symbol).is_some() {
+        let glyph = if is_emoji(symbol) {
             Glyph::new_emoji(0, symbol, (0, 0))
         } else {
             Glyph::new(symbol, style, (0, 0))

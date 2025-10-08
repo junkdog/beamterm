@@ -42,7 +42,7 @@ impl GraphemeSet {
         // pre-assigned glyphs (in the range 0x000-0x07F)
         let mut used_ids = HashSet::new();
         for c in ASCII_RANGE {
-            used_ids.insert(c as u32); // \o/ fixed it
+            used_ids.insert(c as u32);
             let s = c.to_compact_string();
             for style in FontStyle::ALL {
                 glyphs.push(Glyph::new(&s, style, (0, 0)));
@@ -76,7 +76,7 @@ fn partition_emoji_and_unicode(
     ranges: &[RangeInclusive<char>],
     chars: &str,
 ) -> (Vec<CompactString>, Vec<char>) {
-    let (emoji_ranged, unicode_ranged) = flatten_ranges(ranges);
+    let (emoji_ranged, unicode_ranged) = flatten_ranges_no_ascii(ranges);
     let emoji_ranged = emoji_ranged
         .into_iter()
         .map(|c| c.to_compact_string());
@@ -115,12 +115,13 @@ fn is_ascii_control_char(ch: char) -> bool {
     ch < 0x20 || ch == 0x7F
 }
 
-fn flatten_ranges(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<char>) {
+fn flatten_ranges_no_ascii(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<char>) {
     let chars: BTreeSet<char> = ranges
         .iter()
         .cloned()
         .flat_map(|r| r.into_iter())
         .filter(|&c| !is_ascii_control_char(c))
+        .filter(|c| !c.is_ascii())
         .collect();
 
     chars
@@ -154,15 +155,7 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
         })
         .collect()
 }
-fn is_emoji(s: &str) -> bool {
-    let result = emojis::get(s).is_some();
-    if !result && s.chars().all(|c| (c as u32) >= 0x2300) {
-        // Log non-emoji symbols that look like they might be emoji
-        tracing::debug!(
-            symbol = %s,
-            codepoint = format_args!("U+{:04X}", s.chars().next().unwrap_or('\0') as u32),
-            "Symbol not detected as emoji"
-        );
-    }
-    result
+
+pub(super) fn is_emoji(s: &str) -> bool {
+    emojis::get(s).is_some()
 }
