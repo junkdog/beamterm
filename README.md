@@ -190,6 +190,9 @@ packed representation is passed directly to the GPU.
 
 *When the EMOJI flag (bit 12) is set, BOLD and ITALIC flags are ignored as emoji only support Normal style.
 
+**Note:** For layer coordinate calculation, only bits 0-12 are used (mask `0x1FFF`). The UNDERLINE and
+STRIKETHROUGH flags (bits 13-14) are purely rendering effects and don't affect texture atlas positioning.
+
 #### ID to 2D Array Position Examples
 
 | Character | Style       | Glyph ID | Calculation            | Result                |
