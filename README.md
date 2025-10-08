@@ -30,7 +30,7 @@ beamterm targets sub-millisecond render times across a wide range of hardware:
 |---------------------------------|------------------|--------------------------|
 | Render Time†                    | <1ms @ 16k cells | <1ms @ 45k cells         |
 | Draw Calls                      | 1 per frame      | 1 per frame              |
-| Memory Usage                    | ~2.8MB           | ~2.8MB                   |
+| Memory Usage                    | ~8.9MB           | ~8.9MB                   |
 | Update Bandwidth (full refresh) | ~8 MB/s @ 60 FPS | ~22 MB/s @ 60 FPS        |
 
 [![waves](images/ratzilla_canvas_waves_426x106_s.png)](images/ratzilla_canvas_waves_426x106.png)
