@@ -293,8 +293,8 @@ Performs the core rendering logic with efficient 2D array texture lookups:
 - Masks with `0x1FFF` to exclude effect flags before computing layer index (glyph_id → layer/position)
 - Computes layer index and horizontal position using bit operations
 - Samples from 2D texture array using direct layer indexing
-- Detects emoji glyphs via bit 11 for special color handling
-- Applies underline/strikethrough effects via bits 12-13
+- Detects emoji glyphs via bit 12 for special color handling
+- Applies underline/strikethrough effects via bits 13-14
 - Blends foreground/background colors with glyph alpha for anti-aliasing
 
 
