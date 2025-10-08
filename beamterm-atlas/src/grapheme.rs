@@ -159,3 +159,16 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
 pub(super) fn is_emoji(s: &str) -> bool {
     emojis::get(s).is_some()
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_is_emoji() {
+        assert!(super::is_emoji("⏭"));
+        assert!(super::is_emoji("⏹"));
+        assert!(super::is_emoji("▶️"));
+        assert!(super::is_emoji("⏹"));
+        assert!(super::is_emoji("⏮"));
+    }
+}

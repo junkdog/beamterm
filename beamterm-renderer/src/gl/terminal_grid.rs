@@ -277,10 +277,22 @@ impl TerminalGrid {
         let cell_count = self.cells.len();
         let fallback_glyph = self.fallback_glyph;
         let w = self.terminal_size.0 as usize;
+
+        // ratatui and beamterm can disagree on which emoji
+        // are double-width (beamterm assumes double-width for all emoji),
+        // so for ratatui and similar clients we need to skip the next cell
+        // if we just wrote a double-width emoji in the current cell.
+        let mut skip_idx = None;
+
         cells
             .map(|(x, y, cell)| (w * y as usize + x as usize, cell))
             .filter(|(idx, _)| *idx < cell_count)
             .for_each(|(idx, cell)| {
+                if skip_idx.take() == Some(idx) {
+                    // skip this cell, already handled as part of previous double-width emoji
+                    return;
+                }
+
                 let base_glyph_id = atlas
                     .get_base_glyph_id(cell.symbol)
                     .unwrap_or(fallback_glyph);
@@ -294,6 +306,7 @@ impl TerminalGrid {
                     // render right half in next cell, if within bounds
                     if let Some(c) = self.cells.get_mut(idx + 1) {
                         *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg);
+                        skip_idx = Some(idx + 1);
                     }
                 } else {
                     let glyph_id = base_glyph_id | cell.style_bits;
