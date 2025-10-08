@@ -151,10 +151,10 @@ Each terminal cell requires:
 
 ## Font Atlas 2D Texture Array Architecture
 
-The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32 
-per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1) 
-coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles and 
-2048 double-width emoji.
+The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32
+per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1)
+coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles and
+2048 emoji (using 4096 glyph IDs, 0x1000-0x1FFF, for double-width rendering).
 
 ### 2D Texture Array Coordinate System
 
@@ -181,25 +181,29 @@ packed representation is passed directly to the GPU.
 | Bit(s) | Flag Name     | Hex Mask | Binary Mask           | Description               |
 |--------|---------------|----------|-----------------------|---------------------------|
 | 0-9    | GLYPH_ID      | `0x03FF` | `0000_0011_1111_1111` | Base glyph identifier     |
-| 10     | BOLD          | `0x0400` | `0000_0100_0000_0000` | Bold font style           |
-| 11     | ITALIC        | `0x0800` | `0000_1000_0000_0000` | Italic font style         |
+| 10     | BOLD          | `0x0400` | `0000_0100_0000_0000` | Bold font style*          |
+| 11     | ITALIC        | `0x0800` | `0000_1000_0000_0000` | Italic font style*        |
 | 12     | EMOJI         | `0x1000` | `0001_0000_0000_0000` | Emoji character flag      |
 | 13     | UNDERLINE     | `0x2000` | `0010_0000_0000_0000` | Underline effect          |
 | 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
 | 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
 
+*When the EMOJI flag (bit 12) is set, BOLD and ITALIC flags are ignored as emoji only support Normal style.
+
 #### ID to 2D Array Position Examples
 
-| Character | Style       | Glyph ID | Calculation            | Result                | 
+| Character | Style       | Glyph ID | Calculation            | Result                |
 |-----------|-------------|----------|------------------------|-----------------------|
 | ' ' (32)  | Normal      | 0x0020   | 32÷32=1, 32%32=0       | Layer 1, Position 0   |
 | 'A' (65)  | Normal      | 0x0041   | 65÷32=2, 65%32=1       | Layer 2, Position 1   |
-| 'A' (65)  | Bold+Italic | 0x0641   | 1601÷32=50, 1601%32=1  | Layer 50, Position 1  |
-| '€'       | Normal      | 0x0080   | Mapped to ID 128       | Layer 8, Position 0   |
-| '🚀'      | Emoji       | 0x0881   | With emoji bit set     | Layer 136, Position 1 |
+| 'A' (65)  | Bold+Italic | 0x0C41   | 3137÷32=98, 3137%32=1  | Layer 98, Position 1  |
+| '€'       | Normal      | 0x0080   | Mapped to ID 128       | Layer 4, Position 0   |
+| '🚀' (L)  | Emoji       | 0x1000   | 4096÷32=128, 4096%32=0 | Layer 128, Position 0 |
+| '🚀' (R)  | Emoji       | 0x1001   | 4097÷32=128, 4097%32=1 | Layer 128, Position 1 |
 
 The consistent modular arithmetic ensures that style variants maintain the same horizontal position
-within their respective layers, improving texture cache coherence.
+within their respective layers, improving texture cache coherence. Double-width emoji are rendered
+into two consecutive glyph slots (left and right halves), each occupying one cell position in the atlas.
 
 ### ASCII Optimization
 
