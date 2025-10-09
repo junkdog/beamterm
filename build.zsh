@@ -85,7 +85,7 @@ cmd_build-wasm() {
     fi
 
     # Generate atlas if missing
-    if [[ ! -f "$ROOT_DIR/data/bitmap_font.atlas" ]]; then
+    if [[ ! -f "$ROOT_DIR/beamterm-data/atlas/bitmap_font.atlas" ]]; then
         cmd_atlas
     fi
 
