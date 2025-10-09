@@ -179,9 +179,15 @@ cmd_test-browser() {
 cmd_atlas() {
     print_msg info "Generating font atlas..."
 
-    # If no args provided, use default (1)
+    # If no args provided, use defaults
     if [[ $# -eq 0 ]]; then
-        cargo run --release --bin beamterm-atlas -- 1
+        cargo run --release --bin beamterm-atlas -- Hack \
+            --line-height 1.0 \
+            --font-size 15.0 \
+            --emoji-font "Noto Color Emoji" \
+            --output beamterm-data/atlas/bitmap_font.atlas \
+            --check-missing \
+            --symbols-file beamterm-data/atlas/additional-symbols.txt
     else
         cargo run --release --bin beamterm-atlas -- "$@"
     fi
