@@ -140,8 +140,16 @@ Each terminal cell requires:
 
 The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32
 per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1)
-coordinate lookups through simple bit operations. The system supports 1024 base glyphs × 4 styles and
-2048 emoji (using 4096 glyph IDs, 0x1000-0x1FFF, for double-width rendering).
+coordinate lookups through simple bit operations. The system supports 1024 base glyphs per font
+style and 2048 emoji (using 4096 glyph IDs).
+
+| Layer Range | Style          | Glyph ID Range | Total Layers |
+|-------------|----------------|----------------|--------------|
+| 0-31        | Normal         | 0x0000-0x03FF  | 32           |
+| 32-63       | Bold           | 0x0400-0x07FF  | 32           |
+| 64-95       | Italic         | 0x0800-0x0BFF  | 32           |
+| 96-127      | Bold+Italic    | 0x0C00-0x0FFF  | 32           |
+| 128-255     | Emoji (2-wide) | 0x1000-0x1FFF  | 128          |
 
 ### 2D Texture Array Coordinate System
 
@@ -197,10 +205,10 @@ into two consecutive glyph slots (left and right halves), each occupying one cel
 
 ### ASCII Optimization
 
-ASCII characters (0-127) bypass the HashMap lookup entirely through direct bit manipulation.
-For ASCII input, the glyph ID is computed as `char_code | style_bits`, providing zero-overhead
-character mapping. Non-ASCII characters use a HashMap for flexible Unicode support. This approach
-optimizes for the common case while maintaining full Unicode capability.
+Non-ASCII character lookups use a HashMap to find their glyph IDs. ASCII characters (0-127) bypass
+the HashMap lookup entirely through direct bit manipulation. For ASCII input, the glyph ID is computed
+as `char_code | style_bits`, providing zero-overhead character mapping. This approach optimizes for
+the common case while maintaining full Unicode capability.
 
 ## GPU Buffer Architecture
 
