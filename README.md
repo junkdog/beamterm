@@ -162,8 +162,8 @@ of glyphs:
 | **Height** | Cell × 1    | 18 × 1 = 18px      | 1 glyph vertically      |
 | **Layers** | ⌈Glyphs/32⌉ | max(glyph.id) / 32 | One layer per 32 glyphs |
 
-The layers are densely packed, but there might be gaps between font variants
-and before the first emoji layer, unless all 1024 glyphs are used.
+Each font style reserves exactly 32 layers (1024 glyph slots), creating gaps if fewer glyphs are used.
+Emoji layers start at layer 128, regardless of how many base glyphs are actually defined.
 
 ### Glyph ID Encoding and Mapping
 

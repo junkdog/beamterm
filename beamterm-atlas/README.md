@@ -44,9 +44,9 @@ Each base glyph automatically generates four style variants by combining the bol
 | Style       | Bit Pattern | ID Offset | Example ('A' = 0x41) |
 |-------------|-------------|-----------|----------------------|
 | Normal      | `0x0000`    | +0        | `0x0041`             |
-| Bold        | `0x0200`    | +512      | `0x0241`             |
-| Italic      | `0x0400`    | +1024     | `0x0441`             |
-| Bold+Italic | `0x0600`    | +1536     | `0x0641`             |
+| Bold        | `0x0400`    | +1024     | `0x0441`             |
+| Italic      | `0x0800`    | +2048     | `0x0841`             |
+| Bold+Italic | `0x0C00`    | +3072     | `0x0C41`             |
 
 This encoding allows the shader to compute texture coordinates directly from the glyph ID without
 lookup tables.
@@ -65,22 +65,36 @@ The generator assigns IDs based on three character categories:
 - Sequential assignment starting from first available ID
 - Constrained to 512 glyphs (0x000-0x1FF)
 
-**3. Emoji Characters**
-- Start at ID 0x800 (bit 11 set)
-- Sequential assignment: 0x800, 0x801, 0x802...
+**3. Emoji Characters (Double-Width)**
+- Start at ID 0x1000 (bit 12 set)
+- Each emoji occupies TWO consecutive IDs (left half + right half)
+- Sequential assignment: 0x1000/0x1001 (emoji 0), 0x1002/0x1003 (emoji 1), etc.
 - No style variants (emoji are always rendered as-is)
-- Can extend beyond the 512 base glyph limit
+- Maximum 2048 emoji (using 4096 glyph slots)
 
-### Texture Layer Calculation
+### Texture Layer Allocation
 
-With the ID assignment scheme:
-- Regular glyphs with styles: IDs 0x0000-0x07FF (first 128 layers)
-- Emoji glyphs: IDs 0x0800+ (layers 128+)
+Each font style reserves exactly 32 layers (1024 glyph slots), regardless of actual usage:
 
-For a typical atlas with ~500 base glyphs + 100 emoji:
-- Base glyphs × 4 styles = 2000 IDs → 125 layers
-- Emoji = 100 IDs → 7 additional layers
-- Total = 132 layers
+| Style Range | Layers  | Glyph ID Range | Capacity      |
+|-------------|---------|----------------|---------------|
+| Normal      | 0-31    | 0x0000-0x03FF  | 1024 slots    |
+| Bold        | 32-63   | 0x0400-0x07FF  | 1024 slots    |
+| Italic      | 64-95   | 0x0800-0x0BFF  | 1024 slots    |
+| BoldItalic  | 96-127  | 0x0C00-0x0FFF  | 1024 slots    |
+| Emoji       | 128+    | 0x1000+        | Up to 4096    |
+
+**Total: 128 layers for font styles (always allocated) + up to 128 layers for emoji**
+
+**Example with 500 base glyphs + 100 emoji:**
+- Font styles: 128 layers (with gaps - only ~500/1024 slots used per style)
+- Emoji: 7 layers (100 emoji × 2 IDs = 200 slots)
+- Total: 135 layers
+
+**Maximum capacity (1024 base glyphs + 2048 emoji):**
+- Font styles: 128 layers (fully utilized)
+- Emoji: 128 layers (2048 emoji × 2 IDs = 4096 slots)
+- Total: 256 layers
 
 ## 2D Texture Array Organization
 
@@ -122,17 +136,18 @@ fit within the cell boundaries. Additional padding of 1px on all sides prevents 
 
 Each glyph is rendered four times, one for each of the styles (normal, bold, italic, bold+italic).
 
-### Emoji Special Handling
+### Emoji Special Handling (Double-Width)
 
-Emoji glyphs require special processing:
-1. Rendered at 2× size for measurement
-2. Scaled down to fit within cell boundaries
-3. Centered within the cell
-4. Color information preserved in texture
+Emoji glyphs require special processing as they are rendered double-width:
+1. Rendered at 2× width for measurement
+2. Split into left and right halves
+3. Each half placed in consecutive glyph slots
+4. Scaled to fit within cell boundaries
+5. Color information preserved in texture
 
 The presence of emoji is the primary reason the atlas uses RGBA format instead of a single-channel
 texture. While monochrome glyphs only need an alpha channel, emoji require full color information
-to render correctly.
+to render correctly. Each emoji occupies two consecutive IDs in the atlas.
 
 ## Binary Atlas Format
 
