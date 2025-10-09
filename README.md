@@ -7,7 +7,7 @@ A high-performance terminal rendering system for web browsers, targeting sub-mil
 times. **beamterm** is a terminal renderer, not a full terminal emulator - it handles the display
 layer while you provide the terminal logic.
 
-### 🚀 [Live Demos][demos]
+### [Live Demos][demos]
 
 Check out [**interactive examples**][demos] showcasing both pure Rust applications and JavaScript/TypeScript 
 integrations.
@@ -78,18 +78,6 @@ The renderer employs several optimization strategies:
 These strategies combined enable the renderer to achieve consistent sub-millisecond frame times even
 for large terminals (200×80 cells = 16,000 instances).
 
-### Total Memory Requirements
-
-For a 200×80 terminal with ~5100 glyphs:
-
-| Component      | Size        | Type                        |
-|----------------|-------------|-----------------------------|
-| Font Atlas     | 8.7 MB      | Texture memory              |
-| Static Buffers | ~63 KB      | Vertex + Instance positions |
-| Dynamic Buffer | ~125 KB     | Cell content                |
-| Overhead       | ~10 KB      | VAO, shaders, uniforms      |
-| **Total**      | **~8.9 MB** | GPU memory                  |
-
 
 ## Terminal Renderer API
 
@@ -139,7 +127,6 @@ buffers, and rendering state.
 Manages the 2D texture array containing all font glyphs. Provides character-to-glyph ID
 mapping with fast ASCII optimization. Supports loading default or custom font atlases.
 
-
 ### Cell Data Structure
 
 Each terminal cell requires:
@@ -147,6 +134,7 @@ Each terminal cell requires:
 - **style**: `FontStyle` enum (Normal, Bold, Italic, BoldItalic)
 - **effect**: `GlyphEffect` enum (None, Underline, Strikethrough)
 - **fg/bg**: Colors as 32-bit ARGB values (`0xAARRGGBB`)
+
 
 ## Font Atlas 2D Texture Array Architecture
 
