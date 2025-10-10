@@ -151,17 +151,6 @@ style and 2048 emoji (using 4096 glyph IDs).
 | 96-127      | Bold+Italic    | 0x0C00-0x0FFF  | 32           |
 | 128-255     | Emoji (2-wide) | 0x1000-0x1FFF  | 128          |
 
-### 2D Texture Array Coordinate System
-
-The font atlas uses a 2D texture array organized as multiple layers, each containing a 32×1 grid 
-of glyphs:
-
-| Dimension  | Size        | Formula            | Description             |
-|------------|-------------|--------------------|-------------------------|
-| **Width**  | Cell × 32   | 12 × 32 = 384px    | 32 glyphs horizontally  |
-| **Height** | Cell × 1    | 18 × 1 = 18px      | 1 glyph vertically      |
-| **Layers** | ⌈Glyphs/32⌉ | max(glyph.id) / 32 | One layer per 32 glyphs |
-
 Each font style reserves exactly 32 layers (1024 glyph slots), creating gaps if fewer glyphs are used.
 Emoji layers start at layer 128, regardless of how many base glyphs are actually defined.
 
