@@ -46,6 +46,13 @@ impl FontAtlasData {
     pub const PADDING: i32 = 1;
     pub const CELLS_PER_SLICE: i32 = 32;
 
+    /// Deserializes a font atlas from binary format.
+    ///
+    /// # Arguments
+    /// * `serialized` - Binary data containing the serialized font atlas
+    ///
+    /// # Returns
+    /// The deserialized font atlas or an error if deserialization fails
     pub fn from_binary(serialized: &[u8]) -> Result<Self, FontAtlasDeserializationError> {
         let mut deserializer = Deserializer::new(serialized);
         FontAtlasData::deserialize(&mut deserializer).map_err(|e| FontAtlasDeserializationError {
@@ -53,10 +60,22 @@ impl FontAtlasData {
         })
     }
 
+    /// Serializes the font atlas to binary format.
+    ///
+    /// # Returns
+    /// A byte vector containing the serialized font atlas data
     pub fn to_binary(&self) -> Vec<u8> {
         self.serialize()
     }
 
+    /// Calculates how many terminal columns and rows fit in the given viewport dimensions.
+    ///
+    /// # Arguments
+    /// * `viewport_width` - Width of the viewport in pixels
+    /// * `viewport_height` - Height of the viewport in pixels
+    ///
+    /// # Returns
+    /// A tuple of (columns, rows) that fit in the viewport
     pub fn terminal_size(&self, viewport_width: i32, viewport_height: i32) -> (i32, i32) {
         (
             viewport_width / self.cell_size.0,
@@ -64,6 +83,13 @@ impl FontAtlasData {
         )
     }
 
+    /// Returns the padded terminal cell size.
+    ///
+    /// The cell size includes padding (1 pixel on each side, 2 pixels total per dimension)
+    /// to prevent texture bleeding artifacts during GPU rendering.
+    ///
+    /// # Returns
+    /// A tuple of (width, height) in pixels for each terminal cell
     pub fn cell_size(&self) -> (i32, i32) {
         self.cell_size
     }
