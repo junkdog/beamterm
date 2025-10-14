@@ -24,15 +24,15 @@ The crate consists of:
 The system uses a 16-bit glyph ID that encodes both the base character and its style variations:
 
 
-| Bit Range | Purpose       | Description                            |
-|-----------|---------------|----------------------------------------|
+| Bit Range | Purpose       | Description                             |
+|-----------|---------------|-----------------------------------------|
 | 0-9       | Base Glyph ID | 1024 possible base glyphs (0x000-0x3FF) |
-| 10        | Bold Flag     | Selects bold variant (0x0400)          |
-| 11        | Italic Flag   | Selects italic variant (0x0800)        |
-| 12        | Emoji Flag    | Indicates emoji glyph (0x1000)         |
-| 13        | Underline     | Underline effect (0x2000)              |
-| 14        | Strikethrough | Strikethrough effect (0x4000)          |
-| 15        | Reserved      | Reserved for future use                |
+| 10        | Bold Flag     | Selects bold variant (0x0400)           |
+| 11        | Italic Flag   | Selects italic variant (0x0800)         |
+| 12        | Emoji Flag    | Indicates emoji glyph (0x1000)          |
+| 13        | Underline     | Underline effect (0x2000)               |
+| 14        | Strikethrough | Strikethrough effect (0x4000)           |
+| 15        | Reserved      | Reserved for future use                 |
 
 The atlas only encodes glyphs with the first 13 bits. Bits 13 and 14 are applied
 at runtime for text decoration effects, while bit 15 is reserved for future extensions.
@@ -55,10 +55,10 @@ lookup tables.
 
 The generator assigns IDs based on three character categories:
 
-**1. ASCII Characters (0x00-0x7F)**
+**1. ASCII Characters (0x20-0x7E)**
+- Printable ASCII only (space through tilde)
 - Direct mapping: character code = base glyph ID
 - Guarantees fast lookup for common characters
-- Occupies first 8 texture layers (128 chars ÷ 16 per layer)
 
 **2. Unicode Characters**
 - Fill unused slots in the 0x00-0x1FF range
@@ -158,7 +158,7 @@ The atlas uses a versioned binary format with header validation:
 ```
 Header (5 bytes)
 ├─ Magic: [0xBA, 0xB1, 0xF0, 0xA7]
-└─ Version: 0x01
+└─ Version: 0x02
 
 Metadata Section
 ├─ Font name (u8 length + UTF-8 string)
@@ -212,10 +212,13 @@ beamterm-atlas [OPTIONS] <FONT>
 
 #### Arguments
 
-- `<FONT>` - Font selection by name (partial match) or 1-based index
+- `<FONT>` - Font selection by name (partial match) or 1-based index (required unless --list-fonts is used)
 
 #### Options
 
+- `--emoji-font <FONT>` - Emoji font family name to use for emoji glyphs (default: "Noto Color Emoji")
+- `--symbols-file <PATH>` - File containing symbols (including emoji) to include in the atlas (optional if ranges cover all needed symbols)
+- `-r, --range <RANGE>` - Unicode ranges in hex format (e.g., 0x2580..0x259F). ASCII (0x20-0x7F) is always included. Can be specified multiple times.
 - `-s, --font-size <SIZE>` - Font size in points (default: 15.0)
 - `-l, --line-height <MULTIPLIER>` - Line height multiplier (default: 1.0)
 - `-o, --output <PATH>` - Output file path (default: "./bitmap_font.atlas")
@@ -223,6 +226,7 @@ beamterm-atlas [OPTIONS] <FONT>
 - `--underline-thickness <PERCENT>` - Underline thickness as percentage of cell height (default: 5.0)
 - `--strikethrough-position <FRACTION>` - Strikethrough position from 0.0 (top) to 1.0 (bottom) of cell (default: 0.5)
 - `--strikethrough-thickness <PERCENT>` - Strikethrough thickness as percentage of cell height (default: 5.0)
+- `--check-missing` - Check for missing glyphs and show detailed coverage report
 - `-L, --list-fonts` - List available fonts and exit
 
 ### Examples
@@ -232,17 +236,45 @@ List all available monospace fonts with complete style variants:
 beamterm-atlas --list-fonts
 ```
 
-Generate an atlas using JetBrains Mono at 16pt:
+Generate an atlas using JetBrains Mono at 16pt with default Unicode ranges and emoji:
 ```bash
 beamterm-atlas "JetBrains Mono" -s 16 -o jetbrains-16.atlas
+```
+
+Generate with custom symbols file (including emoji):
+```bash
+beamterm-atlas "JetBrains Mono" --symbols-file symbols.txt -s 16
+```
+
+Generate with custom Unicode ranges (no symbols file needed):
+```bash
+beamterm-atlas "Hack" \
+  --range 0x2500..0x257F \
+  --range 0x2580..0x259F \
+  -o hack.atlas
+```
+
+Generate with custom emoji font:
+```bash
+beamterm-atlas "Ubuntu Mono" \
+  --emoji-font "Noto Color Emoji" \
+  --symbols-file symbols.txt
 ```
 
 Generate with custom text decoration settings:
 ```bash
 beamterm-atlas "Fira Code" \
+  --symbols-file symbols.txt \
   --underline-position 0.9 \
   --underline-thickness 7.5 \
   --strikethrough-position 0.45
+```
+
+Check glyph coverage for a font:
+```bash
+beamterm-atlas "Cascadia Code" \
+  --symbols-file symbols.txt \
+  --check-missing
 ```
 
 Select font by index (useful for scripting):
@@ -251,18 +283,36 @@ Select font by index (useful for scripting):
 beamterm-atlas -L
 
 # Then select by number
-beamterm-atlas 5 -s 14
+beamterm-atlas 5 --symbols-file symbols.txt -s 14
 ```
 
 ### Character Set
 
-The tool generates an atlas from a predefined character set including:
-- Full ASCII and Latin-1 supplement
-- Box drawing characters
-- Mathematical symbols
-- Arrows and geometric shapes
-- Braille patterns
-- Extensive emoji set
+The tool generates an atlas from configurable character sets:
+
+**ASCII Range (Always Included)**
+- Printable ASCII: 0x20-0x7E (space through tilde)
+- Direct mapping: character code = base glyph ID
+
+**Default Unicode Ranges (When no --range specified)**
+- Latin-1 Supplement: 0x00A0-0x00FF
+- Latin Extended-A: 0x0100-0x017F
+- Miscellaneous Technical: 0x2300-0x232F, 0x2350-0x23FF
+- Box Drawing: 0x2500-0x257F
+- Block Elements: 0x2580-0x259F
+- Geometric Shapes: 0x25A0-0x25CF, 0x25E2-0x25FF
+- Braille Patterns: 0x2800-0x28FF
+
+**Custom Ranges**
+- Specify additional ranges with `--range 0x{START}..0x{END}`
+- Can be specified multiple times
+- Automatically excludes ASCII control characters
+
+**Emoji**
+- Loaded from symbols file or detected in Unicode ranges
+- Uses separate emoji font (default: "Noto Color Emoji")
+- Double-width rendering (occupies two glyph slots)
+- Maximum 2048 emoji supported
 
 ### Verification
 
@@ -273,7 +323,13 @@ The `verify-atlas` binary visualizes the texture layout, showing:
 - Glyph distribution
 
 ```bash
-verify-atlas
+verify-atlas <path/to/font.atlas>
+
+# Example: Verify the default atlas
+verify-atlas beamterm-data/atlas/bitmap_font.atlas
+
+# Example: Verify a custom atlas
+verify-atlas ./my_custom_font.atlas
 ```
 
 ## Font Requirements
