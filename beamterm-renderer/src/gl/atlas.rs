@@ -40,6 +40,8 @@ pub struct FontAtlas {
     strikethrough: beamterm_data::LineDecoration,
     /// Tracks glyphs that were requested but not found in the atlas
     glyph_tracker: GlyphTracker,
+    /// The last assigned halfwidth base glyph ID, before fullwidth
+    last_halfwidth_base_glyph_id: u16,
 }
 
 impl FontAtlas {
@@ -85,6 +87,7 @@ impl FontAtlas {
         Ok(Self {
             texture,
             glyph_coords: layers,
+            last_halfwidth_base_glyph_id: config.halfwidth_glyphs_per_layer,
             symbol_lookup,
             cell_size: (cell_width, cell_height),
             num_slices: num_slices as u32,
@@ -119,7 +122,11 @@ impl FontAtlas {
 
     /// Returns the symbol for the given glyph ID, if it exists
     pub fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
-        let base_glyph_id = glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG);
+        let base_glyph_id = if glyph_id & Glyph::EMOJI_FLAG != 0 {
+            glyph_id & Glyph::GLYPH_ID_EMOJI_MASK
+        } else {
+            glyph_id & Glyph::GLYPH_ID_MASK
+        };
 
         if (0x20..0x80).contains(&base_glyph_id) {
             // ASCII characters are directly mapped to their code point
@@ -150,6 +157,11 @@ impl FontAtlas {
                 None
             },
         }
+    }
+
+    /// Returns the maximum assigned halfwidth base glyph ID.
+    pub fn get_max_halfwidth_base_glyph_id(&self) -> u16 {
+        self.last_halfwidth_base_glyph_id
     }
 
     /// Returns a reference to the glyph tracker for accessing missing glyphs.

@@ -284,6 +284,11 @@ impl TerminalGrid {
         // if we just wrote a double-width emoji in the current cell.
         let mut skip_idx = None;
 
+        let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
+        let is_doublewidth = |glyph_id: u16| {
+            glyph_id & Glyph::EMOJI_FLAG != 0 || (glyph_id & Glyph::GLYPH_ID_MASK) > last_halfwidth
+        };
+
         cells
             .map(|(x, y, cell)| (w * y as usize + x as usize, cell))
             .filter(|(idx, _)| *idx < cell_count)

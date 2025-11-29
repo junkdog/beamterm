@@ -39,7 +39,7 @@ impl GraphemeSet {
         gs
     }
 
-    pub fn halfwidth_glyphs_count(&self) -> u32 {
+    pub fn halfwidth_glyphs_count(&self) -> u16 {
         (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _
     }
 

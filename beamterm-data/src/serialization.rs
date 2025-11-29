@@ -200,7 +200,7 @@ impl Serializable for FontAtlasData {
 
         ser.write_string(&self.font_name);
         ser.write_f32(self.font_size);
-        ser.write_u32(self.halfwidth_glyphs_per_layer);
+        ser.write_u16(self.halfwidth_glyphs_per_layer);
 
         ser.write_i32(self.texture_dimensions.0);
         ser.write_i32(self.texture_dimensions.1);
@@ -248,7 +248,7 @@ impl Serializable for FontAtlasData {
 
         let font_name = deser.read_string()?;
         let font_size = deser.read_f32()?;
-        let halfwidth_glyphs_per_layer = deser.read_u32()?;
+        let halfwidth_glyphs_per_layer = deser.read_u16()?;
 
         let texture_dimensions = (deser.read_i32()?, deser.read_i32()?, deser.read_i32()?);
         let cell_size = (deser.read_i32()?, deser.read_i32()?);
