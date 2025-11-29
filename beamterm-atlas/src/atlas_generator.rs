@@ -6,6 +6,7 @@ use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
+use unicode_width::UnicodeWidthChar;
 
 use crate::{
     bitmap_font::BitmapFont,
@@ -277,10 +278,15 @@ impl AtlasFontGenerator {
         let nudged_strikethrough =
             Self::nudge_decoration_to_half_pixel(self.strikethrough, cell_height);
 
-        // drop right half of double-width emoji (not needed for atlas)
+        // drop right half of double-width glyphs (emoji and fullwidth; not needed for atlas)
         let glyphs: Vec<_> = glyphs
             .into_iter()
-            .filter(|g| !g.is_emoji || g.id & 1 == 0)
+            .filter(|g| {
+                let is_fullwidth = g.symbol.chars().next()
+                    .is_some_and(|c| c.width() == Some(2));
+                let is_double_width = g.is_emoji || is_fullwidth;
+                !is_double_width || g.id & 1 == 0 // keep left half only
+            })
             .collect();
 
         println!("Position Summary:");
@@ -333,23 +339,28 @@ impl AtlasFontGenerator {
     }
 
     /// Rasterizes a glyph and writes its pixels into the 3D texture at the computed atlas position.
-    /// For emoji, splits the double-width rendering into left and right halves placed in consecutive cells.
+    /// For emoji and fullwidth glyphs, splits the double-width rendering into left and right halves
+    /// placed in consecutive cells.
     fn place_glyph_in_3d_texture(
         &mut self,
         glyph: &Glyph,
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) {
+        let is_fullwidth = glyph.symbol.chars().next()
+            .is_some_and(|c| c.width() == Some(2));
+
         debug!(
             symbol = %glyph.symbol,
             style = ?glyph.style,
             glyph_id = format_args!("0x{:04X}", glyph.id),
             is_emoji = glyph.is_emoji,
+            is_fullwidth = is_fullwidth,
             "Rasterizing glyph"
         );
 
-        if glyph.is_emoji {
-            // Render emoji at 2× width and split into left/right halves
+        if glyph.is_emoji || is_fullwidth {
+            // Render double-width glyph at 2× width and split into left/right halves
             let bounds = config.double_width_glyph_bounds();
             let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
             let cell_w = config.glyph_bounds().width();

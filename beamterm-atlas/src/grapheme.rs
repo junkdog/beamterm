@@ -56,6 +56,14 @@ impl GraphemeSet {
         }
 
         glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
+        let last_halfwidth_id = glyphs
+            .iter()
+            .map(|g| g.id)
+            .max()
+            .unwrap_or(0);
+
+        // fullwidth glyphs are assigned after halfwidth, each occupying 2 consecutive IDs
+        glyphs.extend(assign_fullwidth_glyph_ids(last_halfwidth_id, &self.fullwidth_unicde));
 
         // emoji glyphs are assigned IDs starting from 0x1000
         for (i, c) in self.emoji.iter().enumerate() {
@@ -169,6 +177,40 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
         })
         .collect()
 }
+
+fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
+    let mut current_id = last_id;
+    if current_id % 2 != 0 {
+        current_id += 1; // align to even cells; for a leaner font atlas
+    }
+
+    let mut next_glyph_id = || {
+        current_id += 2;
+        current_id
+    };
+
+    symbols
+        .iter()
+        .flat_map(|c| {
+            let base_id = next_glyph_id();
+            let s = c.to_compact_string();
+            // each fullwidth glyph occupies 2 consecutive cells: left (base_id) and right (base_id + 1)
+            [
+                // left half (even ID)
+                Glyph::new_with_id(base_id, &s, FontStyle::Normal, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::Bold, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::Italic, (0, 0)),
+                Glyph::new_with_id(base_id, &s, FontStyle::BoldItalic, (0, 0)),
+                // right half (odd ID)
+                Glyph::new_with_id(base_id + 1, &s, FontStyle::Normal, (0, 0)),
+                Glyph::new_with_id(base_id + 1, &s, FontStyle::Bold, (0, 0)),
+                Glyph::new_with_id(base_id + 1, &s, FontStyle::Italic, (0, 0)),
+                Glyph::new_with_id(base_id + 1, &s, FontStyle::BoldItalic, (0, 0)),
+            ]
+        })
+        .collect()
+}
+
 
 pub(super) fn is_emoji(s: &str) -> bool {
     emojis::get(s).is_some()
