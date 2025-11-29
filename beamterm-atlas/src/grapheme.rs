@@ -58,7 +58,7 @@ impl GraphemeSet {
         glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
         let last_halfwidth_id = glyphs
             .iter()
-            .map(|g| g.id)
+            .map(|g| g.base_id())
             .max()
             .unwrap_or(0);
 

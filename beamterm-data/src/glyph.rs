@@ -119,6 +119,34 @@ impl Glyph {
     pub fn is_ascii(&self) -> bool {
         self.symbol.len() == 1 && self.symbol.chars().next().unwrap().is_ascii()
     }
+
+    /// Returns the base glyph ID without style flags.
+    ///
+    /// For non-emoji glyphs, this masks off the style bits (bold/italic) using
+    /// [`GLYPH_ID_MASK`](Self::GLYPH_ID_MASK) to extract just the base identifier (bits 0-9).
+    /// For emoji glyphs, returns the full ID since emoji don't use style variants.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beamterm_data::{Glyph, FontStyle};
+    ///
+    /// // Bold 'A' (0x0441) -> base ID 0x41
+    /// let bold_a = Glyph::new_with_id(0x41, "A", FontStyle::Bold, (0, 0));
+    /// assert_eq!(bold_a.id, 0x441);
+    /// assert_eq!(bold_a.base_id(), 0x041);
+    ///
+    /// // Emoji retains full ID
+    /// let emoji = Glyph::new_emoji(0x00, "🚀", (0, 0));
+    /// assert_eq!(emoji.base_id(), 0x1000); // includes EMOJI_FLAG
+    /// ```
+    pub fn base_id(&self) -> u16 {
+        if self.is_emoji {
+            self.id
+        } else {
+            self.id & Self::GLYPH_ID_MASK
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
