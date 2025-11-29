@@ -26,6 +26,7 @@ tracing-appender = "0.2.3"
 unicode-segmentation = { workspace = true }
 itertools = "0.14.0"
 compact_str.workspace = true
+unicode-width = { version = "0.2.2", features = ["core"] }
 
 [[bin]]
 name = "beamterm-atlas"

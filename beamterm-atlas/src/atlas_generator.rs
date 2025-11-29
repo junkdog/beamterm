@@ -243,6 +243,7 @@ impl AtlasFontGenerator {
 
         // categorize and allocate IDs
         let grapheme_set = GraphemeSet::new(unicode_ranges, other_symbols);
+        let halfwidth_glyphs_per_layer = grapheme_set.halfwidth_glyphs_count();
         let glyphs = grapheme_set.into_glyphs(bounds);
 
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
@@ -315,10 +316,12 @@ impl AtlasFontGenerator {
             "Font generation completed successfully"
         );
 
+        
         BitmapFont {
             atlas_data: FontAtlasData {
                 font_name: self.font_family_name.clone().into(),
                 font_size: self.metrics.font_size,
+                halfwidth_glyphs_per_layer,
                 texture_dimensions: (config.texture_width, config.texture_height, config.layers),
                 cell_size: config.padded_cell_size(),
                 underline: nudged_underline,

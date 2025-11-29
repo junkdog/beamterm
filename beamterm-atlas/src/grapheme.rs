@@ -6,7 +6,7 @@ use std::{
 use beamterm_data::{FontStyle, Glyph};
 use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
-
+use unicode_width::UnicodeWidthChar;
 use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
 
 // printable ASCII range
@@ -14,26 +14,32 @@ const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
 
 pub struct GraphemeSet {
     unicode: Vec<char>,
+    fullwidth_unicde: Vec<char>,
     emoji: Vec<CompactString>,
 }
 
 impl GraphemeSet {
     pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &str) -> Self {
-        let (emoji, unicode) = partition_emoji_and_unicode(unicode_ranges, other_symbols);
+        let gs = grapheme_set_from(unicode_ranges, other_symbols);
 
-        let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + unicode.len();
+        let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + gs.unicode.len();
+        let fullwidth_glyphs = gs.fullwidth_unicde.len();
         assert!(
-            non_emoji_glyphs <= 1024,
-            "Too many unique graphemes: {non_emoji_glyphs}"
+            (non_emoji_glyphs + fullwidth_glyphs * 2) <= 1024,
+            "Too many unique graphemes: halfwidth={non_emoji_glyphs}, fullwidth={fullwidth_glyphs}"
         );
 
-        let emoji_glyphs = emoji.len();
+        let emoji_glyphs = gs.emoji.len();
         assert!(
             emoji_glyphs <= 2048, // each emoji takes two glyph slots
             "Too many unique graphemes: {emoji_glyphs}"
         );
 
-        Self { unicode, emoji }
+        gs
+    }
+    
+    pub fn halfwidth_glyphs_count(&self) -> u32 {
+        (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _
     }
 
     pub(super) fn into_glyphs(self, cell_dimensions: GlyphBounds) -> Vec<Glyph> {
@@ -72,10 +78,10 @@ impl GraphemeSet {
     }
 }
 
-fn partition_emoji_and_unicode(
+fn grapheme_set_from(
     ranges: &[RangeInclusive<char>],
     chars: &str,
-) -> (Vec<CompactString>, Vec<char>) {
+) -> GraphemeSet {
     let (emoji_ranged, unicode_ranged) = flatten_ranges_no_ascii(ranges);
     let emoji_ranged = emoji_ranged
         .into_iter()
@@ -103,7 +109,15 @@ fn partition_emoji_and_unicode(
     other_symbols.sort();
     other_symbols.dedup();
 
-    (emoji, other_symbols)
+    let (halfwidth, fullwidth): (Vec<char>, Vec<char>) = other_symbols
+        .into_iter()
+        .partition(|&ch| ch.width() == Some(1)); // control characters are already excluded
+
+    GraphemeSet {
+        emoji,
+        unicode: halfwidth,
+        fullwidth_unicde: fullwidth,
+    }
 }
 
 fn is_ascii_control(s: &str) -> bool {

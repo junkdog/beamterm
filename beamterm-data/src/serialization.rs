@@ -3,7 +3,7 @@ use compact_str::{format_compact, CompactString};
 use crate::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
-const ATLAS_VERSION: u8 = 0x02; // dictates the format of the serialized data
+const ATLAS_VERSION: u8 = 0x03; // dictates the format of the serialized data
 
 #[derive(Debug)]
 pub struct SerializationError {
@@ -200,6 +200,7 @@ impl Serializable for FontAtlasData {
 
         ser.write_string(&self.font_name);
         ser.write_f32(self.font_size);
+        ser.write_u32(self.halfwidth_glyphs_per_layer);
 
         ser.write_i32(self.texture_dimensions.0);
         ser.write_i32(self.texture_dimensions.1);
@@ -247,6 +248,8 @@ impl Serializable for FontAtlasData {
 
         let font_name = deser.read_string()?;
         let font_size = deser.read_f32()?;
+        let halfwidth_glyphs_per_layer = deser.read_u32()?;
+
 
         let texture_dimensions = (deser.read_i32()?, deser.read_i32()?, deser.read_i32()?);
         let cell_size = (deser.read_i32()?, deser.read_i32()?);
@@ -273,6 +276,7 @@ impl Serializable for FontAtlasData {
         Ok(FontAtlasData {
             font_name,
             font_size,
+            halfwidth_glyphs_per_layer,
             texture_dimensions,
             cell_size,
             underline,
@@ -491,6 +495,7 @@ mod tests {
         let original = FontAtlasData {
             font_name: CompactString::from("TestFont"),
             font_size: 16.5,
+            halfwidth_glyphs_per_layer: 328,
             texture_dimensions: (512, 256, 256),
             cell_size: (12, 18),
             underline: LineDecoration::new(0.85, 5.0 / 100.0),
@@ -508,6 +513,7 @@ mod tests {
 
         // Assert all fields match
         assert_eq!(original.font_size, deserialized.font_size);
+        assert_eq!(original.halfwidth_glyphs_per_layer, deserialized.halfwidth_glyphs_per_layer);
         assert_eq!(original.texture_dimensions, deserialized.texture_dimensions);
         assert_eq!(original.cell_size, deserialized.cell_size);
         assert_eq!(original.underline, deserialized.underline);
