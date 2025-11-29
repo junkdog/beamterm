@@ -139,9 +139,7 @@ fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result
     let emoji_font_name = match discovery.find_font(emoji_font) {
         Some(exact_name) => {
             if exact_name != emoji_font {
-                println!(
-                    "✓ Found emoji font: {exact_name} (matched: {emoji_font})",
-                );
+                println!("✓ Found emoji font: {exact_name} (matched: {emoji_font})",);
             } else {
                 println!("✓ Found emoji font: {}", exact_name);
             }
@@ -167,7 +165,9 @@ fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result
                 }
             }
 
-            return Err(color_eyre::eyre::eyre!("Emoji font '{emoji_font}' not found"));
+            return Err(color_eyre::eyre::eyre!(
+                "Emoji font '{emoji_font}' not found"
+            ));
         },
     };
     Ok(emoji_font_name)

@@ -7,6 +7,7 @@ use beamterm_data::{FontStyle, Glyph};
 use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthChar;
+
 use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
 
 // printable ASCII range
@@ -37,7 +38,7 @@ impl GraphemeSet {
 
         gs
     }
-    
+
     pub fn halfwidth_glyphs_count(&self) -> u32 {
         (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _
     }
@@ -63,7 +64,10 @@ impl GraphemeSet {
             .unwrap_or(0);
 
         // fullwidth glyphs are assigned after halfwidth, each occupying 2 consecutive IDs
-        glyphs.extend(assign_fullwidth_glyph_ids(last_halfwidth_id, &self.fullwidth_unicde));
+        glyphs.extend(assign_fullwidth_glyph_ids(
+            last_halfwidth_id,
+            &self.fullwidth_unicde,
+        ));
 
         // emoji glyphs are assigned IDs starting from 0x1000
         for (i, c) in self.emoji.iter().enumerate() {
@@ -86,10 +90,7 @@ impl GraphemeSet {
     }
 }
 
-fn grapheme_set_from(
-    ranges: &[RangeInclusive<char>],
-    chars: &str,
-) -> GraphemeSet {
+fn grapheme_set_from(ranges: &[RangeInclusive<char>], chars: &str) -> GraphemeSet {
     let (emoji_ranged, unicode_ranged) = flatten_ranges_no_ascii(ranges);
     let emoji_ranged = emoji_ranged
         .into_iter()
@@ -180,7 +181,7 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
 
 fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
     let mut current_id = last_id;
-    if current_id % 2 != 0 {
+    if !current_id.is_multiple_of(2) {
         current_id += 1; // align to even cells; for a leaner font atlas
     }
 
@@ -210,7 +211,6 @@ fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
         })
         .collect()
 }
-
 
 pub(super) fn is_emoji(s: &str) -> bool {
     emojis::get(s).is_some()

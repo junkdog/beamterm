@@ -250,7 +250,6 @@ impl Serializable for FontAtlasData {
         let font_size = deser.read_f32()?;
         let halfwidth_glyphs_per_layer = deser.read_u32()?;
 
-
         let texture_dimensions = (deser.read_i32()?, deser.read_i32()?, deser.read_i32()?);
         let cell_size = (deser.read_i32()?, deser.read_i32()?);
 
@@ -513,7 +512,10 @@ mod tests {
 
         // Assert all fields match
         assert_eq!(original.font_size, deserialized.font_size);
-        assert_eq!(original.halfwidth_glyphs_per_layer, deserialized.halfwidth_glyphs_per_layer);
+        assert_eq!(
+            original.halfwidth_glyphs_per_layer,
+            deserialized.halfwidth_glyphs_per_layer
+        );
         assert_eq!(original.texture_dimensions, deserialized.texture_dimensions);
         assert_eq!(original.cell_size, deserialized.cell_size);
         assert_eq!(original.underline, deserialized.underline);

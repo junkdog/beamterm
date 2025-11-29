@@ -282,7 +282,10 @@ impl AtlasFontGenerator {
         let glyphs: Vec<_> = glyphs
             .into_iter()
             .filter(|g| {
-                let is_fullwidth = g.symbol.chars().next()
+                let is_fullwidth = g
+                    .symbol
+                    .chars()
+                    .next()
                     .is_some_and(|c| c.width() == Some(2));
                 let is_double_width = g.is_emoji || is_fullwidth;
                 !is_double_width || g.id & 1 == 0 // keep left half only
@@ -322,7 +325,6 @@ impl AtlasFontGenerator {
             "Font generation completed successfully"
         );
 
-        
         BitmapFont {
             atlas_data: FontAtlasData {
                 font_name: self.font_family_name.clone().into(),
@@ -347,7 +349,10 @@ impl AtlasFontGenerator {
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) {
-        let is_fullwidth = glyph.symbol.chars().next()
+        let is_fullwidth = glyph
+            .symbol
+            .chars()
+            .next()
             .is_some_and(|c| c.width() == Some(2));
 
         debug!(
