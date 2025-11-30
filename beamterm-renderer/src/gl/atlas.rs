@@ -87,7 +87,7 @@ impl FontAtlas {
         Ok(Self {
             texture,
             glyph_coords: layers,
-            last_halfwidth_base_glyph_id: config.halfwidth_glyphs_per_layer,
+            last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id,
             symbol_lookup,
             cell_size: (cell_width, cell_height),
             num_slices: num_slices as u32,

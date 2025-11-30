@@ -15,8 +15,12 @@ pub struct FontAtlasData {
     pub font_name: CompactString,
     /// The font size in points
     pub font_size: f32,
-    /// The number of single cell glyphs per layer (remaining glyphs are fullwidth)
-    pub halfwidth_glyphs_per_layer: u16,
+    /// The number of single-cell (halfwidth) glyphs per layer, before fullwidth glyphs begin.
+    ///
+    /// Fullwidth glyphs (e.g., CJK characters) are assigned IDs starting from this value,
+    /// aligned to even boundaries. This allows the renderer to distinguish halfwidth from
+    /// fullwidth glyphs by comparing against this threshold.
+    pub max_halfwidth_base_glyph_id: u16,
     /// Width, height and depth of the texture in pixels
     pub texture_dimensions: (i32, i32, i32),
     /// Width and height of each character cell

@@ -329,7 +329,7 @@ impl AtlasFontGenerator {
             atlas_data: FontAtlasData {
                 font_name: self.font_family_name.clone().into(),
                 font_size: self.metrics.font_size,
-                halfwidth_glyphs_per_layer,
+                max_halfwidth_base_glyph_id: halfwidth_glyphs_per_layer,
                 texture_dimensions: (config.texture_width, config.texture_height, config.layers),
                 cell_size: config.padded_cell_size(),
                 underline: nudged_underline,

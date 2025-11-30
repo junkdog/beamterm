@@ -15,7 +15,7 @@ const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
 
 pub struct GraphemeSet {
     unicode: Vec<char>,
-    fullwidth_unicde: Vec<char>,
+    fullwidth_unicode: Vec<char>,
     emoji: Vec<CompactString>,
 }
 
@@ -24,7 +24,7 @@ impl GraphemeSet {
         let gs = grapheme_set_from(unicode_ranges, other_symbols);
 
         let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + gs.unicode.len();
-        let fullwidth_glyphs = gs.fullwidth_unicde.len();
+        let fullwidth_glyphs = gs.fullwidth_unicode.len();
         assert!(
             (non_emoji_glyphs + fullwidth_glyphs * 2) <= 1024,
             "Too many unique graphemes: halfwidth={non_emoji_glyphs}, fullwidth={fullwidth_glyphs}"
@@ -66,7 +66,7 @@ impl GraphemeSet {
         // fullwidth glyphs are assigned after halfwidth, each occupying 2 consecutive IDs
         glyphs.extend(assign_fullwidth_glyph_ids(
             last_halfwidth_id,
-            &self.fullwidth_unicde,
+            &self.fullwidth_unicode,
         ));
 
         // emoji glyphs are assigned IDs starting from 0x1000
@@ -125,7 +125,7 @@ fn grapheme_set_from(ranges: &[RangeInclusive<char>], chars: &str) -> GraphemeSe
     GraphemeSet {
         emoji,
         unicode: halfwidth,
-        fullwidth_unicde: fullwidth,
+        fullwidth_unicode: fullwidth,
     }
 }
 
@@ -218,6 +218,7 @@ pub(super) fn is_emoji(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
     fn test_is_emoji() {
@@ -226,5 +227,39 @@ mod tests {
         assert!(super::is_emoji("▶️"));
         assert!(super::is_emoji("⏹"));
         assert!(super::is_emoji("⏮"));
+    }
+
+    #[test]
+    fn test_fullwidth_id_assignment() {
+        let fullwidth_chars = vec!['一', '二', '三']; // CJK characters
+        let glyphs = assign_fullwidth_glyph_ids(10, &fullwidth_chars);
+
+        // Should start at even boundary (12, since 10+1 rounds up)
+        assert_eq!(glyphs[0].base_id(), 12); // Left half
+        assert_eq!(glyphs[1].base_id(), 12); // Different styles
+        assert_eq!(glyphs[4].base_id(), 13); // Right half
+
+        // Second character should increment by 2
+        assert_eq!(glyphs[8].base_id(), 14); // Left half
+        assert_eq!(glyphs[12].base_id(), 15); // Right half
+    }
+
+    #[test]
+    fn test_fullwidth_detection() {
+        let symbols = "一abc二de"; // Mix of fullwidth and halfwidth
+        let gs = grapheme_set_from(&[], symbols);
+
+        assert_eq!(gs.fullwidth_unicode.len(), 2); // '一', '二'
+        assert_eq!(gs.unicode.len(), 0); // ascii always included, handled elsewhere
+    }
+
+    #[test]
+    fn test_width_edge_cases() {
+        // Zero-width characters should be handled gracefully
+        let symbols = "\u{200B}"; // Zero-width space
+        let gs = grapheme_set_from(&[], symbols);
+
+        // Should not panic or misclassify
+        assert!(gs.unicode.len() + gs.fullwidth_unicode.len() <= 1);
     }
 }
