@@ -154,6 +154,17 @@ style and 2048 emoji (using 4096 glyph IDs).
 Each font style reserves exactly 32 layers (1024 glyph slots), creating gaps if fewer glyphs are used.
 Emoji layers start at layer 128, regardless of how many base glyphs are actually defined.
 
+### Double-Width Glyphs
+
+Both emoji and fullwidth characters (e.g., CJK ideographs) occupy two consecutive terminal cells.
+The atlas stores these as left/right half-pairs with consecutive glyph IDs:
+
+- **Fullwidth glyphs** are assigned IDs after all halfwidth glyphs, aligned to even boundaries
+  for efficient texture packing. The renderer distinguishes them via `halfwidth_glyphs_per_layer`.
+- **Emoji glyphs** use the EMOJI flag (bit 12) and occupy the 0x1000-0x1FFF ID range.
+
+Both types are rasterized at 2× cell width, then split into left (even ID) and right (odd ID) halves.
+
 ### Glyph ID Encoding and Mapping
 
 The glyph ID is a 16-bit value that efficiently packs both the base glyph identifier
@@ -172,7 +183,9 @@ packed representation is passed directly to the GPU.
 | 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
 | 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
 
-*When the EMOJI flag (bit 12) is set, BOLD and ITALIC flags are ignored as emoji only support Normal style.
+*When the EMOJI flag (bit 12) is set, bits 10-11 are **not** used for bold/italic styling (emoji
+render in a single style). Instead, these bits contribute to the layer offset calculation, expanding
+the addressable emoji range to 4096 glyph slots (128 layers × 32 glyphs/layer).
 
 **Note:** For layer coordinate calculation, only bits 0-12 are used (mask `0x1FFF`). The UNDERLINE and
 STRIKETHROUGH flags (bits 13-14) are purely rendering effects and don't affect texture atlas positioning.
@@ -185,12 +198,15 @@ STRIKETHROUGH flags (bits 13-14) are purely rendering effects and don't affect t
 | 'A' (65)  | Normal      | 0x0041   | 65÷32=2, 65%32=1       | Layer 2, Position 1   |
 | 'A' (65)  | Bold+Italic | 0x0C41   | 3137÷32=98, 3137%32=1  | Layer 98, Position 1  |
 | '€'       | Normal      | 0x0080   | Mapped to ID 128       | Layer 4, Position 0   |
+| '中' (L)  | Normal      | 0x014A   | 330÷32=10, 330%32=10   | Layer 10, Position 10 |
+| '中' (R)  | Normal      | 0x014B   | 331÷32=10, 331%32=11   | Layer 10, Position 11 |
 | '🚀' (L)  | Emoji       | 0x1000   | 4096÷32=128, 4096%32=0 | Layer 128, Position 0 |
 | '🚀' (R)  | Emoji       | 0x1001   | 4097÷32=128, 4097%32=1 | Layer 128, Position 1 |
 
 The consistent modular arithmetic ensures that style variants maintain the same horizontal position
-within their respective layers, improving texture cache coherence. Double-width emoji are rendered
-into two consecutive glyph slots (left and right halves), each occupying one cell position in the atlas.
+within their respective layers, improving texture cache coherence. Double-width glyphs (both fullwidth
+characters and emoji) are rendered into two consecutive glyph slots (left and right halves), each
+occupying one cell position in the atlas.
 
 ### ASCII Optimization
 
