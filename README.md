@@ -154,17 +154,6 @@ style and 2048 emoji (using 4096 glyph IDs).
 Each font style reserves exactly 32 layers (1024 glyph slots), creating gaps if fewer glyphs are used.
 Emoji layers start at layer 128, regardless of how many base glyphs are actually defined.
 
-### Double-Width Glyphs
-
-Both emoji and fullwidth characters (e.g., CJK ideographs) occupy two consecutive terminal cells.
-The atlas stores these as left/right half-pairs with consecutive glyph IDs:
-
-- **Fullwidth glyphs** are assigned IDs after all halfwidth glyphs, aligned to even boundaries
-  for efficient texture packing. The renderer distinguishes them via `halfwidth_glyphs_per_layer`.
-- **Emoji glyphs** use the EMOJI flag (bit 12) and occupy the 0x1000-0x1FFF ID range.
-
-Both types are rasterized at 2× cell width, then split into left (even ID) and right (odd ID) halves.
-
 ### Glyph ID Encoding and Mapping
 
 The glyph ID is a 16-bit value that efficiently packs both the base glyph identifier
@@ -207,6 +196,17 @@ The consistent modular arithmetic ensures that style variants maintain the same 
 within their respective layers, improving texture cache coherence. Double-width glyphs (both fullwidth
 characters and emoji) are rendered into two consecutive glyph slots (left and right halves), each
 occupying one cell position in the atlas.
+
+#### Double-Width Glyphs
+
+Both emoji and fullwidth characters (e.g., CJK ideographs) occupy two consecutive terminal cells.
+The atlas stores these as left/right half-pairs with consecutive glyph IDs:
+
+- **Fullwidth glyphs** are assigned IDs after all halfwidth glyphs, aligned to even boundaries
+  for efficient texture packing. The renderer distinguishes them via `halfwidth_glyphs_per_layer`.
+- **Emoji glyphs** use the EMOJI flag (bit 12) and occupy the 0x1000-0x1FFF ID range.
+
+Both types are rasterized at 2× cell width, then split into left (even ID) and right (odd ID) halves.
 
 ### ASCII Optimization
 
