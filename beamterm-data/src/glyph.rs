@@ -60,7 +60,7 @@ impl Glyph {
     pub const GLYPH_ID_MASK: u16       = 0b0000_0011_1111_1111; // 0x03FF
     /// Glyph ID mask for emoji - extracts the base glyph identifier (bits 0-11).
     /// Supports 2048 emoji glyphs (0x000 to 0xFFF) occupying two slots each in the texture atlas.
-    pub const GLYPH_ID_EMOJI_MASK: u16 = 0b0000_1111_1111_1111; // 0x0FFF
+    pub const GLYPH_ID_EMOJI_MASK: u16 = 0b0001_1111_1111_1111; // 0x1FFF
     /// Bold flag - selects the bold variant of the glyph from the texture atlas.
     pub const BOLD_FLAG: u16           = 0b0000_0100_0000_0000; // 0x0400
     /// Italic flag - selects the italic variant of the glyph from the texture atlas.
