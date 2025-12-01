@@ -53,19 +53,26 @@ lookup tables.
 
 ### Character Category Assignment
 
-The generator assigns IDs based on three character categories:
+The generator assigns IDs based on four character categories:
 
 **1. ASCII Characters (0x20-0x7E)**
 - Printable ASCII only (space through tilde)
 - Direct mapping: character code = base glyph ID
 - Guarantees fast lookup for common characters
 
-**2. Unicode Characters**
+**2. Halfwidth Unicode Characters**
 - Fill unused slots in the 0x00-0x1FF range
 - Sequential assignment starting from first available ID
-- Constrained to 512 glyphs (0x000-0x1FF)
+- Single-cell width (standard terminal characters)
 
-**3. Emoji Characters (Double-Width)**
+**3. Fullwidth Unicode Characters (Double-Width)**
+- Assigned after halfwidth characters, aligned to even cell offsets
+- Each fullwidth glyph occupies TWO consecutive IDs (left half + right half)
+- All four style variants supported (Normal, Bold, Italic, BoldItalic)
+- Used for CJK characters and other wide Unicode glyphs
+- Detected automatically via `unicode-width` crate
+
+**4. Emoji Characters (Double-Width)**
 - Start at ID 0x1000 (bit 12 set)
 - Each emoji occupies TWO consecutive IDs (left half + right half)
 - Sequential assignment: 0x1000/0x1001 (emoji 0), 0x1002/0x1003 (emoji 1), etc.
@@ -136,18 +143,28 @@ fit within the cell boundaries. Additional padding of 1px on all sides prevents 
 
 Each glyph is rendered four times, one for each of the styles (normal, bold, italic, bold+italic).
 
-### Emoji Special Handling (Double-Width)
+### Double-Width Glyph Handling (Fullwidth & Emoji)
 
-Emoji glyphs require special processing as they are rendered double-width:
-1. Rendered at 2× width for measurement
+Fullwidth glyphs (e.g., CJK characters) and emoji require special processing as they span two cells:
+
+1. Rendered at 2× cell width
 2. Split into left and right halves
-3. Each half placed in consecutive glyph slots
-4. Scaled to fit within cell boundaries
-5. Color information preserved in texture
+3. Each half placed in consecutive glyph slots (even ID = left, odd ID = right)
+4. Fullwidth glyphs are aligned to even cell offsets for efficient texture packing
+
+**Fullwidth glyphs:**
+- Detected via `unicode-width` crate (characters with display width of 2)
+- Support all four font style variants
+- IDs assigned sequentially after halfwidth glyphs
+
+**Emoji glyphs:**
+- IDs start at 0x1000 (EMOJI_FLAG set)
+- No style variants (always rendered as-is)
+- Color information preserved in texture
 
 The presence of emoji is the primary reason the atlas uses RGBA format instead of a single-channel
 texture. While monochrome glyphs only need an alpha channel, emoji require full color information
-to render correctly. Each emoji occupies two consecutive IDs in the atlas.
+to render correctly.
 
 ## Binary Atlas Format
 
@@ -158,11 +175,12 @@ The atlas uses a versioned binary format with header validation:
 ```
 Header (5 bytes)
 ├─ Magic: [0xBA, 0xB1, 0xF0, 0xA7]
-└─ Version: 0x02
+└─ Version: 0x03
 
 Metadata Section
 ├─ Font name (u8 length + UTF-8 string)
 ├─ Font size (f32)
+├─ Halfwidth glyphs per layer (u32) - boundary between halfwidth and fullwidth glyphs
 ├─ Texture width (i32)
 ├─ Texture height (i32)
 ├─ Texture layers (i32)
