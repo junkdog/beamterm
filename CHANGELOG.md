@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(atlas)* Fullwidth glyph support (#49)
+
 ## [beamterm-v0.8.0] - 2025-10-09
 
 ### 🚀 Features
@@ -24,6 +30,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(font)* Hack 14.94pt 11x18 with Noto Color Emoji
+- Release beamterm 0.8.0
 
 ## [beamterm-v0.7.0] - 2025-09-07
 
