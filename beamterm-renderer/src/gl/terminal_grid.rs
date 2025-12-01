@@ -302,7 +302,7 @@ impl TerminalGrid {
                     .get_base_glyph_id(cell.symbol)
                     .unwrap_or(fallback_glyph);
 
-                if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
+                if is_doublewidth(base_glyph_id) {
                     let glyph_id = base_glyph_id;
 
                     // render left half in current cell
@@ -343,7 +343,12 @@ impl TerminalGrid {
             .get_base_glyph_id(cell_data.symbol)
             .unwrap_or(fallback_glyph);
 
-        if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
+        let is_doublewidth = |glyph_id: u16| {
+            let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
+            glyph_id & Glyph::EMOJI_FLAG != 0 || (glyph_id & Glyph::GLYPH_ID_MASK) > last_halfwidth
+        };
+
+        if is_doublewidth(base_glyph_id) {
             // Emoji: don't apply style bits
             let glyph_id = base_glyph_id;
             self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
