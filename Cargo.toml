@@ -20,7 +20,7 @@ categories = ["graphics", "wasm", "web-programming"]
 [workspace.dependencies]
 compact_str = "0.9.0"
 console_error_panic_hook = "0.1.7"
-emojis = "0.7.2"
+emojis = "0.8.0"
 js-sys = "0.3.81"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
