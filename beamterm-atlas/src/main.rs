@@ -59,49 +59,7 @@ fn main() -> Result<()> {
     }
 
     // Validate and resolve emoji font name
-    let emoji_font_name = match discovery.find_font(&cli.emoji_font) {
-        Some(exact_name) => {
-            if exact_name != cli.emoji_font {
-                println!(
-                    "✓ Found emoji font: {} (matched: {})",
-                    exact_name, cli.emoji_font
-                );
-            } else {
-                println!("✓ Found emoji font: {}", exact_name);
-            }
-            exact_name
-        },
-        None => {
-            eprintln!(
-                "❌ Emoji font '{}' not found in system fonts",
-                cli.emoji_font
-            );
-
-            // Suggest emoji fonts
-            let all_fonts = discovery.list_all_fonts();
-            let emoji_fonts: Vec<_> = all_fonts
-                .iter()
-                .filter(|name| {
-                    let lower = name.to_lowercase();
-                    lower.contains("emoji") || lower.contains("noto color")
-                })
-                .collect();
-
-            if !emoji_fonts.is_empty() {
-                eprintln!("\nAvailable emoji fonts:");
-                for font in emoji_fonts {
-                    eprintln!("  - {}", font);
-                }
-            }
-
-            return Err(color_eyre::eyre::eyre!(
-                "Emoji font '{}' not found",
-                cli.emoji_font
-            ));
-        },
-    };
-
-    // select font
+    let emoji_font_name = resolve_emoji_font_name(&cli.emoji_font, discovery)?;
     let selected_font = cli.select_font(&available_fonts)?;
 
     // print configuration summary
@@ -175,6 +133,44 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result<String> {
+    let emoji_font_name = match discovery.find_font(emoji_font) {
+        Some(exact_name) => {
+            if exact_name != emoji_font {
+                println!("✓ Found emoji font: {exact_name} (matched: {emoji_font})",);
+            } else {
+                println!("✓ Found emoji font: {}", exact_name);
+            }
+            exact_name
+        },
+        None => {
+            eprintln!("❌ Emoji font '{emoji_font}' not found in system fonts");
+
+            // Suggest emoji fonts
+            let all_fonts = discovery.list_all_fonts();
+            let emoji_fonts: Vec<_> = all_fonts
+                .iter()
+                .filter(|name| {
+                    let lower = name.to_lowercase();
+                    lower.contains("emoji") || lower.contains("noto color")
+                })
+                .collect();
+
+            if !emoji_fonts.is_empty() {
+                eprintln!("\nAvailable emoji fonts:");
+                for font in emoji_fonts {
+                    eprintln!("  - {}", font);
+                }
+            }
+
+            return Err(color_eyre::eyre::eyre!(
+                "Emoji font '{emoji_font}' not found"
+            ));
+        },
+    };
+    Ok(emoji_font_name)
 }
 
 fn report_missing_glyphs(

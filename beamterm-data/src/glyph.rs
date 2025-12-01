@@ -57,17 +57,20 @@ impl Glyph {
 
     /// Glyph ID mask - extracts the base glyph identifier (bits 0-9).
     /// Supports 1024 unique base glyphs (0x000 to 0x3FF) in the texture atlas.
-    pub const GLYPH_ID_MASK: u16      = 0b0000_0011_1111_1111; // 0x03FF
+    pub const GLYPH_ID_MASK: u16       = 0b0000_0011_1111_1111; // 0x03FF
+    /// Glyph ID mask for emoji - extracts the base glyph identifier (bits 0-11).
+    /// Supports 2048 emoji glyphs (0x000 to 0xFFF) occupying two slots each in the texture atlas.
+    pub const GLYPH_ID_EMOJI_MASK: u16 = 0b0001_1111_1111_1111; // 0x1FFF
     /// Bold flag - selects the bold variant of the glyph from the texture atlas.
-    pub const BOLD_FLAG: u16          = 0b0000_0100_0000_0000; // 0x0400
+    pub const BOLD_FLAG: u16           = 0b0000_0100_0000_0000; // 0x0400
     /// Italic flag - selects the italic variant of the glyph from the texture atlas.
-    pub const ITALIC_FLAG: u16        = 0b0000_1000_0000_0000; // 0x0800
+    pub const ITALIC_FLAG: u16         = 0b0000_1000_0000_0000; // 0x0800
     /// Emoji flag - indicates this glyph represents an emoji character requiring special handling.
-    pub const EMOJI_FLAG: u16         = 0b0001_0000_0000_0000; // 0x1000
+    pub const EMOJI_FLAG: u16          = 0b0001_0000_0000_0000; // 0x1000
     /// Underline flag - renders a horizontal line below the character baseline.
-    pub const UNDERLINE_FLAG: u16     = 0b0010_0000_0000_0000; // 0x2000
+    pub const UNDERLINE_FLAG: u16      = 0b0010_0000_0000_0000; // 0x2000
     /// Strikethrough flag - renders a horizontal line through the middle of the character.
-    pub const STRIKETHROUGH_FLAG: u16 = 0b0100_0000_0000_0000; // 0x4000
+    pub const STRIKETHROUGH_FLAG: u16  = 0b0100_0000_0000_0000; // 0x4000
 }
 
 impl Glyph {
@@ -118,6 +121,34 @@ impl Glyph {
     /// Returns true if this glyph represents a single ASCII character.
     pub fn is_ascii(&self) -> bool {
         self.symbol.len() == 1 && self.symbol.chars().next().unwrap().is_ascii()
+    }
+
+    /// Returns the base glyph ID without style flags.
+    ///
+    /// For non-emoji glyphs, this masks off the style bits (bold/italic) using
+    /// [`GLYPH_ID_MASK`](Self::GLYPH_ID_MASK) to extract just the base identifier (bits 0-9).
+    /// For emoji glyphs, returns the full ID since emoji don't use style variants.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beamterm_data::{Glyph, FontStyle};
+    ///
+    /// // Bold 'A' (0x0441) -> base ID 0x41
+    /// let bold_a = Glyph::new_with_id(0x41, "A", FontStyle::Bold, (0, 0));
+    /// assert_eq!(bold_a.id, 0x441);
+    /// assert_eq!(bold_a.base_id(), 0x041);
+    ///
+    /// // Emoji retains full ID
+    /// let emoji = Glyph::new_emoji(0x00, "🚀", (0, 0));
+    /// assert_eq!(emoji.base_id(), 0x1000); // includes EMOJI_FLAG
+    /// ```
+    pub fn base_id(&self) -> u16 {
+        if self.is_emoji {
+            self.id & Self::GLYPH_ID_EMOJI_MASK
+        } else {
+            self.id & Self::GLYPH_ID_MASK
+        }
     }
 }
 
