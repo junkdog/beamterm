@@ -145,7 +145,7 @@ impl Glyph {
     /// ```
     pub fn base_id(&self) -> u16 {
         if self.is_emoji {
-            self.id
+            self.id & Self::GLYPH_ID_EMOJI_MASK
         } else {
             self.id & Self::GLYPH_ID_MASK
         }
