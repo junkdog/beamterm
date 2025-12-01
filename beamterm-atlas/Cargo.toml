@@ -20,7 +20,7 @@ colored = "3.0.0"
 cosmic-text = "0.14.2"
 directories = "6.0.0"
 emojis.workspace = true
-tracing = "0.1.41"
+tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 tracing-appender = "0.2.3"
 unicode-segmentation = { workspace = true }
