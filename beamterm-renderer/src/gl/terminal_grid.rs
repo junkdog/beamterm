@@ -286,7 +286,7 @@ impl TerminalGrid {
 
         let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
         let is_doublewidth = |glyph_id: u16| {
-            glyph_id & Glyph::EMOJI_FLAG != 0 || (glyph_id & Glyph::GLYPH_ID_MASK) > last_halfwidth
+            (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
         };
 
         cells
@@ -343,9 +343,9 @@ impl TerminalGrid {
             .get_base_glyph_id(cell_data.symbol)
             .unwrap_or(fallback_glyph);
 
+        let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
         let is_doublewidth = |glyph_id: u16| {
-            let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
-            glyph_id & Glyph::EMOJI_FLAG != 0 || (glyph_id & Glyph::GLYPH_ID_MASK) > last_halfwidth
+            (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
         };
 
         if is_doublewidth(base_glyph_id) {
