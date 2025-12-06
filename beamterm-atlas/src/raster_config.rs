@@ -11,9 +11,9 @@ pub(super) struct RasterizationConfig {
 }
 
 impl RasterizationConfig {
-    const GLYPHS_PER_SLICE: i32 = 32; // 32x1 grid
-    const GRID_WIDTH: i32 = 32;
-    const GRID_HEIGHT: i32 = 1;
+    const GLYPHS_PER_SLICE: i32 = 32; // 1x32 grid
+    const GRID_WIDTH: i32 = 1;
+    const GRID_HEIGHT: i32 = 32;
 
     pub(super) fn new(bounds: GlyphBounds, glyphs: &[Glyph]) -> Self {
         let (inner_cell_w, inner_cell_h) = (bounds.width(), bounds.height());

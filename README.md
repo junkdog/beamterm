@@ -62,7 +62,7 @@ buffer management and state tracking for consistent sub-millisecond performance.
 The architecture leverages GPU instancing to reuse a single quad geometry across all terminal cells,
 with per-instance data providing position, character, and color information. All rendering state is
 encapsulated in a Vertex Array Object (VAO), enabling single-draw-call rendering with minimal CPU
-overhead. The 2D texture array maximizes cache efficiency by packing related glyphs into horizontal
+overhead. The 2D texture array maximizes cache efficiency by packing related glyphs into vertical
 strips within each layer.
 
 ### Buffer Management Strategy
@@ -138,7 +138,7 @@ Each terminal cell requires:
 
 ## Font Atlas 2D Texture Array Architecture
 
-The font atlas uses a WebGL 2D texture array where each layer contains a 32×1 grid of glyphs (32
+The font atlas uses a WebGL 2D texture array where each layer contains a 1×32 grid of glyphs (32
 per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1)
 coordinate lookups through simple bit operations. The system supports 1024 base glyphs per font
 style and 2048 emoji (using 4096 glyph IDs).
@@ -192,7 +192,7 @@ STRIKETHROUGH flags (bits 13-14) are purely rendering effects and don't affect t
 | '🚀' (L)  | Emoji       | 0x1000   | 4096÷32=128, 4096%32=0 | Layer 128, Position 0 |
 | '🚀' (R)  | Emoji       | 0x1001   | 4097÷32=128, 4097%32=1 | Layer 128, Position 1 |
 
-The consistent modular arithmetic ensures that style variants maintain the same horizontal position
+The consistent modular arithmetic ensures that style variants maintain the same vertical position
 within their respective layers, improving texture cache coherence. Double-width glyphs (both fullwidth
 characters and emoji) are rendered into two consecutive glyph slots (left and right halves), each
 occupying one cell position in the atlas.
@@ -272,7 +272,7 @@ For a typical 12×18 pixel font with ~5100 glyphs:
 | **Cache Efficiency** | Good      | Sequential glyphs in same layer            |
 | **Memory Access**    | Coalesced | 64-bit aligned instance data               |
 
-The 32×1 grid layout ensures that adjacent terminal cells often access the same texture layer,
+The 1×32 grid layout ensures that adjacent terminal cells often access the same texture layer,
 maximizing GPU cache hits. ASCII characters (the most common) are packed into the first 4 layers,
 providing optimal memory locality for typical terminal content.
 
@@ -292,7 +292,7 @@ Performs the core rendering logic with efficient 2D array texture lookups:
 
 - Extracts 16-bit glyph ID from packed instance data
 - Masks with `0x1FFF` to exclude effect flags before computing layer index (glyph_id → layer/position)
-- Computes layer index and horizontal position using bit operations
+- Computes layer index and vertical position using bit operations
 - Samples from 2D texture array using direct layer indexing
 - Detects emoji glyphs via bit 12 for special color handling
 - Applies underline/strikethrough effects via bits 13-14
@@ -327,13 +327,12 @@ trunk build --release
 
 ## Design Decisions
 
-### Why 32×1 Grid Per Layer?
+### Why 1×32 Grid Per Layer?
 
-- **GPU compatibility**: Single-row layout maximizes horizontal cache coherence and minimizes 
-texture sampling overhead
+- **GPU compatibility**: Single-column layout provides consistent memory access patterns
 - **Simplified math**: Position within layer is just a matter of `glyph_id & 0x1F`
-- **Cache efficiency**: Sequential glyphs (e.g., ASCII characters) are horizontally contiguous, 
-improving texture cache hit rates
+- **Cache efficiency**: Sequential glyphs (e.g., ASCII characters) are vertically contiguous
+within the same layer, improving texture cache hit rates
 
 ### Why Separate Style Encoding?
 

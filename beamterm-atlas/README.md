@@ -13,7 +13,7 @@ including emoji, and automatic grapheme clustering.
 
 The crate consists of:
 - **Font rasterization engine** using cosmic-text for high-quality text rendering
-- **2D texture array packer** organizing glyphs into 32×1 grids per texture layer
+- **2D texture array packer** organizing glyphs into 1×32 grids per texture layer
 - **Binary serializer** with zlib compression for efficient storage
 - **Atlas verification tool** for debugging and visualization
 
@@ -107,12 +107,12 @@ Each font style reserves exactly 32 layers (1024 glyph slots), regardless of act
 
 ### Layer Layout
 
-Each texture layer contains a 32×1 grid of glyphs:
+Each texture layer contains a 1×32 grid of glyphs:
 
 ```
 Position in layer = ID & 0x1F (modulo 32)
-Grid X = Position (0-31)
-Grid Y = 0 (always single row)
+Grid X = 0 (always single column)
+Grid Y = Position (0-31)
 Layer = ID ÷ 32
 ```
 
@@ -120,8 +120,8 @@ Layer = ID ÷ 32
 
 The 2D texture array uses RGBA format with dimensions:
 
-- Width: cell_width × 32
-- Height: cell_height × 1
+- Width: cell_width × 1
+- Height: cell_height × 32
 - Layers: max_glyph_id ÷ 32
 
 The RGBA format is required for emoji support - while monochrome glyphs could use a single channel,
@@ -129,7 +129,7 @@ emoji glyphs need full color information.
 
 This layout ensures:
 - Efficient GPU memory alignment
-- Cache-friendly access pattern (sequential glyphs in same row)
+- Cache-friendly access pattern (sequential glyphs in same column)
 - Simple coordinate calculation using bit operations
 
 ## Rasterization Process

@@ -45,8 +45,8 @@ void main() {
 
     vec2 inner_tex_coord = v_tex_coord * (1.0 - 2.0 * u_padding_frac) + u_padding_frac;
     vec3 tex_coord = vec3(
-        (float(pos_in_layer) + inner_tex_coord.x + 0.001) * 0.03125, // 0.03125 = 1/32
-        inner_tex_coord.y + 0.001,
+        inner_tex_coord.x + 0.001,
+        (float(pos_in_layer) + inner_tex_coord.y + 0.001) * 0.03125, // 0.03125 = 1/32
         float(layer)
     );
 

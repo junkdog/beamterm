@@ -10,15 +10,15 @@ pub(super) struct AtlasCoordinate {
 
 impl AtlasCoordinate {
     pub(super) fn to_pixel_xy(self, config: GlyphBounds) -> (i32, i32) {
-        let x = self.cell_offset_in_px(config).0 + FontAtlasData::PADDING;
-        let y = FontAtlasData::PADDING;
+        let x = FontAtlasData::PADDING;
+        let y = self.cell_offset_in_px(config).1 + FontAtlasData::PADDING;
 
         (x, y)
     }
 
     pub(super) fn cell_offset_in_px(&self, config: GlyphBounds) -> (i32, i32) {
-        let cell_width = config.width_with_padding();
-        (self.glyph_index as i32 * cell_width, 0)
+        let cell_height = config.height_with_padding();
+        (0, self.glyph_index as i32 * cell_height)
     }
 }
 
