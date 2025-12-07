@@ -22,6 +22,10 @@ All notable changes to this project will be documented in this file.
 - *(deps)* Bump tracing from 0.1.41 to 0.1.43 (#51)
 - *(deps)* Bump actions/setup-node from 5 to 6 (#41)
 - *(deps)* Bump actions/upload-artifact from 4 to 5 (#42)
+- *(deps)* Bump tracing-subscriber from 0.3.20 to 0.3.22 (#52)
+- *(deps-dev)* Bump the minor-and-patch group in /js with 2 updates (#53)
+- *(deps-dev)* Bump jsdom from 23.2.0 to 27.2.0 in /js (#54)
+- *(canvas_waves)* Add profiling demo from from ratzilla
 
 ## [beamterm-v0.8.0] - 2025-10-09
 

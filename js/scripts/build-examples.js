@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const EXAMPLES_DIR = path.join(__dirname, '..', 'examples');
+const RUST_EXAMPLES_DIR = path.join(__dirname, '..', '..', 'examples');
 const DIST_DIR = path.join(__dirname, '..', 'examples-dist');
 
 console.log('📦 Building beamterm examples for GitHub Pages...\n');
@@ -68,12 +69,65 @@ function buildExample(exampleName) {
     }
 }
 
+function buildTrunkExample(exampleName) {
+    const exampleDir = path.join(RUST_EXAMPLES_DIR, exampleName);
+    const exampleDistDir = path.join(DIST_DIR, exampleName);
+
+    if (!fs.existsSync(exampleDir)) {
+        console.log(`⚠️  Rust example ${exampleName} not found, skipping...`);
+        return false;
+    }
+
+    console.log(`🦀 Building ${exampleName} (trunk)...`);
+
+    try {
+        // Build with trunk
+        console.log(`   Building WASM with trunk...`);
+        execSync('trunk build --release --public-url ./', {
+            cwd: exampleDir,
+            stdio: 'pipe'
+        });
+
+        // Copy build output to dist
+        const buildDir = path.join(exampleDir, 'dist');
+        if (fs.existsSync(buildDir)) {
+            fs.cpSync(buildDir, exampleDistDir, { recursive: true });
+            console.log(`✅ ${exampleName} built successfully`);
+            return true;
+        } else {
+            console.log(`❌ ${exampleName} build directory not found`);
+            return false;
+        }
+
+    } catch (error) {
+        console.error(`❌ Failed to build ${exampleName}:`);
+        console.error(error.message);
+
+        if (error.stdout) {
+            console.error('STDOUT:', error.stdout.toString());
+        }
+        if (error.stderr) {
+            console.error('STDERR:', error.stderr.toString());
+        }
+
+        return false;
+    }
+}
+
 // Build all examples
 const examples = ['webpack', 'vite', 'api-demo', 'selection-demo'];
+const trunkExamples = ['canvas_waves'];
 const results = [];
 
 for (const example of examples) {
     const success = buildExample(example);
+    results.push({ example, success });
+    console.log(''); // Empty line for readability
+}
+
+// Build trunk-based Rust examples
+for (const example of trunkExamples) {
+    const success = buildTrunkExample(example);
     results.push({ example, success });
     console.log(''); // Empty line for readability
 }
@@ -137,6 +191,7 @@ const wasmChecks = [
     'vite/index.html',
     'api-demo/index.html',
     'selection-demo/index.html',
+    'canvas_waves/index.html',
 ];
 
 let wasmValid = true;
