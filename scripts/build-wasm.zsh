@@ -119,7 +119,7 @@ main() {
     # Install dependencies if needed
     if [[ ! -d node_modules ]]; then
         log info "Installing JS dependencies..."
-        npm install
+        npm ci
     fi
 
     # Run build script

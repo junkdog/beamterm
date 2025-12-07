@@ -73,7 +73,7 @@ install_deps() {
     fi
 
     # Install with npm
-    npm install
+    npm ci
 
     log ok "Dependencies installed"
 }

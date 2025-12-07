@@ -21,7 +21,7 @@ Before running this example, you must build the WASM packages:
 
 1. Install dependencies:
    ```bash
-   npm install
+   npm ci
    ```
 
 2. Start the development server:

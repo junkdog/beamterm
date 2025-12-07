@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - *(atlas)* Fullwidth glyph support (#49)
 - *(atlas)* Change texture layout from 32x1 horizontal to 1x32 vertical
 
+### 🛡️ Security
+
+- *(examples)* Npm security hardening
+
 ### 💼 Other
 
 - *(deps)* Bump tracing-appender from 0.2.3 to 0.2.4 (#50)

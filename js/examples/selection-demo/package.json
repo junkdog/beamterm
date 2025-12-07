@@ -13,8 +13,8 @@
     "@beamterm/renderer": "file:../../"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "vite-plugin-wasm": "^3.3.0"
+    "vite": "5.0.0",
+    "vite-plugin-wasm": "3.3.0"
   },
   "keywords": [
     "beamterm",
