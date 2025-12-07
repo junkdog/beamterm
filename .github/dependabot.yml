@@ -27,3 +27,19 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  - package-ecosystem: "npm"
+    directory: "/js"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "junkdog"
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
