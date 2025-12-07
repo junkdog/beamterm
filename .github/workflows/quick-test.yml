@@ -46,25 +46,3 @@ jobs:
       # Run native tests only (faster)
       - name: 🧪 Run tests
         run: ./build.zsh test-native
-
-  trigger-full-ci:
-    name: 🚀 Trigger Full CI
-    needs: quick-check
-    runs-on: ubuntu-latest
-    if: success()
-    steps:
-      - name: Trigger CI workflow
-        uses: actions/github-script@v8
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'ci.yml',
-              ref: context.ref,
-              inputs: {
-                triggered_by: 'quick-test'
-              }
-            });
-            console.log('Triggered full CI workflow');

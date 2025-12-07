@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(atlas)* Fullwidth glyph support (#49)
+- *(atlas)* Change texture layout from 32x1 horizontal to 1x32 vertical
 
 ## [beamterm-v0.8.0] - 2025-10-09
 
