@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 - *(atlas)* Fullwidth glyph support (#49)
 - *(atlas)* Change texture layout from 32x1 horizontal to 1x32 vertical
 
+### 💼 Other
+
+- *(deps)* Bump tracing-appender from 0.2.3 to 0.2.4 (#50)
+- *(deps)* Bump emojis from 0.7.2 to 0.8.0 (#39)
+- *(deps)* Bump clap from 4.5.48 to 4.5.53 (#47)
+- *(deps)* Bump actions/checkout from 5 to 6 (#48)
+- *(deps)* Bump tracing from 0.1.41 to 0.1.43 (#51)
+- *(deps)* Bump actions/setup-node from 5 to 6 (#41)
+- *(deps)* Bump actions/upload-artifact from 4 to 5 (#42)
+
 ## [beamterm-v0.8.0] - 2025-10-09
 
 ### 🚀 Features
