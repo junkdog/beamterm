@@ -2,13 +2,16 @@
 resolver = "2"
 members = [
     "beamterm-atlas",
-    "beamterm-data", 
+    "beamterm-data",
     "beamterm-renderer",
+]
+exclude = [
+    "examples/canvas_waves",
 ]
 
 [workspace.package]
 version = "0.8.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 authors = ["Adrian Papari <junkdog@angelhill.net>"]
 repository = "https://github.com/junkdog/beamterm"

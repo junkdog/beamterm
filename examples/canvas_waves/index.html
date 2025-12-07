@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌊</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        background-color: #121212;
+        overflow: hidden;
+      }
+
+      nav {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        padding: 10px;
+        flex-shrink: 0;
+      }
+
+      nav a {
+        color: aqua;
+        text-decoration: none;
+        font-family: "Fira Code", monospace;
+        font-size: 16px;
+        padding: 5px 10px;
+        border: 1px solid aqua;
+        border-radius: 4px;
+      }
+
+      nav a:hover, nav a.active {
+        background-color: aqua;
+        color: #121212;
+      }
+
+      #terminal-size {
+        color: #888;
+        font-family: "Fira Code", monospace;
+        font-size: 14px;
+        padding: 5px 10px;
+      }
+
+      pre {
+        font-family: "Fira Code", monospace;
+        font-size: 16px;
+        margin: 0px;
+      }
+
+      #container {
+        flex: 1;
+        min-height: 0; /* Allow flex item to shrink below content size */
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #container canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+    </style>
+
+    <link
+        rel="rust"
+        href="Cargo.toml"
+        data-trunk
+        data-wasm-opt = "4"/>
+
+  </head>
+  <body>
+    <nav>
+      <a href="?atlas_size=10">Hack 10pt</a>
+      <a href="?atlas_size=15">Hack 15pt</a>
+      <span id="terminal-size"></span>
+    </nav>
+    <div id="container"></div>
+    <script>
+      // Highlight active link based on query param
+      const params = new URLSearchParams(window.location.search);
+      const size = params.get('atlas_size') || '15';
+      document.querySelectorAll('nav a').forEach(a => {
+        if (a.href.includes(`atlas_size=${size}`)) {
+          a.classList.add('active');
+        }
+      });
+
+      // Update terminal size display
+      function updateTerminalSize() {
+        if (window.__beamterm_debug) {
+          const size = window.__beamterm_debug.getTerminalSize();
+          const cells = size.cols * size.rows;
+          document.getElementById('terminal-size').textContent =
+            `${size.cols}x${size.rows} (${cells.toLocaleString()} cells)`;
+        }
+      }
+
+      // Trigger resize after layout settles
+      new ResizeObserver(() => {
+        window.dispatchEvent(new Event('resize'));
+        setTimeout(updateTerminalSize, 100);
+      }).observe(document.getElementById('container'));
+
+      // Display terminal size after initialization
+      setTimeout(updateTerminalSize, 500);
+    </script>
+  </body>
+</html>
