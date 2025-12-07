@@ -9,8 +9,8 @@ use web_sys::console;
 
 use crate::{
     gl::{
-        select, CellData, CellQuery as RustCellQuery, FontAtlas, Renderer,
-        SelectionMode as RustSelectionMode, TerminalGrid,
+        CellData, CellQuery as RustCellQuery, FontAtlas, Renderer,
+        SelectionMode as RustSelectionMode, TerminalGrid, select,
     },
     mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
 };

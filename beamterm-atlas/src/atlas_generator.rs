@@ -12,9 +12,9 @@ use crate::{
     bitmap_font::BitmapFont,
     coordinate::{AtlasCoordinate, AtlasCoordinateProvider},
     font_discovery::{FontDiscovery, FontFamily},
-    glyph_bounds::{measure_glyph_bounds, GlyphBounds},
+    glyph_bounds::{GlyphBounds, measure_glyph_bounds},
     glyph_rasterizer::create_rasterizer,
-    grapheme::{is_emoji, GraphemeSet},
+    grapheme::{GraphemeSet, is_emoji},
     raster_config::RasterizationConfig,
 };
 
@@ -590,8 +590,15 @@ impl AtlasFontGenerator {
             let bottom_deviation = bottom_frac.min(1.0 - bottom_frac);
             let edge_fitness = right_deviation.max(bottom_deviation);
 
-            debug!("Step {}: font_size={:.4}, right_intensity={:.4}, bottom_intensity={:.4}, edge_fitness={:.4}, bounds={:?}", 
-                step, dynamic_metrics.font_size, right_intensity, bottom_intensity, edge_fitness, bounds);
+            debug!(
+                "Step {}: font_size={:.4}, right_intensity={:.4}, bottom_intensity={:.4}, edge_fitness={:.4}, bounds={:?}",
+                step,
+                dynamic_metrics.font_size,
+                right_intensity,
+                bottom_intensity,
+                edge_fitness,
+                bounds
+            );
 
             if edge_fitness < best_fitness {
                 best_fitness = edge_fitness;
@@ -642,11 +649,7 @@ impl AtlasFontGenerator {
             }
         }
 
-        if pixel_count > 0 {
-            total_intensity / pixel_count as f32
-        } else {
-            0.0
-        }
+        if pixel_count > 0 { total_intensity / pixel_count as f32 } else { 0.0 }
     }
 
     /// Shrinks bounds by removing edges with very faint pixel intensity (< 0.1).

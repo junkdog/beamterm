@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use color_eyre::{eyre::eyre, Report};
-use cosmic_text::{fontdb, FontSystem, Style, Weight};
+use color_eyre::{Report, eyre::eyre};
+use cosmic_text::{FontSystem, Style, Weight, fontdb};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontFamily {

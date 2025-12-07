@@ -5,7 +5,7 @@ use directories::ProjectDirs;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    filter::EnvFilter, fmt, layer::SubscriberExt, reload, util::SubscriberInitExt, Layer,
+    Layer, filter::EnvFilter, fmt, layer::SubscriberExt, reload, util::SubscriberInitExt,
 };
 
 /// Configuration for the logging system
@@ -65,25 +65,25 @@ impl LoggingConfig {
         let mut config = Self::default();
 
         // Override log levels from environment
-        if let Ok(level) = std::env::var("BEAMTERM_LOG_LEVEL") {
-            if let Ok(parsed_level) = level.parse::<Level>() {
-                config.file_level = parsed_level;
-                config.console_level = parsed_level;
-            }
+        if let Ok(level) = std::env::var("BEAMTERM_LOG_LEVEL")
+            && let Ok(parsed_level) = level.parse::<Level>()
+        {
+            config.file_level = parsed_level;
+            config.console_level = parsed_level;
         }
 
         // Override file log level specifically
-        if let Ok(level) = std::env::var("BEAMTERM_FILE_LOG_LEVEL") {
-            if let Ok(parsed_level) = level.parse::<Level>() {
-                config.file_level = parsed_level;
-            }
+        if let Ok(level) = std::env::var("BEAMTERM_FILE_LOG_LEVEL")
+            && let Ok(parsed_level) = level.parse::<Level>()
+        {
+            config.file_level = parsed_level;
         }
 
         // Override console log level specifically
-        if let Ok(level) = std::env::var("BEAMTERM_CONSOLE_LOG_LEVEL") {
-            if let Ok(parsed_level) = level.parse::<Level>() {
-                config.console_level = parsed_level;
-            }
+        if let Ok(level) = std::env::var("BEAMTERM_CONSOLE_LOG_LEVEL")
+            && let Ok(parsed_level) = level.parse::<Level>()
+        {
+            config.console_level = parsed_level;
         }
 
         // Override log directory from environment

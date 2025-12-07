@@ -38,13 +38,14 @@ use std::{
 };
 
 use compact_str::CompactString;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::{JsCast, closure::Closure};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::console;
 
 use crate::{
+    Error, SelectionMode, TerminalGrid,
     gl::{SelectionTracker, TerminalDimensions},
-    select, Error, SelectionMode, TerminalGrid,
+    select,
 };
 
 /// Type alias for boxed mouse event callback functions.
@@ -204,11 +205,7 @@ impl TerminalMouseHandler {
             let row = (y / cell_height as f32).floor() as u16;
 
             let (max_cols, max_rows) = *dimensions_ref.borrow();
-            if col < max_cols && row < max_rows {
-                Some((col, row))
-            } else {
-                None
-            }
+            if col < max_cols && row < max_rows { Some((col, row)) } else { None }
         };
 
         // Create event handlers

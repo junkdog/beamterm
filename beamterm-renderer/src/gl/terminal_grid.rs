@@ -2,13 +2,13 @@ use std::{borrow::Cow, cmp::min, fmt::Debug, ops::Index};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, GlyphEffect};
 use compact_str::{CompactString, CompactStringExt};
-use web_sys::{console, WebGl2RenderingContext};
+use web_sys::{WebGl2RenderingContext, console};
 
 use crate::{
     error::Error,
     gl::{
-        buffer_upload_array, selection::SelectionTracker, ubo::UniformBufferObject, CellIterator,
-        Drawable, FontAtlas, RenderContext, ShaderProgram, GL,
+        CellIterator, Drawable, FontAtlas, GL, RenderContext, ShaderProgram, buffer_upload_array,
+        selection::SelectionTracker, ubo::UniformBufferObject,
     },
     mat4::Mat4,
 };
@@ -704,6 +704,7 @@ impl Drawable for TerminalGrid {
     fn draw(&self, context: &mut RenderContext) {
         let gl = context.gl;
         let cell_count = self.cells.len() as i32;
+
         gl.draw_elements_instanced_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_BYTE, 0, cell_count);
     }
 

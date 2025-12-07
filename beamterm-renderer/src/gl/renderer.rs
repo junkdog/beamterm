@@ -2,7 +2,7 @@ use web_sys::HtmlCanvasElement;
 
 use crate::{
     error::Error,
-    gl::{context::GlState, GL},
+    gl::{GL, context::GlState},
     js,
 };
 

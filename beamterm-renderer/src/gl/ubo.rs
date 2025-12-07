@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::{
     error::Error,
-    gl::{buffer_upload_struct, ShaderProgram, GL},
+    gl::{GL, ShaderProgram, buffer_upload_struct},
 };
 
 #[derive(Debug)]

@@ -5,16 +5,16 @@ use std::{
 };
 
 use compact_str::CompactString;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::{JsCast, closure::Closure};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::console;
 
 use crate::{
-    gl::{
-        cell_query::{select, CellQuery, SelectionMode},
-        TerminalGrid,
-    },
     Error,
+    gl::{
+        TerminalGrid,
+        cell_query::{CellQuery, SelectionMode, select},
+    },
 };
 
 /// Tracks the active text selection in the terminal grid.

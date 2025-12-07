@@ -5,11 +5,11 @@ use compact_str::CompactString;
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    CellData, Error, FontAtlas, Renderer, TerminalGrid,
     gl::{CellQuery, SelectionMode},
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
     },
-    CellData, Error, FontAtlas, Renderer, TerminalGrid,
 };
 
 /// High-performance WebGL2 terminal renderer.

@@ -1,7 +1,7 @@
 use std::{ops::RangeInclusive, path::PathBuf};
 
 use clap::Parser;
-use color_eyre::{eyre::eyre, Report};
+use color_eyre::{Report, eyre::eyre};
 
 use crate::font_discovery::{FontDiscovery, FontFamily};
 

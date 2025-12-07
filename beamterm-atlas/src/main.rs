@@ -17,7 +17,7 @@ use crate::{
     atlas_generator::AtlasFontGenerator,
     cli::Cli,
     font_discovery::FontDiscovery,
-    logging::{init_logging, LoggingConfig},
+    logging::{LoggingConfig, init_logging},
 };
 
 fn main() -> Result<()> {
