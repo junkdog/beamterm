@@ -1,12 +1,26 @@
 // Create another binary in bitmap-font/src/bin/view_atlas_grid.rs
 
 use std::fmt::Write;
+use std::fs;
+use std::path::PathBuf;
 
 use beamterm_data::{FontAtlasData, Glyph};
+use clap::Parser;
 use colored::Colorize;
 
+#[derive(Parser)]
+#[command(name = "verify-atlas")]
+#[command(about = "Visualize font atlas texture slices in the terminal")]
+struct Cli {
+    /// Path to the .atlas file to verify
+    #[arg(value_name = "ATLAS_FILE")]
+    atlas_path: PathBuf,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let atlas = FontAtlasData::default();
+    let cli = Cli::parse();
+    let data = fs::read(&cli.atlas_path)?;
+    let atlas = FontAtlasData::from_binary(&data).map_err(|e| format!("{:?}", e))?;
 
     println!("=== Font Atlas Grid Viewer ===");
     println!(
