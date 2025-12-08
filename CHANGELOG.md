@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(verify-atlas)* Atlas path is now a required argument
+
 ## [beamterm-v0.9.0] - 2025-12-07
 
 ### 🚀 Features
@@ -26,6 +32,10 @@ All notable changes to this project will be documented in this file.
 - *(deps-dev)* Bump the minor-and-patch group in /js with 2 updates (#53)
 - *(deps-dev)* Bump jsdom from 23.2.0 to 27.2.0 in /js (#54)
 - *(canvas_waves)* Add profiling demo from from ratzilla
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.9.0
 
 ## [beamterm-v0.8.0] - 2025-10-09
 

@@ -1,8 +1,6 @@
 // Create another binary in bitmap-font/src/bin/view_atlas_grid.rs
 
-use std::fmt::Write;
-use std::fs;
-use std::path::PathBuf;
+use std::{fmt::Write, fs, path::PathBuf};
 
 use beamterm_data::{FontAtlasData, Glyph};
 use clap::Parser;
