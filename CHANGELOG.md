@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - *(renderer)* Fix green tint in chrome-based browsers due to ANGLE uint bit operation bugs (AMD/Qualcomm)
+- *(renderer)* Fix vertical banding artifacts in chrome-based browsers due to ANGLE mediump precision issues
 
 ## [beamterm-v0.9.0] - 2025-12-07
 

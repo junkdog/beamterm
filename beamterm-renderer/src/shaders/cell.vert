@@ -1,5 +1,6 @@
 #version 300 es
-precision mediump float;
+// use highp to avoid possible ANGLE precision issues causing gaps between cells
+precision highp float;
 
 // cell geometry attributes
 layout(location = 0) in vec2 a_pos;
