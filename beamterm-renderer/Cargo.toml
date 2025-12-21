@@ -73,6 +73,7 @@ features = [
     'Screen',
     'WebGl2RenderingContext',
     'WebGlBuffer',
+    'WebGlContextEvent',
     'WebGlProgram',
     'WebGlRenderingContext',
     'WebGlShader',

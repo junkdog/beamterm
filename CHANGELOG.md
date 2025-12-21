@@ -7,6 +7,12 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(verify-atlas)* Atlas path is now a required argument
+- *(renderer)* Automatic recovery from opengl context loss
+
+### 💼 Other
+
+- *(deps)* Bump actions/upload-artifact from 5 to 6 (#56)
+- *(deps-dev)* Bump jsdom in /js in the minor-and-patch group (#55)
 
 ### 🐛 Bug Fixes
 

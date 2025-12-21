@@ -4,8 +4,6 @@ mod wave_effect;
 
 use ratzilla::ratatui::Terminal;
 use ratzilla::backend::webgl2::{FontAtlasData, WebGl2Backend, WebGl2BackendOptions};
-use ratzilla::ratatui::style::{Color, Style};
-use ratzilla::ratatui::widgets::{Block, Widget};
 use ratzilla::WebRenderer;
 use tachyonfx::{EffectRenderer, IntoEffect};
 use wave_effect::WaveInterference;

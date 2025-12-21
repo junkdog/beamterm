@@ -1,5 +1,5 @@
 use ratzilla::ratatui::buffer::Buffer;
-use ratzilla::ratatui::layout::{Position, Rect};
+use ratzilla::ratatui::layout::Rect;
 use std::fmt::Debug;
 use std::rc::Rc;
 use tachyonfx::{color_from_hsl, default_shader_impl, CellFilter, ColorSpace, Duration, FilterProcessor, Interpolation, Shader};

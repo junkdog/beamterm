@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     CellData, Error, FontAtlas, Renderer, TerminalGrid,
-    gl::{CellQuery, SelectionMode},
+    gl::{CellQuery, ContextLossHandler, SelectionMode},
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
     },
@@ -61,7 +61,8 @@ use crate::{
 pub struct Terminal {
     renderer: Renderer,
     grid: Rc<RefCell<TerminalGrid>>,
-    mouse_handler: Option<TerminalMouseHandler>, // 🐀
+    mouse_handler: Option<TerminalMouseHandler>,
+    context_loss_handler: Option<ContextLossHandler>,
 }
 
 impl Terminal {
@@ -192,8 +193,21 @@ impl Terminal {
     /// and frame finalization. Call this after updating terminal content to display
     /// the changes.
     ///
+    /// If a WebGL context loss occurred and the context has been restored by the browser,
+    /// this method will automatically recreate all GPU resources before rendering.
+    /// The terminal's cell content is preserved during this process.
+    ///
     /// Combines [`Renderer::begin_frame`], [`Renderer::render`], and [`Renderer::end_frame`].
     pub fn render_frame(&mut self) -> Result<(), Error> {
+        if self.needs_gl_reinit() {
+            self.restore_context()?;
+        }
+
+        // skip rendering if context is currently lost (waiting for restoration)
+        if self.is_context_lost() {
+            return Ok(());
+        }
+
         self.grid
             .borrow_mut()
             .flush_cells(self.renderer.gl())?;
@@ -216,6 +230,48 @@ impl Terminal {
             .collect();
         glyphs.sort();
         glyphs
+    }
+
+    /// Checks if the WebGL context has been lost.
+    ///
+    /// Returns `true` if the context is lost and waiting for restoration.
+    fn is_context_lost(&self) -> bool {
+        if let Some(handler) = &self.context_loss_handler {
+            handler.is_context_lost()
+        } else {
+            self.renderer.is_context_lost()
+        }
+    }
+
+    /// Restores all GPU resources after a WebGL context loss.
+    ///
+    /// # Returns
+    /// * `Ok(())` - All resources successfully restored
+    /// * `Err(Error)` - Failed to restore context or recreate resources
+    fn restore_context(&mut self) -> Result<(), Error> {
+        self.renderer.restore_context()?;
+
+        let gl = self.renderer.gl();
+
+        self.grid
+            .borrow_mut()
+            .recreate_atlas_texture(gl)?;
+        self.grid.borrow_mut().recreate_resources(gl)?;
+        self.grid.borrow_mut().flush_cells(gl)?;
+
+        if let Some(handler) = &self.context_loss_handler {
+            handler.clear_context_rebuild_needed();
+        }
+
+        Ok(())
+    }
+
+    /// Checks if the terminal needs to restore GPU resources after a context loss.
+    fn needs_gl_reinit(&mut self) -> bool {
+        self.context_loss_handler
+            .as_ref()
+            .map(ContextLossHandler::context_pending_rebuild)
+            .unwrap_or(false)
     }
 
     /// Exposes this terminal instance to the browser console for debugging.
@@ -378,10 +434,18 @@ impl TerminalBuilder {
         };
         let grid = Rc::new(RefCell::new(grid));
 
+        // Set up context loss handler for automatic recovery
+        let context_loss_handler = ContextLossHandler::new(renderer.canvas()).ok();
+
         // initialize mouse handler if needed
         let selection = grid.borrow().selection_tracker();
         match self.input_handler {
-            None => Ok(Terminal { renderer, grid, mouse_handler: None }),
+            None => Ok(Terminal {
+                renderer,
+                grid,
+                mouse_handler: None,
+                context_loss_handler,
+            }),
             Some(InputHandler::Internal { selection_mode, trim_trailing_whitespace }) => {
                 let handler = DefaultSelectionHandler::new(
                     grid.clone(),
@@ -396,12 +460,22 @@ impl TerminalBuilder {
                 )?;
                 mouse_input.default_input_handler = Some(handler);
 
-                Ok(Terminal { renderer, grid, mouse_handler: Some(mouse_input) })
+                Ok(Terminal {
+                    renderer,
+                    grid,
+                    mouse_handler: Some(mouse_input),
+                    context_loss_handler,
+                })
             },
             Some(InputHandler::Mouse(callback)) => {
                 let mouse_input =
                     TerminalMouseHandler::new(renderer.canvas(), grid.clone(), callback)?;
-                Ok(Terminal { renderer, grid, mouse_handler: Some(mouse_input) })
+                Ok(Terminal {
+                    renderer,
+                    grid,
+                    mouse_handler: Some(mouse_input),
+                    context_loss_handler,
+                })
             },
         }
         .inspect(|terminal| {

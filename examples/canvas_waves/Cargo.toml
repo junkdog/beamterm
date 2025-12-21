@@ -5,7 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ratzilla = { git = "https://github.com/junkdog/ratzilla", branch = "beamterm-0.9.0-update" }
+ratzilla = { git = "https://github.com/junkdog/ratzilla", branch = "main" }
+#ratzilla = { path = "../../../ratzilla" }
 console_error_panic_hook = "0.1.7"
 tachyonfx = { version = "0.20.1", default-features = false, features = ["wasm"] }
 web-time = "1.1.0"

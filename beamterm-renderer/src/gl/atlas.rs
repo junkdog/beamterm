@@ -36,12 +36,14 @@ pub struct FontAtlas {
     num_slices: u32,
     /// Underline configuration
     underline: beamterm_data::LineDecoration,
-    /// Strikethrough configuration  
+    /// Strikethrough configuration
     strikethrough: beamterm_data::LineDecoration,
     /// Tracks glyphs that were requested but not found in the atlas
     glyph_tracker: GlyphTracker,
     /// The last assigned halfwidth base glyph ID, before fullwidth
     last_halfwidth_base_glyph_id: u16,
+    /// Retained atlas data for context loss recovery
+    atlas_data: FontAtlasData,
 }
 
 impl FontAtlas {
@@ -94,7 +96,31 @@ impl FontAtlas {
             underline: config.underline,
             strikethrough: config.strikethrough,
             glyph_tracker: GlyphTracker::new(),
+            atlas_data: config,
         })
+    }
+
+    /// Recreates the GPU texture after a WebGL context loss.
+    ///
+    /// This method rebuilds the texture from the retained atlas data. All glyph
+    /// mappings and other CPU-side state are preserved; only the GPU texture
+    /// handle is recreated.
+    ///
+    /// # Parameters
+    /// * `gl` - The new WebGL2 rendering context
+    ///
+    /// # Returns
+    /// * `Ok(())` - Texture successfully recreated
+    /// * `Err(Error)` - Failed to create texture
+    pub fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+        // Delete old texture if it exists (may be invalid after context loss)
+        self.texture.delete(gl);
+
+        // Recreate texture from retained atlas data
+        self.texture =
+            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
+
+        Ok(())
     }
 
     /// Binds the atlas texture to the specified texture unit

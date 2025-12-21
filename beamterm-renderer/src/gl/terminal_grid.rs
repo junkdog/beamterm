@@ -21,30 +21,93 @@ use crate::{
 /// store glyph data and supports real-time updates of cell content.
 #[derive(Debug)]
 pub struct TerminalGrid {
-    /// Shader program for rendering the terminal cells.
-    shader: ShaderProgram,
+    /// GPU resources (shader, buffers, UBOs) - recreated on context loss
+    gpu: GpuResources,
     /// Terminal cell instance data
     cells: Vec<CellDynamic>,
     /// Terminal size in cells
     terminal_size: (u16, u16),
     /// Size of the canvas in pixels
     canvas_size_px: (i32, i32),
-    /// Buffers for the terminal grid
-    buffers: TerminalBuffers,
-    /// shared state for the vertex shader
-    ubo_vertex: UniformBufferObject,
-    /// shared state for the fragment shader
-    ubo_fragment: UniformBufferObject,
     /// Font atlas for rendering text.
     atlas: FontAtlas,
-    /// Uniform location for the texture sampler.
-    sampler_loc: web_sys::WebGlUniformLocation,
     /// Fallback glyph for missing symbols.
     fallback_glyph: u16,
     /// Selection tracker for managing cell selections.
     selection: SelectionTracker,
     /// Indicates whether there are cells pending flush to the GPU.
     cells_pending_flush: bool,
+}
+
+/// GPU resources that need to be recreated after a WebGL context loss.
+///
+/// This struct encapsulates all WebGL-dependent resources: shader program,
+/// vertex buffers, uniform buffer objects, and uniform locations. These
+/// resources become invalid after a context loss and must be recreated
+/// with a fresh WebGL context.
+#[derive(Debug)]
+struct GpuResources {
+    /// Shader program for rendering the terminal cells.
+    shader: ShaderProgram,
+    /// Buffers for the terminal grid (VAO, VBO, instance buffers)
+    buffers: TerminalBuffers,
+    /// Shared state for the vertex shader
+    ubo_vertex: UniformBufferObject,
+    /// Shared state for the fragment shader
+    ubo_fragment: UniformBufferObject,
+    /// Uniform location for the texture sampler.
+    sampler_loc: web_sys::WebGlUniformLocation,
+}
+
+impl GpuResources {
+    const FRAGMENT_GLSL: &'static str = include_str!("../shaders/cell.frag");
+    const VERTEX_GLSL: &'static str = include_str!("../shaders/cell.vert");
+
+    /// Creates all GPU resources for the terminal grid.
+    ///
+    /// This method creates and initializes:
+    /// - Vertex Array Object (VAO)
+    /// - Vertex and index buffers
+    /// - Instance buffers for cell positions and data
+    /// - Shader program
+    /// - Uniform Buffer Objects (UBOs)
+    fn new(
+        gl: &WebGl2RenderingContext,
+        cell_pos: &[CellStatic],
+        cell_data: &[CellDynamic],
+        cell_size: (i32, i32),
+    ) -> Result<Self, Error> {
+        // Create and setup the Vertex Array Object
+        let vao = create_vao(gl)?;
+        gl.bind_vertex_array(Some(&vao));
+
+        // Create all buffers
+        let buffers = setup_buffers(gl, vao, cell_pos, cell_data, cell_size)?;
+
+        // Unbind VAO to prevent accidental modification
+        gl.bind_vertex_array(None);
+
+        // Setup shader and uniform data
+        let shader = ShaderProgram::create(gl, Self::VERTEX_GLSL, Self::FRAGMENT_GLSL)?;
+        shader.use_program(gl);
+
+        let ubo_vertex = UniformBufferObject::new(gl, CellVertexUbo::BINDING_POINT)?;
+        ubo_vertex.bind_to_shader(gl, &shader, "VertUbo")?;
+        let ubo_fragment = UniformBufferObject::new(gl, CellFragmentUbo::BINDING_POINT)?;
+        ubo_fragment.bind_to_shader(gl, &shader, "FragUbo")?;
+
+        let sampler_loc = gl
+            .get_uniform_location(&shader.program, "u_sampler")
+            .ok_or(Error::uniform_location_failed("u_sampler"))?;
+
+        Ok(Self {
+            shader,
+            buffers,
+            ubo_vertex,
+            ubo_fragment,
+            sampler_loc,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -68,55 +131,25 @@ impl TerminalBuffers {
 }
 
 impl TerminalGrid {
-    const FRAGMENT_GLSL: &'static str = include_str!("../shaders/cell.frag");
-    const VERTEX_GLSL: &'static str = include_str!("../shaders/cell.vert");
-
     pub fn new(
         gl: &WebGl2RenderingContext,
         atlas: FontAtlas,
         screen_size: (i32, i32),
     ) -> Result<Self, Error> {
-        // create and setup the Vertex Array Object
-        let vao = create_vao(gl)?;
-        gl.bind_vertex_array(Some(&vao));
-
-        // prepare vertex, index and instance buffers
         let cell_size = atlas.cell_size();
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
 
-        // let fill_glyphs = Self::fill_glyphs(&atlas);
-        // let cell_data = create_terminal_cell_data(cols, rows, &fill_glyphs);
         let cell_data = create_terminal_cell_data(cols, rows, &[' ' as u16]);
         let cell_pos = CellStatic::create_grid(cols, rows);
-        let buffers = setup_buffers(gl, vao, &cell_pos, &cell_data, cell_size)?;
 
-        // unbind VAO to prevent accidental modification
-        gl.bind_vertex_array(None);
+        let gpu = GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?;
 
-        // setup shader and uniform data
-        let shader = ShaderProgram::create(gl, Self::VERTEX_GLSL, Self::FRAGMENT_GLSL)?;
-        shader.use_program(gl);
-
-        let ubo_vertex = UniformBufferObject::new(gl, CellVertexUbo::BINDING_POINT)?;
-        ubo_vertex.bind_to_shader(gl, &shader, "VertUbo")?;
-        let ubo_fragment = UniformBufferObject::new(gl, CellFragmentUbo::BINDING_POINT)?;
-        ubo_fragment.bind_to_shader(gl, &shader, "FragUbo")?;
-
-        let sampler_loc = gl
-            .get_uniform_location(&shader.program, "u_sampler")
-            .ok_or(Error::uniform_location_failed("u_sampler"))?;
-
-        let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
         let grid = Self {
-            shader,
+            gpu,
             terminal_size: (cols as u16, rows as u16),
             canvas_size_px: screen_size,
             cells: cell_data,
-            buffers,
-            ubo_vertex,
-            ubo_fragment,
             atlas,
-            sampler_loc,
             fallback_glyph: ' ' as u16,
             selection: SelectionTracker::new(),
             cells_pending_flush: false,
@@ -203,10 +236,12 @@ impl TerminalGrid {
     /// * `gl` - WebGL2 rendering context
     fn upload_ubo_data(&self, gl: &WebGl2RenderingContext) {
         let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.cell_size());
-        self.ubo_vertex.upload_data(gl, &vertex_ubo);
+        self.gpu.ubo_vertex.upload_data(gl, &vertex_ubo);
 
         let fragment_ubo = CellFragmentUbo::new(&self.atlas);
-        self.ubo_fragment.upload_data(gl, &fragment_ubo);
+        self.gpu
+            .ubo_fragment
+            .upload_data(gl, &fragment_ubo);
     }
 
     /// Returns the total number of cells in the terminal grid.
@@ -375,7 +410,9 @@ impl TerminalGrid {
         // during the GPU upload process.
         self.flip_selected_cell_colors();
 
-        self.buffers.upload_instance_data(gl, &self.cells);
+        self.gpu
+            .buffers
+            .upload_instance_data(gl, &self.cells);
 
         // Restore the original colors of the selected cells after the upload.
         // This ensures that the internal state of the cells remains consistent.
@@ -439,11 +476,11 @@ impl TerminalGrid {
         }
 
         // update buffers; bind VAO to ensure correct state
-        gl.bind_vertex_array(Some(&self.buffers.vao));
+        gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
 
         // delete old cell instance buffers
-        gl.delete_buffer(Some(&self.buffers.instance_cell));
-        gl.delete_buffer(Some(&self.buffers.instance_pos));
+        gl.delete_buffer(Some(&self.gpu.buffers.instance_cell));
+        gl.delete_buffer(Some(&self.gpu.buffers.instance_pos));
 
         // resize cell data vector
         let current_size = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
@@ -453,8 +490,8 @@ impl TerminalGrid {
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         // re-create buffers with new data
-        self.buffers.instance_cell = create_dynamic_instance_buffer(gl, &self.cells)?;
-        self.buffers.instance_pos = create_static_instance_buffer(gl, &cell_pos)?;
+        self.gpu.buffers.instance_cell = create_dynamic_instance_buffer(gl, &self.cells)?;
+        self.gpu.buffers.instance_pos = create_static_instance_buffer(gl, &cell_pos)?;
 
         // unbind VAO
         gl.bind_vertex_array(None);
@@ -462,6 +499,47 @@ impl TerminalGrid {
         self.terminal_size = (cols as u16, rows as u16);
 
         Ok(())
+    }
+
+    /// Recreates all GPU resources after a WebGL context loss.
+    ///
+    /// This method rebuilds all GPU-side resources (VAO, buffers, shaders, UBOs)
+    /// while preserving the current cell data and terminal state. Call this after
+    /// obtaining a new WebGL context following a context loss event.
+    ///
+    /// # Parameters
+    /// * `gl` - The new WebGL2 rendering context
+    ///
+    /// # Returns
+    /// * `Ok(())` - All resources successfully recreated
+    /// * `Err(Error)` - Failed to recreate one or more resources
+    ///
+    /// # Note
+    /// The font atlas texture must be recreated separately via
+    /// [`FontAtlas::recreate_texture`] before calling this method.
+    pub fn recreate_resources(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        let cell_size = self.atlas.cell_size();
+        let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
+        let cell_pos = CellStatic::create_grid(cols, rows);
+
+        // Recreate all GPU resources
+        self.gpu = GpuResources::new(gl, &cell_pos, &self.cells, cell_size)?;
+
+        // Upload UBO data
+        self.upload_ubo_data(gl);
+
+        // Mark cells as needing flush to upload to new buffers
+        self.cells_pending_flush = true;
+
+        Ok(())
+    }
+
+    /// Recreates the font atlas texture after a WebGL context loss.
+    ///
+    /// This is a convenience method that delegates to [`FontAtlas::recreate_texture`].
+    /// Call this before [`recreate_resources`] when recovering from context loss.
+    pub fn recreate_atlas_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        self.atlas.recreate_texture(gl)
     }
 
     /// Returns the base glyph identifier for a given symbol.
@@ -691,14 +769,14 @@ impl Drawable for TerminalGrid {
     fn prepare(&self, context: &mut RenderContext) {
         let gl = context.gl;
 
-        self.shader.use_program(gl);
+        self.gpu.shader.use_program(gl);
 
-        gl.bind_vertex_array(Some(&self.buffers.vao));
+        gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
 
         self.atlas.bind(gl, 0);
-        self.ubo_vertex.bind(context.gl);
-        self.ubo_fragment.bind(context.gl);
-        gl.uniform1i(Some(&self.sampler_loc), 0);
+        self.gpu.ubo_vertex.bind(context.gl);
+        self.gpu.ubo_fragment.bind(context.gl);
+        gl.uniform1i(Some(&self.gpu.sampler_loc), 0);
     }
 
     fn draw(&self, context: &mut RenderContext) {
@@ -713,8 +791,8 @@ impl Drawable for TerminalGrid {
         gl.bind_vertex_array(None);
         gl.bind_texture(GL::TEXTURE_2D_ARRAY, None);
 
-        self.ubo_vertex.unbind(gl);
-        self.ubo_fragment.unbind(gl);
+        self.gpu.ubo_vertex.unbind(gl);
+        self.gpu.ubo_fragment.unbind(gl);
     }
 }
 

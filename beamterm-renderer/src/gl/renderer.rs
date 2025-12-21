@@ -166,6 +166,40 @@ impl Renderer {
     pub fn canvas_size(&self) -> (i32, i32) {
         (self.canvas.width() as i32, self.canvas.height() as i32)
     }
+
+    /// Checks if the WebGL context has been lost.
+    ///
+    /// Returns `true` if the context is lost and needs to be restored.
+    /// Use [`restore_context`] to recover from context loss.
+    pub fn is_context_lost(&self) -> bool {
+        self.gl.is_context_lost()
+    }
+
+    /// Restores the WebGL context after a context loss event.
+    ///
+    /// This method obtains a fresh WebGL2 context from the canvas and
+    /// reinitializes the renderer state. After calling this, you must
+    /// also recreate GPU resources in other components (textures, buffers, etc.).
+    ///
+    /// # Returns
+    /// * `Ok(())` - Context successfully restored
+    /// * `Err(Error)` - Failed to obtain new WebGL context
+    ///
+    /// # Note
+    /// This only restores the renderer's context. You must separately call
+    /// recreation methods on `TerminalGrid` and `FontAtlas` to fully recover.
+    pub fn restore_context(&mut self) -> Result<(), Error> {
+        // Get a fresh WebGL2 context from the same canvas
+        let gl = js::get_webgl2_context(&self.canvas)?;
+        self.state = GlState::new(&gl);
+        self.gl = gl;
+
+        // Restore viewport
+        let (width, height) = self.canvas_size();
+        self.state.viewport(&self.gl, 0, 0, width, height);
+
+        Ok(())
+    }
 }
 
 /// Trait for objects that can be rendered by the renderer.
