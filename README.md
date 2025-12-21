@@ -285,12 +285,16 @@ Transforms cell geometry from grid space to screen space using per-instance attr
 
 - Calculates cell position by multiplying grid coordinates with cell size
 - Applies orthographic projection for pixel-perfect rendering
-- Passes packed instance data directly to fragment shader without unpacking
+- Extracts glyph ID and RGB colors from packed instance data
+- Passes pre-extracted colors as `flat` varyings to fragment shader
+
+Color extraction is performed in the vertex shader rather than the fragment shader to work around
+ANGLE bugs affecting uint bit operations on certain GPU drivers (AMD, Qualcomm).
 
 #### Fragment Shader (`cell.frag`)
 Performs the core rendering logic with efficient 2D array texture lookups:
 
-- Extracts 16-bit glyph ID from packed instance data
+- Uses pre-extracted glyph ID and colors from vertex shader
 - Masks with `0x1FFF` to exclude effect flags before computing layer index (glyph_id → layer/position)
 - Computes layer index and vertical position using bit operations
 - Samples from 2D texture array using direct layer indexing

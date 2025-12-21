@@ -15,13 +15,34 @@ layout(std140) uniform VertUbo {
     vec2 u_cell_size; // unpadded cell size in pixels
 };
 
-// packs 8b: 2b layer, 3b fg.rgb, 3b bg.rgb
-flat out uvec2 v_packed_data;
+// pass glyph index and pre-extracted colors to fragment shader
+flat out uint v_glyph_index;
+flat out vec3 v_fg_color;
+flat out vec3 v_bg_color;
 out vec2 v_tex_coord;
+
+// extract byte at position (0=low, 3=high)
+float extract_byte(uint value, uint byte_pos) {
+    uint mask = 0xFFu << (byte_pos * 8u);
+    uint masked = value & mask;
+    return float(masked >> (byte_pos * 8u)) / 255.0;
+}
 
 void main() {
     v_tex_coord = a_tex_coord;
-    v_packed_data = a_packed_data;
+    v_glyph_index = a_packed_data.x & 0xFFFFu;
+
+    // extract colors in vertex shader to avoid ANGLE fragment shader bugs
+    v_fg_color = vec3(
+        extract_byte(a_packed_data.x, 2u),
+        extract_byte(a_packed_data.x, 3u),
+        extract_byte(a_packed_data.y, 0u)
+    );
+    v_bg_color = vec3(
+        extract_byte(a_packed_data.y, 1u),
+        extract_byte(a_packed_data.y, 2u),
+        extract_byte(a_packed_data.y, 3u)
+    );
 
     vec2 offset = vec2(
         floor(float(a_instance_pos.x) * u_cell_size.x + 0.5), // pixel-snapped

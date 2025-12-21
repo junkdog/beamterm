@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - *(verify-atlas)* Atlas path is now a required argument
 
+### 🐛 Bug Fixes
+
+- *(renderer)* Fix green tint in chrome-based browsers due to ANGLE uint bit operation bugs (AMD/Qualcomm)
+
 ## [beamterm-v0.9.0] - 2025-12-07
 
 ### 🚀 Features
