@@ -108,7 +108,7 @@ jobs:
 
       # Upload build artifacts
       - name: 📤 Upload WASM artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: wasm-build
           path: js/dist/
@@ -132,7 +132,7 @@ jobs:
         env:
           RUSTDOCFLAGS: --cfg docsrs
       - name: 📤 Upload docs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: docs
           path: target/doc/
