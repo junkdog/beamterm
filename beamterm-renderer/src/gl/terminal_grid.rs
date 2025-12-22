@@ -40,7 +40,7 @@ pub struct TerminalGrid {
     /// Uniform location for the texture sampler.
     sampler_loc: web_sys::WebGlUniformLocation,
     /// Fallback glyph for missing symbols.
-    fallback_glyph: u16,
+    fallback_glyph: u32,
     /// Selection tracker for managing cell selections.
     selection: SelectionTracker,
     /// Indicates whether there are cells pending flush to the GPU.
@@ -86,7 +86,7 @@ impl TerminalGrid {
 
         // let fill_glyphs = Self::fill_glyphs(&atlas);
         // let cell_data = create_terminal_cell_data(cols, rows, &fill_glyphs);
-        let cell_data = create_terminal_cell_data(cols, rows, &[' ' as u16]);
+        let cell_data = create_terminal_cell_data(cols, rows, &[' ' as u32]);
         let cell_pos = CellStatic::create_grid(cols, rows);
         let buffers = setup_buffers(gl, vao, &cell_pos, &cell_data, cell_size)?;
 
@@ -117,7 +117,7 @@ impl TerminalGrid {
             ubo_fragment,
             atlas,
             sampler_loc,
-            fallback_glyph: ' ' as u16,
+            fallback_glyph: ' ' as u32,
             selection: SelectionTracker::new(),
             cells_pending_flush: false,
         };
@@ -132,7 +132,7 @@ impl TerminalGrid {
         self.fallback_glyph = self
             .atlas
             .get_base_glyph_id(fallback)
-            .unwrap_or(' ' as u16);
+            .unwrap_or(' ' as u32);
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
@@ -285,7 +285,7 @@ impl TerminalGrid {
         let mut skip_idx = None;
 
         let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
-        let is_doublewidth = |glyph_id: u16| {
+        let is_doublewidth = |glyph_id: u32| {
             (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
         };
 
@@ -344,7 +344,7 @@ impl TerminalGrid {
             .unwrap_or(fallback_glyph);
 
         let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
-        let is_doublewidth = |glyph_id: u16| {
+        let is_doublewidth = |glyph_id: u32| {
             (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
         };
 
@@ -465,7 +465,7 @@ impl TerminalGrid {
     }
 
     /// Returns the base glyph identifier for a given symbol.
-    pub fn base_glyph_id(&self, symbol: &str) -> Option<u16> {
+    pub fn base_glyph_id(&self, symbol: &str) -> Option<u32> {
         self.atlas.get_base_glyph_id(symbol)
     }
 
@@ -475,7 +475,7 @@ impl TerminalGrid {
             .unwrap_or(Cow::Borrowed(" "))
     }
 
-    fn fill_glyphs(atlas: &FontAtlas) -> Vec<u16> {
+    fn fill_glyphs(atlas: &FontAtlas) -> Vec<u32> {
         [
             ("🤫", FontStyle::Normal),
             ("🙌", FontStyle::Normal),
@@ -510,9 +510,9 @@ impl TerminalGrid {
         .map(|(symbol, style)| {
             atlas
                 .get_base_glyph_id(symbol)
-                .map(|g| g | style as u16)
+                .map(|g| g | style.style_mask())
         })
-        .map(|g| g.unwrap_or(' ' as u16))
+        .map(|g| g.unwrap_or(' ' as u32))
         .collect()
     }
 }
@@ -526,7 +526,7 @@ fn resize_cell_grid(
 
     let mut new_cells = Vec::with_capacity(new_len as usize);
     for _ in 0..new_len {
-        new_cells.push(CellDynamic::new(' ' as u16, 0xFFFFFF, 0x000000));
+        new_cells.push(CellDynamic::new(' ' as u32, 0xFFFFFF, 0x000000));
     }
 
     for y in 0..min(old_size.1, new_size.1) {
@@ -647,12 +647,22 @@ fn create_dynamic_instance_buffer(
     let stride = size_of::<CellDynamic>() as i32;
 
     // setup instance attributes (while VAO is bound)
+    // First uvec2: glyph_id (4 bytes) + fg RGB (3 bytes) + padding (1 byte)
     enable_vertex_attrib_array(
         gl,
         attrib::PACKED_DEPTH_FG_BG,
         2,
         GL::UNSIGNED_INT,
         0,
+        stride,
+    );
+    // Second uvec2: bg RGB (3 bytes) + padding (5 bytes)
+    enable_vertex_attrib_array(
+        gl,
+        attrib::PACKED_BG,
+        2,
+        GL::UNSIGNED_INT,
+        8,
         stride,
     );
 
@@ -732,7 +742,7 @@ impl Drawable for TerminalGrid {
 #[derive(Debug, Copy, Clone)]
 pub struct CellData<'a> {
     symbol: &'a str,
-    style_bits: u16,
+    style_bits: u32,
     fg: u32,
     bg: u32,
 }
@@ -750,7 +760,7 @@ impl<'a> CellData<'a> {
     /// # Returns
     /// New `CellData` instance
     pub fn new(symbol: &'a str, style: FontStyle, effect: GlyphEffect, fg: u32, bg: u32) -> Self {
-        Self::new_with_style_bits(symbol, style.style_mask() | effect as u16, fg, bg)
+        Self::new_with_style_bits(symbol, style.style_mask() | effect as u32, fg, bg)
     }
 
     /// Creates new cell data with pre-encoded style bits.
@@ -761,13 +771,13 @@ impl<'a> CellData<'a> {
     ///
     /// # Parameters
     /// * `symbol` - Character to display
-    /// * `style_bits` - Pre-encoded style flags. Must not overlap with base glyph ID bits (0x01FF).
+    /// * `style_bits` - Pre-encoded style flags. Must not overlap with base glyph ID bits (0x000FFFFF).
     ///   Valid bits include:
-    ///   - `0x0200` - Bold
-    ///   - `0x0400` - Italic
-    ///   - `0x0800` - Emoji (set automatically by the renderer for emoji glyphs)
-    ///   - `0x1000` - Underline
-    ///   - `0x2000` - Strikethrough
+    ///   - `0x00100000` - Bold (bit 20)
+    ///   - `0x00200000` - Italic (bit 21)
+    ///   - `0x00400000` - Emoji (bit 22, set automatically by the renderer for emoji glyphs)
+    ///   - `0x00800000` - Underline (bit 23)
+    ///   - `0x01000000` - Strikethrough (bit 24)
     /// * `fg` - Foreground color as RGB value (0xRRGGBB)
     /// * `bg` - Background color as RGB value (0xRRGGBB)
     ///
@@ -776,11 +786,11 @@ impl<'a> CellData<'a> {
     ///
     /// # Panics
     /// Debug builds will panic if `style_bits` contains any invalid bits.
-    pub fn new_with_style_bits(symbol: &'a str, style_bits: u16, fg: u32, bg: u32) -> Self {
+    pub fn new_with_style_bits(symbol: &'a str, style_bits: u32, fg: u32, bg: u32) -> Self {
         // emoji and glyph base mask should not intersect with style bits
         debug_assert!(
-            0x81FF & style_bits == 0,
-            "Invalid style bits: {style_bits:#04x}"
+            0x000FFFFF & style_bits == 0,
+            "Invalid style bits: {style_bits:#08x}"
         );
         Self { symbol, style_bits, fg, bg }
     }
@@ -845,15 +855,16 @@ pub struct CellDynamic {
     /// Packed cell data:
     ///
     /// # Byte Layout
-    /// - `data[0]`: Lower 8 bits of glyph depth/layer index
-    /// - `data[1]`: Upper 8 bits of glyph depth/layer index  
-    /// - `data[2]`: Foreground red component (0-255)
-    /// - `data[3]`: Foreground green component (0-255)
-    /// - `data[4]`: Foreground blue component (0-255)
-    /// - `data[5]`: Background red component (0-255)
-    /// - `data[6]`: Background green component (0-255)
-    /// - `data[7]`: Background blue component (0-255)
-    data: [u8; 8], // 2b layer, fg:rgb, bg:rgb
+    /// - `data[0-3]`: Glyph ID (u32, little-endian)
+    /// - `data[4]`: Foreground red component (0-255)
+    /// - `data[5]`: Foreground green component (0-255)
+    /// - `data[6]`: Foreground blue component (0-255)
+    /// - `data[7]`: Padding
+    /// - `data[8]`: Background red component (0-255)
+    /// - `data[9]`: Background green component (0-255)
+    /// - `data[10]`: Background blue component (0-255)
+    /// - `data[11-15]`: Padding (for 16-byte alignment with 2x uvec2)
+    data: [u8; 16], // 4b glyph_id, fg:rgb (1b pad), bg:rgb, 5b padding
 }
 
 impl CellStatic {
@@ -869,79 +880,82 @@ impl CellStatic {
 }
 
 impl CellDynamic {
-    const GLYPH_STYLE_MASK: u16 =
+    const GLYPH_STYLE_MASK: u32 =
         Glyph::BOLD_FLAG | Glyph::ITALIC_FLAG | Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG;
 
     #[inline]
-    pub fn new(glyph_id: u16, fg: u32, bg: u32) -> Self {
-        let mut data = [0; 8];
+    pub fn new(glyph_id: u32, fg: u32, bg: u32) -> Self {
+        let mut data = [0; 16];
 
-        // pack glyph ID into the first two bytes
-        let glyph_id = glyph_id.to_le_bytes();
-        data[0] = glyph_id[0];
-        data[1] = glyph_id[1];
+        // pack glyph ID into the first four bytes
+        let glyph_id_bytes = glyph_id.to_le_bytes();
+        data[0..4].copy_from_slice(&glyph_id_bytes);
 
         let fg = fg.to_le_bytes();
-        data[2] = fg[2]; // R
-        data[3] = fg[1]; // G
-        data[4] = fg[0]; // B
+        // Pack fg RGB into bytes 4-6 (will be read as a_packed_data.y)
+        data[4] = fg[2]; // R (byte 0 of a_packed_data.y)
+        data[5] = fg[1]; // G (byte 1 of a_packed_data.y)
+        data[6] = fg[0]; // B (byte 2 of a_packed_data.y)
+        // byte 7 is padding (already zero, byte 3 of a_packed_data.y)
 
         let bg = bg.to_le_bytes();
-        data[5] = bg[2]; // R
-        data[6] = bg[1]; // G
-        data[7] = bg[0]; // B
+        // Pack bg RGB into bytes 8-10 (will be read as a_packed_bg.x)
+        data[8] = bg[2]; // R (byte 0 of a_packed_bg.x)
+        data[9] = bg[1]; // G (byte 1 of a_packed_bg.x)
+        data[10] = bg[0]; // B (byte 2 of a_packed_bg.x)
+        // bytes 11-15 are padding (already zero)
 
         Self { data }
     }
 
     /// Overwrites the current cell style bits with the provided style bits.
-    pub fn style(&mut self, style_bits: u16) {
+    pub fn style(&mut self, style_bits: u32) {
         let glyph_id = (self.glyph_id() & !Self::GLYPH_STYLE_MASK) | style_bits;
-        self.data[..2].copy_from_slice(&glyph_id.to_le_bytes());
+        self.data[0..4].copy_from_slice(&glyph_id.to_le_bytes());
     }
 
     /// Sets the foreground color of the cell.
     pub fn flip_colors(&mut self) {
         // swap foreground and background colors
-        let fg = [self.data[2], self.data[3], self.data[4]];
-        self.data[2] = self.data[5]; // R
-        self.data[3] = self.data[6]; // G
-        self.data[4] = self.data[7]; // B
-        self.data[5] = fg[0]; // R
-        self.data[6] = fg[1]; // G
-        self.data[7] = fg[2]; // B
+        let fg = [self.data[4], self.data[5], self.data[6]];
+        self.data[4] = self.data[8]; // R
+        self.data[5] = self.data[9]; // G
+        self.data[6] = self.data[10]; // B
+        self.data[8] = fg[0]; // R
+        self.data[9] = fg[1]; // G
+        self.data[10] = fg[2]; // B
     }
 
     /// Sets the foreground color of the cell.
     pub fn fg_color(&mut self, fg: u32) {
         let fg = fg.to_le_bytes();
-        self.data[2] = fg[2]; // R
-        self.data[3] = fg[1]; // G
-        self.data[4] = fg[0]; // B
+        self.data[4] = fg[2]; // R
+        self.data[5] = fg[1]; // G
+        self.data[6] = fg[0]; // B
     }
 
     /// Sets the background color of the cell.
     pub fn bg_color(&mut self, bg: u32) {
         let bg = bg.to_le_bytes();
-        self.data[5] = bg[2]; // R
-        self.data[6] = bg[1]; // G
-        self.data[7] = bg[0]; // B
+        self.data[7] = bg[2]; // R
+        self.data[8] = bg[1]; // G
+        self.data[9] = bg[0]; // B
     }
 
     /// Returns foreground color as a packed RGB value.
     pub fn get_fg_color(&self) -> u32 {
         // unpack foreground color from data
-        ((self.data[2] as u32) << 16) | ((self.data[3] as u32) << 8) | (self.data[4] as u32)
+        ((self.data[4] as u32) << 16) | ((self.data[5] as u32) << 8) | (self.data[6] as u32)
     }
 
     /// Returns background color as a packed RGB value.
     pub fn get_bg_color(&self) -> u32 {
         // unpack background color from data
-        ((self.data[5] as u32) << 16) | ((self.data[6] as u32) << 8) | (self.data[7] as u32)
+        ((self.data[8] as u32) << 16) | ((self.data[9] as u32) << 8) | (self.data[10] as u32)
     }
 
     /// Returns the style bits for this cell, excluding id and emoji bits.
-    pub fn get_style(&self) -> u16 {
+    pub fn get_style(&self) -> u32 {
         self.glyph_id() & Self::GLYPH_STYLE_MASK
     }
 
@@ -951,8 +965,8 @@ impl CellDynamic {
     }
 
     #[inline]
-    fn glyph_id(&self) -> u16 {
-        u16::from_le_bytes([self.data[0], self.data[1]])
+    fn glyph_id(&self) -> u32 {
+        u32::from_le_bytes([self.data[0], self.data[1], self.data[2], self.data[3]])
     }
 }
 
@@ -1008,7 +1022,7 @@ impl CellFragmentUbo {
     }
 }
 
-fn create_terminal_cell_data(cols: i32, rows: i32, fill_glyph: &[u16]) -> Vec<CellDynamic> {
+fn create_terminal_cell_data(cols: i32, rows: i32, fill_glyph: &[u32]) -> Vec<CellDynamic> {
     let glyph_len = fill_glyph.len();
     (0..cols * rows)
         .map(|i| CellDynamic::new(fill_glyph[i as usize % glyph_len], 0x00ff_ffff, 0x0000_0000))
@@ -1021,4 +1035,5 @@ mod attrib {
 
     pub const GRID_XY: u32 = 2;
     pub const PACKED_DEPTH_FG_BG: u32 = 3;
+    pub const PACKED_BG: u32 = 4;
 }

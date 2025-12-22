@@ -4,7 +4,7 @@ use crate::glyph_bounds::GlyphBounds;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AtlasCoordinate {
-    pub(super) layer: u16,      // Depth in the 2D Texture Array
+    pub(super) layer: u32,      // Depth in the 2D Texture Array
     pub(super) glyph_index: u8, // 0..=31; each layer contains 32 glyphs
 }
 
@@ -22,10 +22,15 @@ impl AtlasCoordinate {
     }
 }
 
-impl From<u16> for AtlasCoordinate {
-    fn from(id: u16) -> Self {
+impl From<u32> for AtlasCoordinate {
+    fn from(id: u32) -> Self {
         // 32 glyphs per layer, indexed from 0 to 31
-        Self { layer: id >> 5, glyph_index: (id & 0x1F) as u8 }
+        // Extract base glyph ID (bits 0-19) first, then calculate layer
+        let base_id = id & 0x000FFFFF; // 20-bit base ID
+        Self { 
+            layer: (base_id >> 5) as u32, 
+            glyph_index: (base_id & 0x1F) as u8 
+        }
     }
 }
 

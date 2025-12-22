@@ -27,13 +27,15 @@ void main() {
     uint glyph_index = v_glyph_index;
 
     // texture position from sequential index (32 glyphs per layer)
-    uint layer = (glyph_index & 0x1FFFu) >> 5u;
+    // 20-bit base ID: bits 0-19
+    uint layer = (glyph_index & 0xFFFFFu) >> 5u;
     uint pos_in_layer = glyph_index & 0x1Fu;
 
     // apply strikethrough or underline if the glyph has either bit set
+    // bit 23 = underline, bit 24 = strikethrough
     float line_alpha = max(
-        horizontal_line(v_tex_coord, u_underline_pos, u_underline_thickness) * float((glyph_index >> 13u) & 0x1u),
-        horizontal_line(v_tex_coord, u_strikethrough_pos, u_strikethrough_thickness) * float((glyph_index >> 14u) & 0x1u)
+        horizontal_line(v_tex_coord, u_underline_pos, u_underline_thickness) * float((glyph_index >> 23u) & 0x1u),
+        horizontal_line(v_tex_coord, u_strikethrough_pos, u_strikethrough_thickness) * float((glyph_index >> 24u) & 0x1u)
     );
 
     vec2 inner_tex_coord = v_tex_coord * (1.0 - 2.0 * u_padding_frac) + u_padding_frac;
@@ -49,7 +51,8 @@ void main() {
     vec4 glyph = texture(u_sampler, tex_coord);
 
     // 0.0 for normal glyphs, 1.0 for emojis
-    float emoji_factor = float((glyph_index >> 12u) & 0x1u);
+    // bit 22 = emoji flag
+    float emoji_factor = float((glyph_index >> 22u) & 0x1u);
 
     // color for normal glyphs are taken from the packed data;
     // emoji colors are sampled from the texture directly

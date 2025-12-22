@@ -8,7 +8,8 @@ layout(location = 1) in vec2 a_tex_coord;
 
 // instance attributes
 layout(location = 2) in uvec2 a_instance_pos;
-layout(location = 3) in uvec2 a_packed_data;
+layout(location = 3) in uvec2 a_packed_data; // glyph_id + fg RGB
+layout(location = 4) in uvec2 a_packed_bg;   // bg RGB
 
 // uniforms
 layout(std140) uniform VertUbo {
@@ -31,18 +32,23 @@ float extract_byte(uint value, uint byte_pos) {
 
 void main() {
     v_tex_coord = a_tex_coord;
-    v_glyph_index = a_packed_data.x & 0xFFFFu;
+    // glyph_id is now full u32 in packed_data.x
+    v_glyph_index = a_packed_data.x;
 
     // extract colors in vertex shader to avoid ANGLE fragment shader bugs
+    // Layout:
+    // a_packed_data.x: glyph_id (4 bytes)
+    // a_packed_data.y: fg R (byte 0), fg G (byte 1), fg B (byte 2), padding (byte 3)
+    // a_packed_bg.x: bg R (byte 0), bg G (byte 1), bg B (byte 2), padding (byte 3)
     v_fg_color = vec3(
-        extract_byte(a_packed_data.x, 2u),
-        extract_byte(a_packed_data.x, 3u),
-        extract_byte(a_packed_data.y, 0u)
+        extract_byte(a_packed_data.y, 0u), // fg R
+        extract_byte(a_packed_data.y, 1u), // fg G
+        extract_byte(a_packed_data.y, 2u)  // fg B
     );
     v_bg_color = vec3(
-        extract_byte(a_packed_data.y, 1u),
-        extract_byte(a_packed_data.y, 2u),
-        extract_byte(a_packed_data.y, 3u)
+        extract_byte(a_packed_bg.x, 0u), // bg R
+        extract_byte(a_packed_bg.x, 1u), // bg G
+        extract_byte(a_packed_bg.x, 2u)  // bg B
     );
 
     vec2 offset = vec2(

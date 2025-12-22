@@ -20,7 +20,7 @@ pub struct FontAtlasData {
     /// Fullwidth glyphs (e.g., CJK characters) are assigned IDs starting from this value,
     /// aligned to even boundaries. This allows the renderer to distinguish halfwidth from
     /// fullwidth glyphs by comparing against this threshold.
-    pub max_halfwidth_base_glyph_id: u16,
+    pub max_halfwidth_base_glyph_id: u32,
     /// Width, height and depth of the texture in pixels
     pub texture_dimensions: (i32, i32, i32),
     /// Width and height of each character cell

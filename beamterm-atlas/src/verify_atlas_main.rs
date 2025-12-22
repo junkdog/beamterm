@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn find_glyph_symbol(atlas: &FontAtlasData, slice: u16, pos: u16) -> Option<&Glyph> {
+fn find_glyph_symbol(atlas: &FontAtlasData, slice: u32, pos: u32) -> Option<&Glyph> {
     let glyph_id = (slice << 5) | pos; // 32 glyphs per slice (shift by 5 = multiply by 32)
     atlas.glyphs.iter().find(|g| g.id == glyph_id)
 }
@@ -170,7 +170,7 @@ fn render_cell(
             (false, false) => {
                 // Show glyph symbol at cell boundary
                 if x == 0 && y == 0 {
-                    if let Some(glyph) = find_glyph_symbol(atlas, slice as u16, cell_pos as u16) {
+                    if let Some(glyph) = find_glyph_symbol(atlas, slice as u32, cell_pos as u32) {
                         let ch = glyph.symbol.chars().next().unwrap_or(' ');
                         write!(output, "{}", ch.to_string().truecolor(0xfe, 0x80, 0x19)).ok();
                     } else {

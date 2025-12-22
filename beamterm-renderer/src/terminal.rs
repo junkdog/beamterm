@@ -479,7 +479,7 @@ impl TerminalDebugApi {
 
     /// Returns the base glyph ID for a given symbol, or null if not found.
     #[wasm_bindgen(js_name = "getBaseGlyphId")]
-    pub fn get_base_glyph_id(&self, symbol: &str) -> Option<u16> {
+    pub fn get_base_glyph_id(&self, symbol: &str) -> Option<u32> {
         self.grid
             .borrow()
             .atlas()
@@ -488,7 +488,7 @@ impl TerminalDebugApi {
 
     /// Returns the symbol for a given glyph ID, or null if not found.
     #[wasm_bindgen(js_name = "getSymbol")]
-    pub fn get_symbol(&self, glyph_id: u16) -> Option<String> {
+    pub fn get_symbol(&self, glyph_id: u32) -> Option<String> {
         self.grid
             .borrow()
             .atlas()

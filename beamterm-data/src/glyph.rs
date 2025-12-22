@@ -11,19 +11,19 @@ use compact_str::{CompactString, ToCompactString};
 /// ASCII value, enabling fast lookups without hash table lookups. Non-ASCII
 /// characters are assigned sequential IDs starting from a base value.
 ///
-/// # Glyph ID Bit Layout (16-bit)
+/// # Glyph ID Bit Layout (32-bit)
 ///
-/// | Bit(s) | Flag Name     | Hex Mask | Binary Mask           | Description               |
-/// |--------|---------------|----------|-----------------------|---------------------------|
-/// | 0-9    | GLYPH_ID      | `0x03FF` | `0000_0011_1111_1111` | Base glyph identifier     |
-/// | 10     | BOLD          | `0x0400` | `0000_0100_0000_0000` | Bold font style           |
-/// | 11     | ITALIC        | `0x0800` | `0000_1000_0000_0000` | Italic font style         |
-/// | 12     | EMOJI         | `0x1000` | `0001_0000_0000_0000` | Emoji character flag      |
-/// | 13     | UNDERLINE     | `0x2000` | `0010_0000_0000_0000` | Underline effect          |
-/// | 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
-/// | 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
+/// | Bit(s) | Flag Name     | Hex Mask   | Binary Mask           | Description               |
+/// |--------|---------------|------------|-----------------------|---------------------------|
+/// | 0-19   | GLYPH_ID      | `0xFFFFF`  | (20 bits)             | Base glyph identifier     |
+/// | 20     | BOLD          | `0x100000` | `0001_0000_0000_0000_0000_0000` | Bold font style           |
+/// | 21     | ITALIC        | `0x200000` | `0010_0000_0000_0000_0000_0000` | Italic font style         |
+/// | 22     | EMOJI         | `0x400000` | `0100_0000_0000_0000_0000_0000` | Emoji character flag      |
+/// | 23     | UNDERLINE     | `0x800000` | `1000_0000_0000_0000_0000_0000` | Underline effect          |
+/// | 24     | STRIKETHROUGH | `0x1000000`| (bit 24)              | Strikethrough effect      |
+/// | 25-31  | RESERVED      |            |                       | Reserved for future use   |
 ///
-/// - The first 10 bits (0-9) represent the base glyph ID, allowing for 1024 unique glyphs.
+/// - The first 20 bits (0-19) represent the base glyph ID, allowing for 1,048,576 unique glyphs.
 /// - Emoji glyphs implicitly clear any other font style bits.
 /// - The fragment shader uses the glyph ID to decode the texture coordinates and effects.
 ///
@@ -31,15 +31,15 @@ use compact_str::{CompactString, ToCompactString};
 ///
 /// | Character   | Style            | Binary Representation | Hex Value | Description         |
 /// |-------------|------------------|-----------------------|-----------|---------------------|
-/// | 'A' (0x41)  | Normal           | `0000_0000_0100_0001` | `0x0041`  | Plain 'A'           |
-/// | 'A' (0x41)  | Bold             | `0000_0100_0100_0001` | `0x0441`  | Bold 'A'            |
-/// | 'A' (0x41)  | Bold + Italic    | `0000_1100_0100_0001` | `0x0C41`  | Bold italic 'A'     |
-/// | 'A' (0x41)  | Bold + Underline | `0010_0100_0100_0001` | `0x2441`  | Bold underlined 'A' |
-/// | '🚀' (0x81) | Emoji            | `0001_0000_1000_0001` | `0x1081`  | "rocket" emoji      |
+/// | 'A' (0x41)  | Normal           | (bits 0-19 = 0x41)    | `0x00000041` | Plain 'A'           |
+/// | 'A' (0x41)  | Bold             | (bit 20 set)          | `0x00100041` | Bold 'A'            |
+/// | 'A' (0x41)  | Bold + Italic    | (bits 20-21 set)      | `0x00300041` | Bold italic 'A'     |
+/// | 'A' (0x41)  | Bold + Underline | (bits 20, 23 set)     | `0x00900041` | Bold underlined 'A' |
+/// | '🚀' (0x1000)| Emoji            | (bit 22 set)          | `0x00401000` | "rocket" emoji      |
 #[derive(Debug, Eq, PartialEq)]
 pub struct Glyph {
     /// The glyph ID; encodes the 3d texture coordinates
-    pub id: u16,
+    pub id: u32,
     /// The style of the glyph, e.g., bold, italic
     pub style: FontStyle,
     /// The character
@@ -53,24 +53,24 @@ pub struct Glyph {
 #[rustfmt::skip]
 impl Glyph {
     /// The ID is used as a short-lived placeholder until the actual ID is assigned.
-    pub const UNASSIGNED_ID: u16 = 0xFFFF;
+    pub const UNASSIGNED_ID: u32 = 0xFFFFFFFF;
 
-    /// Glyph ID mask - extracts the base glyph identifier (bits 0-9).
-    /// Supports 1024 unique base glyphs (0x000 to 0x3FF) in the texture atlas.
-    pub const GLYPH_ID_MASK: u16       = 0b0000_0011_1111_1111; // 0x03FF
-    /// Glyph ID mask for emoji - extracts the base glyph identifier (bits 0-11).
-    /// Supports 2048 emoji glyphs (0x000 to 0xFFF) occupying two slots each in the texture atlas.
-    pub const GLYPH_ID_EMOJI_MASK: u16 = 0b0001_1111_1111_1111; // 0x1FFF
+    /// Glyph ID mask - extracts the base glyph identifier (bits 0-19).
+    /// Supports 1,048,576 unique base glyphs (0x00000 to 0xFFFFF) in the texture atlas.
+    pub const GLYPH_ID_MASK: u32       = 0x000FFFFF; // 20 bits
+    /// Glyph ID mask for emoji - extracts the base glyph identifier (bits 0-22).
+    /// Supports up to 1,048,576 emoji glyphs occupying two slots each in the texture atlas.
+    pub const GLYPH_ID_EMOJI_MASK: u32 = 0x007FFFFF; // 23 bits (20 base + 3 style flags)
     /// Bold flag - selects the bold variant of the glyph from the texture atlas.
-    pub const BOLD_FLAG: u16           = 0b0000_0100_0000_0000; // 0x0400
+    pub const BOLD_FLAG: u32           = 0x00100000; // bit 20
     /// Italic flag - selects the italic variant of the glyph from the texture atlas.
-    pub const ITALIC_FLAG: u16         = 0b0000_1000_0000_0000; // 0x0800
+    pub const ITALIC_FLAG: u32         = 0x00200000; // bit 21
     /// Emoji flag - indicates this glyph represents an emoji character requiring special handling.
-    pub const EMOJI_FLAG: u16          = 0b0001_0000_0000_0000; // 0x1000
+    pub const EMOJI_FLAG: u32          = 0x00400000; // bit 22
     /// Underline flag - renders a horizontal line below the character baseline.
-    pub const UNDERLINE_FLAG: u16      = 0b0010_0000_0000_0000; // 0x2000
+    pub const UNDERLINE_FLAG: u32      = 0x00800000; // bit 23
     /// Strikethrough flag - renders a horizontal line through the middle of the character.
-    pub const STRIKETHROUGH_FLAG: u16  = 0b0100_0000_0000_0000; // 0x4000
+    pub const STRIKETHROUGH_FLAG: u32  = 0x01000000; // bit 24
 }
 
 impl Glyph {
@@ -79,7 +79,7 @@ impl Glyph {
         let first_char = symbol.chars().next().unwrap();
         let id = if symbol.len() == 1 && first_char.is_ascii() {
             // Use a different ID for non-ASCII characters
-            first_char as u16 | style.style_mask()
+            first_char as u32 | style.style_mask()
         } else {
             Self::UNASSIGNED_ID
         };
@@ -94,7 +94,7 @@ impl Glyph {
     }
 
     pub fn new_with_id(
-        base_id: u16,
+        base_id: u32,
         symbol: &str,
         style: FontStyle,
         pixel_coords: (i32, i32),
@@ -108,7 +108,7 @@ impl Glyph {
         }
     }
 
-    pub fn new_emoji(base_id: u16, symbol: &str, pixel_coords: (i32, i32)) -> Self {
+    pub fn new_emoji(base_id: u32, symbol: &str, pixel_coords: (i32, i32)) -> Self {
         Self {
             id: base_id | Self::EMOJI_FLAG,
             symbol: symbol.to_compact_string(),
@@ -126,7 +126,7 @@ impl Glyph {
     /// Returns the base glyph ID without style flags.
     ///
     /// For non-emoji glyphs, this masks off the style bits (bold/italic) using
-    /// [`GLYPH_ID_MASK`](Self::GLYPH_ID_MASK) to extract just the base identifier (bits 0-9).
+    /// [`GLYPH_ID_MASK`](Self::GLYPH_ID_MASK) to extract just the base identifier (bits 0-19).
     /// For emoji glyphs, returns the full ID since emoji don't use style variants.
     ///
     /// # Examples
@@ -134,16 +134,16 @@ impl Glyph {
     /// ```
     /// use beamterm_data::{Glyph, FontStyle};
     ///
-    /// // Bold 'A' (0x0441) -> base ID 0x41
+    /// // Bold 'A' (0x00100041) -> base ID 0x41
     /// let bold_a = Glyph::new_with_id(0x41, "A", FontStyle::Bold, (0, 0));
-    /// assert_eq!(bold_a.id, 0x441);
-    /// assert_eq!(bold_a.base_id(), 0x041);
+    /// assert_eq!(bold_a.id, 0x00100041);
+    /// assert_eq!(bold_a.base_id(), 0x41);
     ///
     /// // Emoji retains full ID
-    /// let emoji = Glyph::new_emoji(0x00, "🚀", (0, 0));
-    /// assert_eq!(emoji.base_id(), 0x1000); // includes EMOJI_FLAG
+    /// let emoji = Glyph::new_emoji(0x1000, "🚀", (0, 0));
+    /// assert_eq!(emoji.base_id(), 0x00401000); // includes EMOJI_FLAG
     /// ```
-    pub fn base_id(&self) -> u16 {
+    pub fn base_id(&self) -> u32 {
         if self.is_emoji {
             self.id & Self::GLYPH_ID_EMOJI_MASK
         } else {
@@ -157,18 +157,18 @@ pub enum GlyphEffect {
     /// No special effect applied to the glyph.
     None = 0x0,
     /// Underline effect applied below the glyph.
-    Underline = 0x2000,
+    Underline = 0x00800000, // bit 23
     /// Strikethrough effect applied through the glyph.
-    Strikethrough = 0x4000,
+    Strikethrough = 0x01000000, // bit 24
 }
 
 impl GlyphEffect {
-    pub fn from_u16(v: u16) -> GlyphEffect {
+    pub fn from_u32(v: u32) -> GlyphEffect {
         match v {
-            0x0000 => GlyphEffect::None,
-            0x2000 => GlyphEffect::Underline,
-            0x4000 => GlyphEffect::Strikethrough,
-            0x6000 => GlyphEffect::Strikethrough,
+            0x00000000 => GlyphEffect::None,
+            0x00800000 => GlyphEffect::Underline,
+            0x01000000 => GlyphEffect::Strikethrough,
+            0x01800000 => GlyphEffect::Strikethrough, // both flags
             _ => GlyphEffect::None,
         }
     }
@@ -176,22 +176,22 @@ impl GlyphEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontStyle {
-    Normal = 0x0000,
-    Bold = 0x0400,
-    Italic = 0x0800,
-    BoldItalic = 0x0C00,
+    Normal = 0x00000000,
+    Bold = 0x00100000,      // bit 20
+    Italic = 0x00200000,   // bit 21
+    BoldItalic = 0x00300000, // bits 20-21
 }
 
 impl FontStyle {
     pub const ALL: [FontStyle; 4] =
         [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic];
 
-    pub fn from_u16(v: u16) -> FontStyle {
-        match v {
-            0x0000 => FontStyle::Normal,
-            0x0400 => FontStyle::Bold,
-            0x0800 => FontStyle::Italic,
-            0x0C00 => FontStyle::BoldItalic,
+    pub fn from_u32(v: u32) -> FontStyle {
+        match v & 0x00300000 {
+            0x00000000 => FontStyle::Normal,
+            0x00100000 => FontStyle::Bold,
+            0x00200000 => FontStyle::Italic,
+            0x00300000 => FontStyle::BoldItalic,
             _ => panic!("Invalid font style value: {v}"),
         }
     }
@@ -216,7 +216,7 @@ impl FontStyle {
     }
 
     /// Returns the style bits for this font style, used to encode the style in the glyph ID.
-    pub const fn style_mask(&self) -> u16 {
-        *self as u16
+    pub const fn style_mask(&self) -> u32 {
+        *self as u32
     }
 }

@@ -27,9 +27,9 @@ pub struct FontAtlas {
     /// The underlying texture
     texture: crate::gl::texture::Texture,
     /// Symbol to 3d texture index
-    glyph_coords: HashMap<CompactString, u16>,
+    glyph_coords: HashMap<CompactString, u32>,
     /// Base glyph identifier to symbol mapping
-    symbol_lookup: HashMap<u16, CompactString>,
+    symbol_lookup: HashMap<u32, CompactString>,
     /// The size of each character cell in pixels
     cell_size: (i32, i32),
     /// The number of slices in the atlas texture
@@ -41,7 +41,7 @@ pub struct FontAtlas {
     /// Tracks glyphs that were requested but not found in the atlas
     glyph_tracker: GlyphTracker,
     /// The last assigned halfwidth base glyph ID, before fullwidth
-    last_halfwidth_base_glyph_id: u16,
+    last_halfwidth_base_glyph_id: u32,
 }
 
 impl FontAtlas {
@@ -121,14 +121,14 @@ impl FontAtlas {
     }
 
     /// Returns the symbol for the given glyph ID, if it exists
-    pub fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
+    pub fn get_symbol(&self, glyph_id: u32) -> Option<Cow<'_, str>> {
         let base_glyph_id = if glyph_id & Glyph::EMOJI_FLAG != 0 {
             glyph_id & Glyph::GLYPH_ID_EMOJI_MASK
         } else {
             glyph_id & Glyph::GLYPH_ID_MASK
         };
 
-        if (0x20..0x80).contains(&base_glyph_id) {
+        if (0x20..0x80).contains(&(base_glyph_id as u16)) {
             // ASCII characters are directly mapped to their code point
             let ch = base_glyph_id as u8 as char;
             Some(Cow::from(ch.to_compact_string()))
@@ -140,12 +140,12 @@ impl FontAtlas {
     }
 
     /// Returns the base glyph identifier for the given key
-    pub fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+    pub fn get_base_glyph_id(&self, key: &str) -> Option<u32> {
         if key.len() == 1 {
             let ch = key.chars().next().unwrap();
             if ch.is_ascii() {
                 // 0x00..0x7f double as layer
-                let id = ch as u16;
+                let id = ch as u32;
                 return Some(id);
             }
         }
@@ -160,7 +160,7 @@ impl FontAtlas {
     }
 
     /// Returns the maximum assigned halfwidth base glyph ID.
-    pub fn get_max_halfwidth_base_glyph_id(&self) -> u16 {
+    pub fn get_max_halfwidth_base_glyph_id(&self) -> u32 {
         self.last_halfwidth_base_glyph_id
     }
 
@@ -179,7 +179,7 @@ impl FontAtlas {
         ascii_count + non_ascii_count
     }
 
-    pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
+    pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u32, CompactString> {
         &self.symbol_lookup
     }
 }

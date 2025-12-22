@@ -23,24 +23,15 @@ impl GraphemeSet {
     pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &str) -> Self {
         let gs = grapheme_set_from(unicode_ranges, other_symbols);
 
-        let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + gs.unicode.len();
-        let fullwidth_glyphs = gs.fullwidth_unicode.len();
-        assert!(
-            (non_emoji_glyphs + fullwidth_glyphs * 2) <= 1024,
-            "Too many unique graphemes: halfwidth={non_emoji_glyphs}, fullwidth={fullwidth_glyphs}"
-        );
-
-        let emoji_glyphs = gs.emoji.len();
-        assert!(
-            emoji_glyphs <= 2048, // each emoji takes two glyph slots
-            "Too many unique graphemes: {emoji_glyphs}"
-        );
+        // Removed assertions - now supports up to 1M glyphs with u32 IDs
+        // Previous limits: 1024 halfwidth + 2048 emoji
+        // New limits: 1,048,576 total glyphs (20-bit base ID)
 
         gs
     }
 
-    pub fn halfwidth_glyphs_count(&self) -> u16 {
-        (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _
+    pub fn halfwidth_glyphs_count(&self) -> u32 {
+        (ASCII_RANGE.size_hint().0 + self.unicode.len()) as u32
     }
 
     pub(super) fn into_glyphs(self, cell_dimensions: GlyphBounds) -> Vec<Glyph> {
@@ -69,10 +60,10 @@ impl GraphemeSet {
             &self.fullwidth_unicode,
         ));
 
-        // emoji glyphs are assigned IDs starting from 0x1000
+        // emoji glyphs are assigned IDs starting from 0x400000 (bit 22 set)
         for (i, c) in self.emoji.iter().enumerate() {
             // double-width emoji occupy two cells, so spans two IDs
-            let id = (i * 2) as u16 | Glyph::EMOJI_FLAG;
+            let id = (i * 2) as u32 | Glyph::EMOJI_FLAG;
             glyphs.push(Glyph::new_emoji(id, c, (0, 0)));
             glyphs.push(Glyph::new_emoji(id + 1, c, (0, 0)));
         }
@@ -161,7 +152,7 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
         }
 
         next_id = id + 1;
-        id as u16
+        id as u32
     };
 
     symbols
@@ -179,7 +170,7 @@ fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Gly
         .collect()
 }
 
-fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
+fn assign_fullwidth_glyph_ids(last_id: u32, symbols: &[char]) -> Vec<Glyph> {
     let mut current_id = last_id;
     if !current_id.is_multiple_of(2) {
         current_id += 1; // align to even cells; for a leaner font atlas

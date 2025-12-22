@@ -3,7 +3,7 @@ use compact_str::{CompactString, format_compact};
 use crate::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
-const ATLAS_VERSION: u8 = 0x03; // dictates the format of the serialized data
+const ATLAS_VERSION: u8 = 0x04; // dictates the format of the serialized data (v4: u32 glyph IDs)
 
 #[derive(Debug)]
 pub struct SerializationError {
@@ -161,7 +161,7 @@ impl Serializable for CompactString {
 impl Serializable for Glyph {
     fn serialize(&self) -> Vec<u8> {
         let mut ser = Serializer::new();
-        ser.write_u16(self.id);
+        ser.write_u32(self.id);
         ser.write_u8(self.style.ordinal() as u8);
         ser.write_u8(self.is_emoji as u8);
         ser.write_i32(self.pixel_coords.0);
@@ -171,7 +171,7 @@ impl Serializable for Glyph {
     }
 
     fn deserialize(serialized: &mut Deserializer) -> Result<Self, SerializationError> {
-        let id = serialized.read_u16()?;
+        let id = serialized.read_u32()?;
         let style = serialized.read_u8()?;
         let is_emoji = serialized.read_u8()? != 0;
         let x = serialized.read_i32()?;
@@ -200,7 +200,7 @@ impl Serializable for FontAtlasData {
 
         ser.write_string(&self.font_name);
         ser.write_f32(self.font_size);
-        ser.write_u16(self.max_halfwidth_base_glyph_id);
+        ser.write_u32(self.max_halfwidth_base_glyph_id);
 
         ser.write_i32(self.texture_dimensions.0);
         ser.write_i32(self.texture_dimensions.1);
@@ -248,7 +248,7 @@ impl Serializable for FontAtlasData {
 
         let font_name = deser.read_string()?;
         let font_size = deser.read_f32()?;
-        let halfwidth_glyphs_per_layer = deser.read_u16()?;
+        let halfwidth_glyphs_per_layer = deser.read_u32()?;
 
         let texture_dimensions = (deser.read_i32()?, deser.read_i32()?, deser.read_i32()?);
         let cell_size = (deser.read_i32()?, deser.read_i32()?);
