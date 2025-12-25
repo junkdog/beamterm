@@ -100,29 +100,6 @@ impl FontAtlas {
         })
     }
 
-    /// Recreates the GPU texture after a WebGL context loss.
-    ///
-    /// This method rebuilds the texture from the retained atlas data. All glyph
-    /// mappings and other CPU-side state are preserved; only the GPU texture
-    /// handle is recreated.
-    ///
-    /// # Parameters
-    /// * `gl` - The new WebGL2 rendering context
-    ///
-    /// # Returns
-    /// * `Ok(())` - Texture successfully recreated
-    /// * `Err(Error)` - Failed to create texture
-    pub fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
-        // Delete old texture if it exists (may be invalid after context loss)
-        self.texture.delete(gl);
-
-        // Recreate texture from retained atlas data
-        self.texture =
-            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
-
-        Ok(())
-    }
-
     /// Binds the atlas texture to the specified texture unit
     pub fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {
         self.texture.bind(gl, texture_unit);
@@ -207,6 +184,32 @@ impl FontAtlas {
 
     pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
         &self.symbol_lookup
+    }
+
+    /// Recreates the GPU texture after a WebGL context loss.
+    ///
+    /// This method rebuilds the texture from the retained atlas data. All glyph
+    /// mappings and other CPU-side state are preserved; only the GPU texture
+    /// handle is recreated.
+    ///
+    /// # Parameters
+    /// * `gl` - The new WebGL2 rendering context
+    ///
+    /// # Returns
+    /// * `Ok(())` - Texture successfully recreated
+    /// * `Err(Error)` - Failed to create texture
+    pub(crate) fn recreate_texture(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+    ) -> Result<(), Error> {
+        // Delete old texture if it exists (may be invalid after context loss)
+        self.texture.delete(gl);
+
+        // Recreate texture from retained atlas data
+        self.texture =
+            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
+
+        Ok(())
     }
 }
 
