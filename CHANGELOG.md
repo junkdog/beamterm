@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.10.0] - 2025-12-25
 
 ### 🚀 Features
 
@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 
 - *(deps)* Bump actions/upload-artifact from 5 to 6 (#56)
 - *(deps-dev)* Bump jsdom in /js in the minor-and-patch group (#55)
+- *(deps)* Bump tracing from 0.1.43 to 0.1.44 (#58)
+- *(deps)* Bump serde_json from 1.0.145 to 1.0.146 (#59)
 
 ### 🐛 Bug Fixes
 
