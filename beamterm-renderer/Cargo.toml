@@ -15,7 +15,6 @@ categories.workspace = true
 # Exclude development files from package
 exclude = [
     "index.html",
-    "src/main.rs",
     "tests/**/*",
     "benches/**/*",
     ".gitignore",
@@ -93,11 +92,6 @@ js-api = [
     "dep:serde-wasm-bindgen",
     "dep:unicode-segmentation",
 ]
-
-[[bin]]
-name = "beamterm-renderer"
-path = "src/main.rs"
-required-features = []
 
 [lints]
 workspace = true
