@@ -7,8 +7,11 @@ use web_sys::{WebGl2RenderingContext, console};
 use crate::{
     error::Error,
     gl::{
-        CellIterator, Drawable, FontAtlas, GL, RenderContext, ShaderProgram, buffer_upload_array,
-        selection::SelectionTracker, ubo::UniformBufferObject,
+        CellIterator, CellQuery, Drawable, GL, RenderContext, ShaderProgram, StaticFontAtlas,
+        atlas::{FontAtlas, GlyphSlot},
+        buffer_upload_array,
+        selection::SelectionTracker,
+        ubo::UniformBufferObject,
     },
     mat4::Mat4,
 };
@@ -164,7 +167,7 @@ impl TerminalGrid {
     pub fn set_fallback_glyph(&mut self, fallback: &str) {
         self.fallback_glyph = self
             .atlas
-            .get_base_glyph_id(fallback)
+            .get_glyph_id(fallback, FontStyle::Normal as u16)
             .unwrap_or(' ' as u16);
     }
 
@@ -270,7 +273,7 @@ impl TerminalGrid {
         // update instance buffer with new cell data
         let atlas = &self.atlas;
 
-        let fallback_glyph = self.fallback_glyph;
+        let fallback_glyph = GlyphSlot::Normal(self.fallback_glyph);
 
         // handle double-width emoji that span two cells
         let mut pending_cell: Option<CellDynamic> = None;
@@ -278,22 +281,22 @@ impl TerminalGrid {
             .iter_mut()
             .zip(cells)
             .for_each(|(cell, data)| {
-                let base_glyph_id = atlas
-                    .get_base_glyph_id(data.symbol)
+                let glyph = atlas
+                    .resolve_glyph_slot(data.symbol, data.style_bits)
                     .unwrap_or(fallback_glyph);
 
                 *cell = if let Some(second_cell) = pending_cell.take() {
                     second_cell
-                } else if base_glyph_id & Glyph::EMOJI_FLAG != 0 {
-                    // Emoji: don't apply style bits, use base_glyph_id directly
-                    let glyph_id = base_glyph_id;
-                    // storing a double-width emoji, reserve next cell with right-half id
-                    pending_cell = Some(CellDynamic::new(glyph_id + 1, data.fg, data.bg));
-                    CellDynamic::new(glyph_id, data.fg, data.bg)
                 } else {
-                    // Normal glyph: apply style bits
-                    let glyph_id = base_glyph_id | data.style_bits;
-                    CellDynamic::new(glyph_id, data.fg, data.bg)
+                    match glyph {
+                        GlyphSlot::Normal(id) => CellDynamic::new(id, data.fg, data.bg),
+
+                        GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => {
+                            // storing a double-width glyph, reserve next cell with right-half id
+                            pending_cell = Some(CellDynamic::new(id + 1, data.fg, data.bg));
+                            CellDynamic::new(id, data.fg, data.bg)
+                        },
+                    }
                 }
             });
 
@@ -303,15 +306,24 @@ impl TerminalGrid {
 
     pub(crate) fn update_cells_by_position<'a>(
         &mut self,
-        gl: &WebGl2RenderingContext,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
+    ) -> Result<(), Error> {
+        let cols = self.terminal_size.0 as usize;
+        let cells_by_index = cells.map(|(x, y, data)| (y as usize * cols + x as usize, data));
+
+        self.update_cells_by_index(cells_by_index)
+    }
+
+    pub(crate) fn update_cells_by_index<'a>(
+        &mut self,
+        cells: impl Iterator<Item = (usize, CellData<'a>)>,
     ) -> Result<(), Error> {
         // update instance buffer with new cell data by position
         let atlas = &self.atlas;
 
         let cell_count = self.cells.len();
         let fallback_glyph = self.fallback_glyph;
-        let w = self.terminal_size.0 as usize;
+        let fallback_glyph_2 = GlyphSlot::Normal(self.fallback_glyph);
 
         // ratatui and beamterm can disagree on which emoji
         // are double-width (beamterm assumes double-width for all emoji),
@@ -319,13 +331,12 @@ impl TerminalGrid {
         // if we just wrote a double-width emoji in the current cell.
         let mut skip_idx = None;
 
-        let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
-        let is_doublewidth = |glyph_id: u16| {
-            (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
-        };
+        // let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
+        // let is_doublewidth = |glyph_id: u16| {
+        //     (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
+        // };
 
         cells
-            .map(|(x, y, cell)| (w * y as usize + x as usize, cell))
             .filter(|(idx, _)| *idx < cell_count)
             .for_each(|(idx, cell)| {
                 if skip_idx.take() == Some(idx) {
@@ -333,24 +344,29 @@ impl TerminalGrid {
                     return;
                 }
 
+                let glyph = atlas
+                    .resolve_glyph_slot(cell.symbol, cell.style_bits)
+                    .unwrap_or(fallback_glyph_2);
+
                 let base_glyph_id = atlas
-                    .get_base_glyph_id(cell.symbol)
+                    .get_glyph_id(cell.symbol, cell.style_bits)
                     .unwrap_or(fallback_glyph);
 
-                if is_doublewidth(base_glyph_id) {
-                    let glyph_id = base_glyph_id;
+                match glyph {
+                    GlyphSlot::Normal(id) => {
+                        self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                    },
 
-                    // render left half in current cell
-                    self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
+                    GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => {
+                        // render left half in current cell
+                        self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
 
-                    // render right half in next cell, if within bounds
-                    if let Some(c) = self.cells.get_mut(idx + 1) {
-                        *c = CellDynamic::new(glyph_id + 1, cell.fg, cell.bg);
-                        skip_idx = Some(idx + 1);
-                    }
-                } else {
-                    let glyph_id = base_glyph_id | cell.style_bits;
-                    self.cells[idx] = CellDynamic::new(glyph_id, cell.fg, cell.bg);
+                        // render right half in next cell, if within bounds
+                        if let Some(c) = self.cells.get_mut(idx + 1) {
+                            *c = CellDynamic::new(id + 1, cell.fg, cell.bg);
+                            skip_idx = Some(idx + 1);
+                        }
+                    },
                 }
             });
 
@@ -359,44 +375,18 @@ impl TerminalGrid {
         Ok(())
     }
 
-    pub(crate) fn update_cell(&mut self, x: u16, y: u16, cell_data: CellData) {
+    pub(crate) fn update_cell(&mut self, x: u16, y: u16, cell_data: CellData) -> Result<(), Error> {
         let (cols, _) = self.terminal_size;
         let idx = y as usize * cols as usize + x as usize;
-        self.update_cell_by_index(idx, cell_data);
-
-        self.cells_pending_flush = true;
+        self.update_cell_by_index(idx, cell_data)
     }
 
-    pub(crate) fn update_cell_by_index(&mut self, idx: usize, cell_data: CellData) {
-        if idx >= self.cells.len() {
-            return;
-        }
-
-        let atlas = &self.atlas;
-        let fallback_glyph = self.fallback_glyph;
-        let base_glyph_id = atlas
-            .get_base_glyph_id(cell_data.symbol)
-            .unwrap_or(fallback_glyph);
-
-        let last_halfwidth = atlas.get_max_halfwidth_base_glyph_id();
-        let is_doublewidth = |glyph_id: u16| {
-            (glyph_id & (Glyph::GLYPH_ID_MASK | Glyph::EMOJI_FLAG)) > last_halfwidth
-        };
-
-        if is_doublewidth(base_glyph_id) {
-            // Emoji: don't apply style bits
-            let glyph_id = base_glyph_id;
-            self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
-            if let Some(c) = self.cells.get_mut(idx + 1) {
-                *c = CellDynamic::new(glyph_id + 1, cell_data.fg, cell_data.bg);
-            }
-        } else {
-            // Normal glyph: apply style bits
-            let glyph_id = base_glyph_id | cell_data.style_bits;
-            self.cells[idx] = CellDynamic::new(glyph_id, cell_data.fg, cell_data.bg);
-        }
-
-        self.cells_pending_flush = true;
+    pub(crate) fn update_cell_by_index(
+        &mut self,
+        idx: usize,
+        cell_data: CellData,
+    ) -> Result<(), Error> {
+        self.update_cells_by_index(std::iter::once((idx, cell_data)))
     }
 
     /// Flushes pending cell updates to the GPU.
@@ -516,7 +506,7 @@ impl TerminalGrid {
     ///
     /// # Note
     /// The font atlas texture must be recreated separately via
-    /// [`FontAtlas::recreate_texture`] before calling this method.
+    /// [`StaticFontAtlas::recreate_texture`] before calling this method.
     pub fn recreate_resources(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         let cell_size = self.atlas.cell_size();
         let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
@@ -536,7 +526,7 @@ impl TerminalGrid {
 
     /// Recreates the font atlas texture after a WebGL context loss.
     ///
-    /// This is a convenience method that delegates to [`FontAtlas::recreate_texture`].
+    /// This is a convenience method that delegates to [`StaticFontAtlas::recreate_texture`].
     /// Call this before [`recreate_resources`] when recovering from context loss.
     pub fn recreate_atlas_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         self.atlas.recreate_texture(gl)
@@ -551,47 +541,6 @@ impl TerminalGrid {
         self.atlas
             .get_symbol(self.fallback_glyph)
             .unwrap_or(Cow::Borrowed(" "))
-    }
-
-    fn fill_glyphs(atlas: &FontAtlas) -> Vec<u16> {
-        [
-            ("🤫", FontStyle::Normal),
-            ("🙌", FontStyle::Normal),
-            ("n", FontStyle::Normal),
-            ("o", FontStyle::Normal),
-            ("r", FontStyle::Normal),
-            ("m", FontStyle::Normal),
-            ("a", FontStyle::Normal),
-            ("l", FontStyle::Normal),
-            ("b", FontStyle::Bold),
-            ("o", FontStyle::Bold),
-            ("l", FontStyle::Bold),
-            ("d", FontStyle::Bold),
-            ("i", FontStyle::Italic),
-            ("t", FontStyle::Italic),
-            ("a", FontStyle::Italic),
-            ("l", FontStyle::Italic),
-            ("i", FontStyle::Italic),
-            ("c", FontStyle::Italic),
-            ("b", FontStyle::BoldItalic),
-            ("-", FontStyle::BoldItalic),
-            ("i", FontStyle::BoldItalic),
-            ("t", FontStyle::BoldItalic),
-            ("a", FontStyle::BoldItalic),
-            ("l", FontStyle::BoldItalic),
-            ("i", FontStyle::BoldItalic),
-            ("c", FontStyle::BoldItalic),
-            ("🤪", FontStyle::Normal),
-            ("🤩", FontStyle::Normal),
-        ]
-        .into_iter()
-        .map(|(symbol, style)| {
-            atlas
-                .get_base_glyph_id(symbol)
-                .map(|g| g | style as u16)
-        })
-        .map(|g| g.unwrap_or(' ' as u16))
-        .collect()
     }
 }
 
@@ -769,11 +718,13 @@ impl Drawable for TerminalGrid {
     fn prepare(&self, context: &mut RenderContext) {
         let gl = context.gl;
 
+
         self.gpu.shader.use_program(gl);
 
         gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
 
         self.atlas.bind(gl, 0);
+        self.atlas.flush(gl).unwrap(); // fixme: handle error
         self.gpu.ubo_vertex.bind(context.gl);
         self.gpu.ubo_fragment.bind(context.gl);
         gl.uniform1i(Some(&self.gpu.sampler_loc), 0);
@@ -1048,7 +999,8 @@ struct CellFragmentUbo {
     pub underline_thickness: f32,     // underline thickness as fraction of cell height
     pub strikethrough_pos: f32,       // strikethrough position (0.0 = top, 1.0 = bottom)
     pub strikethrough_thickness: f32, // strikethrough thickness as fraction of cell height
-    pub _padding: [f32; 2],
+    pub texture_lookup_mask: u32,            // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
+    pub _padding: f32,
 }
 
 impl CellVertexUbo {
@@ -1072,6 +1024,7 @@ impl CellFragmentUbo {
         let cell_size = atlas.cell_size();
         let underline = atlas.underline();
         let strikethrough = atlas.strikethrough();
+
         Self {
             padding_frac: [
                 FontAtlasData::PADDING as f32 / cell_size.0 as f32,
@@ -1081,7 +1034,8 @@ impl CellFragmentUbo {
             underline_thickness: underline.thickness,
             strikethrough_pos: strikethrough.position,
             strikethrough_thickness: strikethrough.thickness,
-            _padding: [0.0; 2], // padding to ensure proper alignment
+            texture_lookup_mask: atlas.base_lookup_mask(),
+            _padding: 0.0, // padding to ensure proper alignment
         }
     }
 }

@@ -72,6 +72,14 @@ impl Error {
         Self::Resource("Failed to create texture".to_string())
     }
 
+    pub(crate) fn rasterizer_canvas_creation_failed() -> Self {
+        Self::Resource("Failed to create texture offscreen canvas for rasterization".to_string())
+    }
+
+    pub(crate) fn rasterizer_failed() -> Self {
+        Self::Resource("Failed to rasterize glyphs to offscreen canvas".to_string())
+    }
+
     pub(crate) fn uniform_location_failed(name: &str) -> Self {
         Self::Resource(format!("Failed to get uniform location: {name}"))
     }

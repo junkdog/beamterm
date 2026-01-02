@@ -1,16 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
-use beamterm_data::FontAtlasData;
+use beamterm_data::{FontAtlasData};
 use compact_str::CompactString;
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    CellData, Error, FontAtlas, Renderer, TerminalGrid,
-    gl::{CellQuery, ContextLossHandler, SelectionMode},
-    mouse::{
-        DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
-    },
-};
+use crate::{CellData, Error, Renderer, StaticFontAtlas, TerminalGrid, gl::{CellQuery, ContextLossHandler, SelectionMode}, mouse::{
+    DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
+}, DynamicFontAtlas, FontAtlas};
 
 /// High-performance WebGL2 terminal renderer.
 ///
@@ -118,7 +114,16 @@ impl Terminal {
     ) -> Result<(), Error> {
         self.grid
             .borrow_mut()
-            .update_cells_by_position(self.renderer.gl(), cells)
+            .update_cells_by_position(cells)
+    }
+
+    pub fn update_cells_by_index<'a>(
+        &mut self,
+        cells: impl Iterator<Item = (usize, CellData<'a>)>,
+    ) -> Result<(), Error> {
+        self.grid
+            .borrow_mut()
+            .update_cells_by_index(cells)
     }
 
     /// Returns the WebGL2 rendering context.
@@ -305,6 +310,7 @@ impl Terminal {
 ///
 /// Supports both CSS selector strings and direct `HtmlCanvasElement` references
 /// for flexible terminal creation.
+#[derive(Debug)]
 enum CanvasSource {
     /// CSS selector string for canvas lookup (e.g., "#terminal", "canvas").
     Id(CompactString),
@@ -321,7 +327,7 @@ enum CanvasSource {
 ///
 /// ```rust,no_run
 /// // Simple terminal with default configuration
-/// use beamterm_renderer::{FontAtlas, FontAtlasData, Terminal};
+/// use beamterm_renderer::{StaticFontAtlas, FontAtlasData, Terminal};
 ///
 /// let terminal = Terminal::builder("#canvas").build().unwrap();
 ///
@@ -334,11 +340,20 @@ enum CanvasSource {
 /// ```
 pub struct TerminalBuilder {
     canvas: CanvasSource,
-    atlas_data: Option<FontAtlasData>,
+    atlas_kind: AtlasKind,
     fallback_glyph: Option<CompactString>,
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
     enable_debug_api: bool,
+}
+
+#[derive(Debug)]
+enum AtlasKind {
+    Static(Option<FontAtlasData>),
+    Dynamic {
+        font_size: f32,
+        font_family: Vec<&'static str>,
+    },
 }
 
 impl TerminalBuilder {
@@ -346,7 +361,7 @@ impl TerminalBuilder {
     fn new(canvas: CanvasSource) -> Self {
         TerminalBuilder {
             canvas,
-            atlas_data: None,
+            atlas_kind: AtlasKind::Static(None),
             fallback_glyph: None,
             input_handler: None,
             canvas_padding_color: 0x000000,
@@ -359,7 +374,19 @@ impl TerminalBuilder {
     /// By default, the terminal uses an embedded font atlas. Use this method
     /// to provide a custom atlas with different fonts, sizes, or character sets.
     pub fn font_atlas(mut self, atlas: FontAtlasData) -> Self {
-        self.atlas_data = Some(atlas);
+        self.atlas_kind = AtlasKind::Static(Some(atlas));
+        self
+    }
+
+    pub fn dynamic_font_atlas(
+        mut self,
+        font_family: &[&'static str],
+        font_size: f32,
+    ) -> Self {
+        self.atlas_kind = AtlasKind::Dynamic {
+            font_family: font_family.into(),
+            font_size,
+        };
         self
     }
 
@@ -424,7 +451,12 @@ impl TerminalBuilder {
 
         // load font atlas
         let gl = renderer.gl();
-        let atlas = FontAtlas::load(gl, self.atlas_data.unwrap_or_default())?;
+        let atlas: FontAtlas = match self.atlas_kind {
+            AtlasKind::Static(atlas_data) =>
+                StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into(),
+            AtlasKind::Dynamic { font_family, font_size } =>
+                DynamicFontAtlas::new(gl, &font_family, font_size)?.into(),
+        };
 
         // create terminal grid
         let canvas_size = renderer.canvas_size();
@@ -619,3 +651,4 @@ impl<'a> From<&'a web_sys::HtmlCanvasElement> for CanvasSource {
         value.clone().into()
     }
 }
+

@@ -9,8 +9,8 @@ use web_sys::console;
 
 use crate::{
     gl::{
-        CellData, CellQuery as RustCellQuery, FontAtlas, Renderer,
-        SelectionMode as RustSelectionMode, TerminalGrid, select,
+        CellData, CellQuery as RustCellQuery, Renderer, SelectionMode as RustSelectionMode,
+        StaticFontAtlas, TerminalGrid, select,
     },
     mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
 };
@@ -226,7 +226,8 @@ impl Batch {
     /// Updates a single cell at the given position.
     #[wasm_bindgen(js_name = "cell")]
     pub fn cell(&mut self, x: u16, y: u16, cell_data: &Cell) {
-        self.terminal_grid
+        let _ = self
+            .terminal_grid
             .borrow_mut()
             .update_cell(x, y, cell_data.as_cell_data());
     }
@@ -234,7 +235,8 @@ impl Batch {
     /// Updates a cell by its buffer index.
     #[wasm_bindgen(js_name = "cellByIndex")]
     pub fn cell_by_index(&mut self, idx: usize, cell_data: &Cell) {
-        self.terminal_grid
+        let _ = self
+            .terminal_grid
             .borrow_mut()
             .update_cell_by_index(idx, cell_data.as_cell_data());
     }
@@ -254,7 +256,7 @@ impl Batch {
 
                 let mut terminal_grid = self.terminal_grid.borrow_mut();
                 terminal_grid
-                    .update_cells_by_position(&self.gl, cell_data)
+                    .update_cells_by_position(cell_data)
                     .map_err(|e| JsValue::from_str(&e.to_string()))
             },
             e => e.map(|_| ()),
@@ -411,11 +413,11 @@ impl BeamtermRenderer {
 
         let gl = renderer.gl();
         let atlas_data = FontAtlasData::default();
-        let atlas = FontAtlas::load(gl, atlas_data)
+        let atlas = StaticFontAtlas::load(gl, atlas_data)
             .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
 
         let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas, canvas_size)
+        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         console::log_1(&"BeamtermRenderer initialized successfully".into());

@@ -36,7 +36,7 @@ use compact_str::{CompactString, ToCompactString};
 /// | 'A' (0x41)  | Bold + Italic    | `0000_1100_0100_0001` | `0x0C41`  | Bold italic 'A'     |
 /// | 'A' (0x41)  | Bold + Underline | `0010_0100_0100_0001` | `0x2441`  | Bold underlined 'A' |
 /// | '🚀' (0x81) | Emoji            | `0001_0000_1000_0001` | `0x1081`  | "rocket" emoji      |
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, Clone, PartialEq)]
 pub struct Glyph {
     /// The glyph ID; encodes the 3d texture coordinates
     pub id: u16,
@@ -174,7 +174,7 @@ impl GlyphEffect {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FontStyle {
     Normal = 0x0000,
     Bold = 0x0400,
@@ -183,6 +183,8 @@ pub enum FontStyle {
 }
 
 impl FontStyle {
+    pub const MASK: u16 = 0x0C00;
+
     pub const ALL: [FontStyle; 4] =
         [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic];
 

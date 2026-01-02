@@ -9,7 +9,7 @@ use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable};
 /// Contains a pre-rasterized font atlas stored as a 2D texture array, where each layer
 /// holds 32 glyphs in a 1×32 grid. The atlas includes multiple font styles (normal, bold,
 /// italic, bold+italic) and full Unicode support including emoji.
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct FontAtlasData {
     /// The name of the font
     pub font_name: CompactString,
