@@ -281,7 +281,9 @@ impl Batch {
             }
 
             let cell = CellData::new_with_style_bits(ch, style.style_bits, style.fg, style.bg);
-            terminal_grid.update_cell(current_col, y, cell);
+            terminal_grid
+                .update_cell(current_col, y, cell)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
             if emojis::get(ch).is_some() {
                 width_offset += 1;
@@ -310,7 +312,9 @@ impl Batch {
         let fill_cell = cell_data.as_cell_data();
         for y in y..y + height {
             for x in x..x + width {
-                terminal_grid.update_cell(x, y, fill_cell);
+                terminal_grid
+                    .update_cell(x, y, fill_cell)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
             }
         }
 
@@ -326,7 +330,9 @@ impl Batch {
         let clear_cell = CellData::new_with_style_bits(" ", 0, 0xFFFFFF, bg);
         for y in 0..rows {
             for x in 0..cols {
-                terminal_grid.update_cell(x, y, clear_cell);
+                terminal_grid
+                    .update_cell(x, y, clear_cell)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
             }
         }
 
