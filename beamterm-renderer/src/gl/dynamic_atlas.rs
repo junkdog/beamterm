@@ -2,19 +2,24 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::{BTreeSet, HashMap, HashSet},
+    ops::Not,
 };
-use std::ops::Not;
+
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
-use compact_str::{format_compact, CompactString, CompactStringExt};
+use compact_str::{CompactString, CompactStringExt, format_compact};
 use once_cell::unsync::Lazy;
 use web_sys::WebGl2RenderingContext;
 
-use crate::{CanvasRasterizer, GlyphTracker, error::Error, gl::{
-    GL,
-    atlas::{Atlas, GlyphSlot, SlotId},
-    glyph_cache::GlyphCache,
-    texture::Texture,
-}};
+use crate::{
+    CanvasRasterizer, GlyphTracker,
+    error::Error,
+    gl::{
+        GL,
+        atlas::{Atlas, GlyphSlot, SlotId},
+        glyph_cache::GlyphCache,
+        texture::Texture,
+    },
+};
 
 /// Glyphs per layer (1x32 vertical grid)
 const GLYPHS_PER_LAYER: usize = 32;
@@ -78,8 +83,8 @@ impl DynamicFontAtlas {
             .map(|&s| format_compact!("'{s}'"))
             .join_compact(", ");
 
-        let rasterizer = CanvasRasterizer::new()
-            .map_err(|_| Error::rasterizer_canvas_creation_failed())?;
+        let rasterizer =
+            CanvasRasterizer::new().map_err(|_| Error::rasterizer_canvas_creation_failed())?;
         let cell_size = Self::measure_cell_size(&rasterizer, &font_family, font_size)?;
         let padded_cell_size = (
             cell_size.0 + FontAtlasData::PADDING * 2,
@@ -157,18 +162,10 @@ impl DynamicFontAtlas {
                 // split double-width glyph into left and right halves
                 let (left, right) = split_double_width_glyph(glyph_data, cell_w, cell_h);
                 let slot_id = pending_glyph.slot.slot_id() & Glyph::EMOJI_FLAG.not();
-                self.texture.upload_glyph(
-                    gl,
-                    slot_id,
-                    padded_cell_size,
-                    &left,
-                )?;
-                self.texture.upload_glyph(
-                    gl,
-                    slot_id + 1,
-                    padded_cell_size,
-                    &right,
-                )?;
+                self.texture
+                    .upload_glyph(gl, slot_id, padded_cell_size, &left)?;
+                self.texture
+                    .upload_glyph(gl, slot_id + 1, padded_cell_size, &right)?;
             } else {
                 self.texture.upload_glyph(
                     gl,
@@ -195,7 +192,7 @@ impl DynamicFontAtlas {
     fn measure_cell_size(
         rasterizer: &CanvasRasterizer,
         font_family: &str,
-        font_size: f32
+        font_size: f32,
     ) -> Result<(i32, i32), Error> {
         let reference_glyphs = rasterizer
             .begin_batch()
@@ -363,8 +360,12 @@ fn split_double_width_glyph(
     glyph: &super::canvas_rasterizer::RasterizedGlyph,
     cell_w: u32,
     cell_h: u32,
-) -> (super::canvas_rasterizer::RasterizedGlyph, super::canvas_rasterizer::RasterizedGlyph) {
+) -> (
+    super::canvas_rasterizer::RasterizedGlyph,
+    super::canvas_rasterizer::RasterizedGlyph,
+) {
     use beamterm_data::FontAtlasData;
+
     use super::canvas_rasterizer::RasterizedGlyph;
 
     let bytes_per_pixel = 4usize;
@@ -444,6 +445,10 @@ fn split_double_width_glyph(
 
     (
         RasterizedGlyph { pixels: left_pixels, width: cell_w, height: cell_h },
-        RasterizedGlyph { pixels: right_pixels, width: cell_w, height: cell_h },
+        RasterizedGlyph {
+            pixels: right_pixels,
+            width: cell_w,
+            height: cell_h,
+        },
     )
 }

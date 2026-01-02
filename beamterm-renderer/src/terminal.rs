@@ -1,12 +1,16 @@
 use std::{cell::RefCell, rc::Rc};
 
-use beamterm_data::{FontAtlasData};
+use beamterm_data::FontAtlasData;
 use compact_str::CompactString;
 use wasm_bindgen::prelude::*;
 
-use crate::{CellData, Error, Renderer, StaticFontAtlas, TerminalGrid, gl::{CellQuery, ContextLossHandler, SelectionMode}, mouse::{
-    DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
-}, DynamicFontAtlas, FontAtlas};
+use crate::{
+    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid,
+    gl::{CellQuery, ContextLossHandler, SelectionMode},
+    mouse::{
+        DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
+    },
+};
 
 /// High-performance WebGL2 terminal renderer.
 ///
@@ -350,10 +354,7 @@ pub struct TerminalBuilder {
 #[derive(Debug)]
 enum AtlasKind {
     Static(Option<FontAtlasData>),
-    Dynamic {
-        font_size: f32,
-        font_family: Vec<&'static str>,
-    },
+    Dynamic { font_size: f32, font_family: Vec<&'static str> },
 }
 
 impl TerminalBuilder {
@@ -378,15 +379,8 @@ impl TerminalBuilder {
         self
     }
 
-    pub fn dynamic_font_atlas(
-        mut self,
-        font_family: &[&'static str],
-        font_size: f32,
-    ) -> Self {
-        self.atlas_kind = AtlasKind::Dynamic {
-            font_family: font_family.into(),
-            font_size,
-        };
+    pub fn dynamic_font_atlas(mut self, font_family: &[&'static str], font_size: f32) -> Self {
+        self.atlas_kind = AtlasKind::Dynamic { font_family: font_family.into(), font_size };
         self
     }
 
@@ -452,10 +446,12 @@ impl TerminalBuilder {
         // load font atlas
         let gl = renderer.gl();
         let atlas: FontAtlas = match self.atlas_kind {
-            AtlasKind::Static(atlas_data) =>
-                StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into(),
-            AtlasKind::Dynamic { font_family, font_size } =>
-                DynamicFontAtlas::new(gl, &font_family, font_size)?.into(),
+            AtlasKind::Static(atlas_data) => {
+                StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
+            },
+            AtlasKind::Dynamic { font_family, font_size } => {
+                DynamicFontAtlas::new(gl, &font_family, font_size)?.into()
+            },
         };
 
         // create terminal grid
@@ -651,4 +647,3 @@ impl<'a> From<&'a web_sys::HtmlCanvasElement> for CanvasSource {
         value.clone().into()
     }
 }
-

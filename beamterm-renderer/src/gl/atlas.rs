@@ -67,7 +67,7 @@ pub(crate) trait Atlas {
     /// The slot is immediately valid, but [`flush`] must be called before
     /// rendering to populate the texture.
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
-    
+
     fn base_lookup_mask(&self) -> u32;
 }
 
@@ -75,12 +75,11 @@ pub struct FontAtlas {
     inner: Box<dyn Atlas>,
 }
 
-impl <A: Atlas + 'static> From<A> for FontAtlas {
+impl<A: Atlas + 'static> From<A> for FontAtlas {
     fn from(atlas: A) -> Self {
         FontAtlas::new(atlas)
     }
 }
-
 
 impl Debug for FontAtlas {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -93,7 +92,7 @@ impl FontAtlas {
     pub(super) fn new(inner: impl Atlas + 'static) -> Self {
         Self { inner: Box::new(inner) }
     }
-    
+
     pub(crate) fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
         self.inner.get_glyph_id(key, style_bits)
     }
@@ -117,7 +116,7 @@ impl FontAtlas {
     pub(crate) fn strikethrough(&self) -> beamterm_data::LineDecoration {
         self.inner.strikethrough()
     }
-    
+
     pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
         self.inner.get_symbol(glyph_id)
     }
@@ -130,7 +129,10 @@ impl FontAtlas {
         self.inner.glyph_count()
     }
 
-    pub(crate) fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+    pub(crate) fn recreate_texture(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+    ) -> Result<(), Error> {
         self.inner.recreate_texture(gl)
     }
 
@@ -141,11 +143,11 @@ impl FontAtlas {
     pub(crate) fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
-    
+
     pub(crate) fn flush(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
         self.inner.flush(gl)
     }
-    
+
     pub(super) fn base_lookup_mask(&self) -> u32 {
         self.inner.base_lookup_mask()
     }

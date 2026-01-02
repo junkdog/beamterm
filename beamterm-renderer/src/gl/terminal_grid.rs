@@ -718,7 +718,6 @@ impl Drawable for TerminalGrid {
     fn prepare(&self, context: &mut RenderContext) {
         let gl = context.gl;
 
-
         self.gpu.shader.use_program(gl);
 
         gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
@@ -999,7 +998,7 @@ struct CellFragmentUbo {
     pub underline_thickness: f32,     // underline thickness as fraction of cell height
     pub strikethrough_pos: f32,       // strikethrough position (0.0 = top, 1.0 = bottom)
     pub strikethrough_thickness: f32, // strikethrough thickness as fraction of cell height
-    pub texture_lookup_mask: u32,            // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
+    pub texture_lookup_mask: u32,     // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
     pub _padding: f32,
 }
 

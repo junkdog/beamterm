@@ -34,8 +34,8 @@
 //! }
 //! ```
 
-use compact_str::{format_compact, CompactString, CompactStringExt};
 use beamterm_data::{FontAtlasData, FontStyle};
+use compact_str::{CompactString, CompactStringExt, format_compact};
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 
@@ -75,11 +75,7 @@ impl RasterizedGlyph {
             .all(|&a| a == 0)
     }
 
-    pub fn new(
-        pixels: Vec<u8>,
-        width: u32,
-        height: u32,
-    ) -> Self {
+    pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self { pixels, width, height }
     }
 }
@@ -128,14 +124,15 @@ impl CanvasRasterizer {
         let buffer_size = 128u32;
         let draw_offset = 16.0; // Draw with offset to capture any negative positioning
 
-        self.render_ctx.clear_rect(0.0, 0.0, buffer_size as f64, buffer_size as f64);
+        self.render_ctx
+            .clear_rect(0.0, 0.0, buffer_size as f64, buffer_size as f64);
         self.render_ctx.set_fill_style_str("white");
-        self.render_ctx.fill_text("█", draw_offset, draw_offset)?;
+        self.render_ctx
+            .fill_text("█", draw_offset, draw_offset)?;
 
-        let image_data = self.render_ctx.get_image_data(
-            0.0, 0.0,
-            buffer_size as f64, buffer_size as f64
-        )?;
+        let image_data =
+            self.render_ctx
+                .get_image_data(0.0, 0.0, buffer_size as f64, buffer_size as f64)?;
 
         let pixels = image_data.data();
 
@@ -233,7 +230,6 @@ impl<'a> RasterizeGlyphs<'a> {
 
         let font_family = self
             .font_family
-            .clone()
             .ok_or_else(|| JsValue::from_str("font_family must be set before rasterizing"))?;
 
         let font_size = self
@@ -244,7 +240,7 @@ impl<'a> RasterizeGlyphs<'a> {
             .render_ctx
             .set_fill_style_str("white");
 
-        let base_font = build_font_string(&font_family, font_size, FontStyle::Normal);
+        let base_font = build_font_string(font_family, font_size, FontStyle::Normal);
         self.rasterizer.render_ctx.set_font(&base_font);
 
         let metrics = self.resolve_cell_metrics()?;
@@ -275,7 +271,7 @@ impl<'a> RasterizeGlyphs<'a> {
 
             // update font if style changed
             if current_style != Some(effective_style) {
-                let font = build_font_string(&font_family, font_size, effective_style);
+                let font = build_font_string(font_family, font_size, effective_style);
                 self.rasterizer.render_ctx.set_font(&font);
                 current_style = Some(effective_style);
             }
@@ -306,13 +302,11 @@ impl<'a> RasterizeGlyphs<'a> {
             let padded_width = if is_double_width(grapheme) { cell_w * 2 } else { cell_w };
 
             let glyph_start = i * glyph_stride;
-            let mut pixels =
-                Vec::with_capacity((padded_width * cell_h) as usize * bytes_per_pixel);
+            let mut pixels = Vec::with_capacity((padded_width * cell_h) as usize * bytes_per_pixel);
 
             // extract rows, include padding
             for row in 0..cell_h as usize {
-                let row_start =
-                    glyph_start + row * row_stride;
+                let row_start = glyph_start + row * row_stride;
                 let row_end = row_start + (padded_width as usize * bytes_per_pixel);
                 pixels.extend_from_slice(&all_pixels[row_start..row_end]);
             }

@@ -107,7 +107,11 @@ impl GlyphCache {
                     (evicted_slot.slot_id(), Some(evicted_key))
                 };
 
-            let slot = if is_emoji { GlyphSlot::Emoji(idx | Glyph::EMOJI_FLAG) } else { GlyphSlot::Wide(idx) };
+            let slot = if is_emoji {
+                GlyphSlot::Emoji(idx | Glyph::EMOJI_FLAG)
+            } else {
+                GlyphSlot::Wide(idx)
+            };
 
             self.wide.put(cache_key, slot);
 

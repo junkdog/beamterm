@@ -44,18 +44,48 @@ fn run() -> Result<(), JsValue> {
     web_sys::console::log_1(&format!("Font: {} @ {}px", FONT_FAMILY, FONT_SIZE).into());
     web_sys::console::log_1(&format!("ZOOM: {}x", ZOOM).into());
     web_sys::console::log_1(&format!("width: {:.2}", metrics.width()).into());
-    web_sys::console::log_1(&format!("actual_bounding_box_ascent: {:.2}", metrics.actual_bounding_box_ascent()).into());
-    web_sys::console::log_1(&format!("actual_bounding_box_descent: {:.2}", metrics.actual_bounding_box_descent()).into());
-    web_sys::console::log_1(&format!("font_bounding_box_ascent: {:.2}", metrics.font_bounding_box_ascent()).into());
-    web_sys::console::log_1(&format!("font_bounding_box_descent: {:.2}", metrics.font_bounding_box_descent()).into());
-    web_sys::console::log_1(&format!(
-        "actual height (ascent+descent): {:.2}",
-        metrics.actual_bounding_box_ascent() + metrics.actual_bounding_box_descent()
-    ).into());
-    web_sys::console::log_1(&format!(
-        "font height (ascent+descent): {:.2}",
-        metrics.font_bounding_box_ascent() + metrics.font_bounding_box_descent()
-    ).into());
+    web_sys::console::log_1(
+        &format!(
+            "actual_bounding_box_ascent: {:.2}",
+            metrics.actual_bounding_box_ascent()
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "actual_bounding_box_descent: {:.2}",
+            metrics.actual_bounding_box_descent()
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "font_bounding_box_ascent: {:.2}",
+            metrics.font_bounding_box_ascent()
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "font_bounding_box_descent: {:.2}",
+            metrics.font_bounding_box_descent()
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "actual height (ascent+descent): {:.2}",
+            metrics.actual_bounding_box_ascent() + metrics.actual_bounding_box_descent()
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "font height (ascent+descent): {:.2}",
+            metrics.font_bounding_box_ascent() + metrics.font_bounding_box_descent()
+        )
+        .into(),
+    );
     web_sys::console::log_1(&"".into());
 
     // First, measure cell size by rasterizing the reference glyph
@@ -73,9 +103,23 @@ fn run() -> Result<(), JsValue> {
 
     web_sys::console::log_1(&"=== Cell Size Debug ===".into());
     web_sys::console::log_1(&format!("PADDING constant: {}px", PADDING).into());
-    web_sys::console::log_1(&format!("Reference glyph (█) dimensions: {}x{}", ref_glyph.width, ref_glyph.height).into());
-    web_sys::console::log_1(&format!("Padded cell size: {}x{}", padded_cell_w, padded_cell_h).into());
-    web_sys::console::log_1(&format!("Unpadded cell size: {}x{}", unpadded_cell_w, unpadded_cell_h).into());
+    web_sys::console::log_1(
+        &format!(
+            "Reference glyph (█) dimensions: {}x{}",
+            ref_glyph.width, ref_glyph.height
+        )
+        .into(),
+    );
+    web_sys::console::log_1(
+        &format!("Padded cell size: {}x{}", padded_cell_w, padded_cell_h).into(),
+    );
+    web_sys::console::log_1(
+        &format!(
+            "Unpadded cell size: {}x{}",
+            unpadded_cell_w, unpadded_cell_h
+        )
+        .into(),
+    );
     web_sys::console::log_1(&"".into());
 
     let test_glyphs: &[(&str, FontStyle)] = &[
@@ -87,10 +131,10 @@ fn run() -> Result<(), JsValue> {
         ("y", FontStyle::Normal),
         ("→", FontStyle::Normal),
         ("░", FontStyle::Normal),
-        ("─", FontStyle::Normal),  // box drawing horizontal
-        ("│", FontStyle::Normal),  // box drawing vertical
-        ("┌", FontStyle::Normal),  // box drawing corner
-        ("╔", FontStyle::Normal),  // box drawing double corner
+        ("─", FontStyle::Normal), // box drawing horizontal
+        ("│", FontStyle::Normal), // box drawing vertical
+        ("┌", FontStyle::Normal), // box drawing corner
+        ("╔", FontStyle::Normal), // box drawing double corner
         // Emoji (double-width)
         ("🚀", FontStyle::Normal), // rocket
         ("😀", FontStyle::Normal), // grinning face
