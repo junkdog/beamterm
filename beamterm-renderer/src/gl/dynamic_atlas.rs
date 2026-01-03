@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::{BTreeSet, HashMap},
     ops::Not,
@@ -10,7 +9,7 @@ use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compa
 use web_sys::WebGl2RenderingContext;
 
 use super::{
-    GL,
+    GL, atlas,
     atlas::{Atlas, GlyphSlot, GlyphTracker, SlotId},
     canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph},
     glyph_cache::GlyphCache,
@@ -311,7 +310,7 @@ impl Atlas for DynamicFontAtlas {
     /// than the encoded glyph ID scheme. Emoji are tracked via `GlyphSlot::Emoji`
     /// variant instead of a flag bit, so we only need 12 bits for the slot index.
     fn base_lookup_mask(&self) -> u32 {
-        0x0FFF
+        atlas::DYNAMIC_ATLAS_LOOKUP_MASK
     }
 }
 

@@ -5,7 +5,7 @@ use compact_str::{CompactString, ToCompactString};
 use web_sys::WebGl2RenderingContext;
 
 use super::{
-    GL,
+    GL, atlas,
     atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker},
 };
 use crate::error::Error;
@@ -232,12 +232,12 @@ impl Atlas for StaticFontAtlas {
         match self.glyph_coords.get(key) {
             Some(base_glyph_id) => {
                 let id = base_glyph_id | style_bits;
-                match () {
-                    _ if *base_glyph_id >= self.last_halfwidth_base_glyph_id => {
-                        Some(GlyphSlot::Wide(id))
-                    },
-                    _ if id & Glyph::EMOJI_FLAG != 0 => Some(GlyphSlot::Emoji(id)),
-                    _ => Some(GlyphSlot::Normal(id)),
+                if *base_glyph_id >= self.last_halfwidth_base_glyph_id {
+                    Some(GlyphSlot::Wide(id))
+                } else if id & Glyph::EMOJI_FLAG != 0 {
+                    Some(GlyphSlot::Emoji(id))
+                } else {
+                    Some(GlyphSlot::Normal(id))
                 }
             },
             None => {
@@ -252,6 +252,6 @@ impl Atlas for StaticFontAtlas {
     /// This 13-bit mask includes the emoji flag (bit 12) so that emoji base IDs
     /// can be extracted correctly for symbol lookup and texture coordinate calculation.
     fn base_lookup_mask(&self) -> u32 {
-        0x1FFF
+        atlas::STATIC_ATLAS_LOOKUP_MASK
     }
 }

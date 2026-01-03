@@ -1,10 +1,12 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashSet, fmt::Debug};
+use std::{cell::RefCell, collections::HashSet, fmt::Debug};
 
 use compact_str::CompactString;
 
 use crate::{DynamicFontAtlas, Error, StaticFontAtlas};
 
 pub(super) type SlotId = u16;
+pub(super) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
+pub(super) const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 
 /// Trait defining the interface for font atlases.
 pub(crate) trait Atlas {
