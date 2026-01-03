@@ -180,9 +180,7 @@ pub(crate) enum GlyphSlot {
 impl GlyphSlot {
     pub fn slot_id(&self) -> SlotId {
         match *self {
-            GlyphSlot::Normal(id)
-            | GlyphSlot::Wide(id)
-            | GlyphSlot::Emoji(id) => id,
+            GlyphSlot::Normal(id) | GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => id,
         }
     }
 
