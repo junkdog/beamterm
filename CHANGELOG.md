@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(atlas)* Add `DynamicFontAtlas` for on-demand glyph rasterization with LRU cache (#63)
+
 ## [beamterm-v0.10.0] - 2025-12-25
 
 ### 🚀 Features
@@ -20,6 +26,10 @@ All notable changes to this project will be documented in this file.
 
 - *(renderer)* Fix green tint in chrome-based browsers due to ANGLE uint bit operation bugs (AMD/Qualcomm)
 - *(renderer)* Fix vertical banding artifacts in chrome-based browsers due to ANGLE mediump precision issues
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.10.0
 
 ## [beamterm-v0.9.0] - 2025-12-07
 
