@@ -88,7 +88,7 @@ pub(crate) trait Atlas {
     fn base_lookup_mask(&self) -> u32;
 }
 
-pub struct FontAtlas {
+pub(crate) struct FontAtlas {
     inner: Box<dyn Atlas>,
 }
 
@@ -194,38 +194,38 @@ impl GlyphSlot {
 
 /// Tracks glyphs that were requested but not found in the font atlas.
 #[derive(Debug, Default)]
-pub struct GlyphTracker {
+pub(crate) struct GlyphTracker {
     missing: RefCell<HashSet<CompactString>>,
 }
 
 impl GlyphTracker {
     /// Creates a new empty glyph tracker.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { missing: RefCell::new(HashSet::new()) }
     }
 
     /// Records a glyph as missing.
-    pub fn record_missing(&self, glyph: &str) {
+    pub(crate) fn record_missing(&self, glyph: &str) {
         self.missing.borrow_mut().insert(glyph.into());
     }
 
     /// Returns a copy of all missing glyphs.
-    pub fn missing_glyphs(&self) -> HashSet<CompactString> {
+    pub(crate) fn missing_glyphs(&self) -> HashSet<CompactString> {
         self.missing.borrow().clone()
     }
 
     /// Clears all tracked missing glyphs.
-    pub fn clear(&self) {
+    pub(crate) fn clear(&self) {
         self.missing.borrow_mut().clear();
     }
 
     /// Returns the number of unique missing glyphs.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.missing.borrow().len()
     }
 
     /// Returns true if no glyphs are missing.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.missing.borrow().is_empty()
     }
 }

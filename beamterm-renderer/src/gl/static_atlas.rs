@@ -4,14 +4,11 @@ use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, ToCompactString};
 use web_sys::WebGl2RenderingContext;
 
-use crate::{
-    GlyphTracker,
-    error::Error,
-    gl::{
-        GL,
-        atlas::{Atlas, FontAtlas, GlyphSlot},
-    },
+use super::{
+    GL,
+    atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker},
 };
+use crate::error::Error;
 
 /// A texture atlas containing font glyphs for efficient WebGL text rendering.
 ///
@@ -26,7 +23,7 @@ use crate::{
 /// - Non-ASCII characters are stored in a hash map for layer lookup
 /// - All glyphs have uniform cell dimensions for consistent spacing
 #[derive(Debug)]
-pub struct StaticFontAtlas {
+pub(crate) struct StaticFontAtlas {
     /// The underlying texture
     texture: crate::gl::texture::Texture,
     /// Symbol to 3d texture index
@@ -51,13 +48,13 @@ pub struct StaticFontAtlas {
 
 impl StaticFontAtlas {
     /// Loads the default embedded font atlas.
-    pub fn load_default(gl: &web_sys::WebGl2RenderingContext) -> Result<Self, Error> {
+    fn load_default(gl: &web_sys::WebGl2RenderingContext) -> Result<Self, Error> {
         let config = FontAtlasData::default();
         Self::load(gl, config)
     }
 
     /// Creates a TextureAtlas from a grid of equal-sized cells
-    pub fn load(
+    pub(crate) fn load(
         gl: &web_sys::WebGl2RenderingContext,
         config: FontAtlasData,
     ) -> Result<Self, Error> {

@@ -26,7 +26,7 @@ pub(super) type CacheKey = (CompactString, FontStyle);
 ///
 /// - Normal region: slots 0-2047 (2048 single-width glyphs)
 /// - Wide region: slots 2048-4095 (1024 double-width glyphs, 2 slots each)
-pub struct GlyphCache {
+pub(super) struct GlyphCache {
     /// LRU for normal (single-width) glyphs
     normal: LruCache<CacheKey, GlyphSlot>,
     /// LRU for double-width glyphs
@@ -38,7 +38,7 @@ pub struct GlyphCache {
 }
 
 impl GlyphCache {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             normal: LruCache::unbounded(),
             wide: LruCache::unbounded(),
@@ -48,7 +48,7 @@ impl GlyphCache {
     }
 
     /// Gets the slot for a glyph, marking it as recently used.
-    pub fn get(&mut self, key: &str, style: FontStyle) -> Option<GlyphSlot> {
+    pub(super) fn get(&mut self, key: &str, style: FontStyle) -> Option<GlyphSlot> {
         let cache_key = (CompactString::new(key), style);
 
         match () {
@@ -75,7 +75,7 @@ impl GlyphCache {
     }
 
     /// Inserts a glyph, returning its slot. Evicts LRU if region is full.
-    pub fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
+    pub(super) fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
         // avoid inserting ASCII normal glyphs into cache
         if key.len() == 1 && style == FontStyle::Normal {
             let slot =
@@ -141,16 +141,16 @@ impl GlyphCache {
     }
 
     /// Returns total number of cached glyphs.
-    pub fn len(&self) -> usize {
+    pub(super) fn len(&self) -> usize {
         self.normal.len() + self.wide.len()
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(super) fn is_empty(&self) -> bool {
         self.normal.is_empty() && self.wide.is_empty()
     }
 
     /// Clears all cached glyphs.
-    pub fn clear(&mut self) {
+    pub(super) fn clear(&mut self) {
         self.normal.clear();
         self.wide.clear();
 
@@ -277,13 +277,15 @@ mod tests {
     fn test_style_differentiation() {
         let mut cache = GlyphCache::new();
 
-        // ASCII with Bold style uses cache (not fast path which is Normal-only)
+        // ASCII with Normal style uses fast path (not cache)
         let (slot1, _) = cache.insert("A", FontStyle::Normal);
+        // ASCII with Bold style uses cache (not fast path which is Normal-only)
         let (slot2, _) = cache.insert("A", FontStyle::Bold);
 
-        // Both go through cache since Bold doesn't use fast path
-        assert_eq!(slot1, GlyphSlot::Normal(FIRST_NORMAL_SLOT));
-        assert_eq!(slot2, GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1));
+        // Normal uses fast path: 'A' = 0x41 - 0x20 = 33
+        assert_eq!(slot1, GlyphSlot::Normal(33));
+        // Bold goes through cache
+        assert_eq!(slot2, GlyphSlot::Normal(FIRST_NORMAL_SLOT));
 
         // get() for Normal style uses fast path: 'A' = 0x41 - 0x20 = 33
         assert_eq!(
@@ -293,7 +295,7 @@ mod tests {
         // get() for Bold uses cache
         assert_eq!(
             cache.get("A", FontStyle::Bold),
-            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1))
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT))
         );
     }
 

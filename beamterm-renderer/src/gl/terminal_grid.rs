@@ -134,7 +134,7 @@ impl TerminalBuffers {
 }
 
 impl TerminalGrid {
-    pub fn new(
+    pub(crate) fn new(
         gl: &WebGl2RenderingContext,
         atlas: FontAtlas,
         screen_size: (i32, i32),
@@ -172,7 +172,7 @@ impl TerminalGrid {
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
-    pub fn atlas(&self) -> &FontAtlas {
+    pub(crate) fn atlas(&self) -> &FontAtlas {
         &self.atlas
     }
 

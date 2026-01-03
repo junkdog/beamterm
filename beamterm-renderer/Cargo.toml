@@ -23,10 +23,6 @@ exclude = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "rasterizer-test"
-path = "src/bin/rasterizer_test.rs"
-
 [dependencies]
 beamterm-data = { path = "../beamterm-data", version = "0.10.0" }
 compact_str = { workspace = true }

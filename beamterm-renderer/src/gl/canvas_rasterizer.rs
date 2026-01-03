@@ -54,7 +54,7 @@ pub(super) struct CellMetrics {
 
 /// Pixel data from a rasterized glyph.
 #[derive(Debug, Clone)]
-pub struct RasterizedGlyph {
+pub(crate) struct RasterizedGlyph {
     /// RGBA pixel data (4 bytes per pixel, row-major order)
     pub pixels: Vec<u8>,
     /// Width of the rasterized glyph in pixels
@@ -65,7 +65,7 @@ pub struct RasterizedGlyph {
 
 impl RasterizedGlyph {
     /// Returns true if the glyph produced no visible pixels.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.pixels
             .iter()
             .skip(3)
@@ -73,7 +73,7 @@ impl RasterizedGlyph {
             .all(|&a| a == 0)
     }
 
-    pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
+    pub(crate) fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self { pixels, width, height }
     }
 }
@@ -82,7 +82,7 @@ impl RasterizedGlyph {
 ///
 /// This rasterizer leverages the browser's native text rendering capabilities
 /// to handle complex Unicode rendering including emoji and fullwidth characters.
-pub struct CanvasRasterizer {
+pub(crate) struct CanvasRasterizer {
     canvas: OffscreenCanvas,
     render_ctx: OffscreenCanvasRenderingContext2d,
     font_family: CompactString,
@@ -96,7 +96,7 @@ impl CanvasRasterizer {
     /// # Returns
     ///
     /// A configured rasterizer context, or an error if canvas creation fails.
-    pub fn new(font_family: &str, font_size: f32) -> Result<Self, Error> {
+    pub(crate) fn new(font_family: &str, font_size: f32) -> Result<Self, Error> {
         let canvas = OffscreenCanvas::new(OFFSCREEN_CANVAS_WIDTH, OFFSCREEN_CANVAS_HEIGHT)
             .map_err(|e| Error::rasterizer_canvas_creation_failed(js_error_string(&e)))?;
 
@@ -135,7 +135,10 @@ impl CanvasRasterizer {
     /// with a single `getImageData()` call for efficiency.
     ///
     /// Double-width glyphs (emoji, CJK) will have `width = cell_width * 2`.
-    pub fn rasterize(&self, symbols: &[(&str, FontStyle)]) -> Result<Vec<RasterizedGlyph>, Error> {
+    pub(crate) fn rasterize(
+        &self,
+        symbols: &[(&str, FontStyle)],
+    ) -> Result<Vec<RasterizedGlyph>, Error> {
         if symbols.is_empty() {
             return Ok(Vec::new());
         }

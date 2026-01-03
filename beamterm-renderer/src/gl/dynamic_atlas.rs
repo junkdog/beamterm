@@ -9,16 +9,14 @@ use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
 use web_sys::WebGl2RenderingContext;
 
-use crate::{
-    CanvasRasterizer, GlyphTracker, RasterizedGlyph,
-    error::Error,
-    gl::{
-        GL,
-        atlas::{Atlas, GlyphSlot, SlotId},
-        glyph_cache::GlyphCache,
-        texture::Texture,
-    },
+use super::{
+    GL,
+    atlas::{Atlas, GlyphSlot, GlyphTracker, SlotId},
+    canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph},
+    glyph_cache::GlyphCache,
+    texture::Texture,
 };
+use crate::error::Error;
 
 /// Glyphs per layer (1x32 vertical grid)
 const GLYPHS_PER_LAYER: usize = 32;
@@ -42,7 +40,7 @@ const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 128 layers
 /// - LRU-based slot allocation with eviction when full
 /// - Double-width glyphs (emoji, CJK) occupy 2 consecutive slots
 /// - Glyphs are rasterized on first use and cached in the texture
-pub struct DynamicFontAtlas {
+pub(crate) struct DynamicFontAtlas {
     /// The underlying WebGL texture array (fixed size, allocated once)
     texture: Texture,
     /// The canvas rasterizer for on-demand glyph generation
@@ -70,7 +68,7 @@ impl DynamicFontAtlas {
     /// * `gl` - WebGL2 rendering context
     /// * `font_family` - CSS font-family string (e.g., "'JetBrains Mono', monospace")
     /// * `font_size` - Font size in pixels
-    pub fn new(
+    pub(crate) fn new(
         gl: &web_sys::WebGl2RenderingContext,
         font_family: &[&str],
         font_size: f32,
@@ -107,7 +105,7 @@ impl DynamicFontAtlas {
     /// Returns the slot ID for a cached glyph, if it exists.
     ///
     /// This does NOT rasterize missing glyphs - use `ensure_glyph` for that.
-    pub fn get_slot(&self, key: &str, style: FontStyle) -> Option<SlotId> {
+    fn get_slot(&self, key: &str, style: FontStyle) -> Option<SlotId> {
         self.cache
             .borrow_mut()
             .get(key, style)
@@ -119,7 +117,7 @@ impl DynamicFontAtlas {
     /// Rasterizes and uploads up to 32 glyphs per call.
     /// Double-width glyphs (emoji, CJK) are split into left/right halves
     /// and uploaded to two consecutive slots.
-    pub fn upload_pending_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+    fn upload_pending_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
         use super::canvas_rasterizer::RasterizedGlyph;
 
         if self.glyphs_pending_upload.is_empty() {
@@ -207,12 +205,12 @@ impl DynamicFontAtlas {
     }
 
     /// Returns the number of glyphs currently cached in the atlas.
-    pub fn glyph_count(&self) -> usize {
+    fn glyph_count(&self) -> usize {
         self.cache.borrow().len()
     }
 
     /// Clears all cached glyphs. They will be re-rasterized on next access.
-    pub fn clear(&self) {
+    fn clear(&self) {
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
     }

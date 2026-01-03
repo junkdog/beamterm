@@ -331,7 +331,7 @@ enum CanvasSource {
 ///
 /// ```rust,no_run
 /// // Simple terminal with default configuration
-/// use beamterm_renderer::{StaticFontAtlas, FontAtlasData, Terminal};
+/// use beamterm_renderer::{FontAtlasData, Terminal};
 ///
 /// let terminal = Terminal::builder("#canvas").build().unwrap();
 ///
