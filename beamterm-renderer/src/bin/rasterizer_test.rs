@@ -33,7 +33,7 @@ fn run() -> Result<(), JsValue> {
     // Disable image smoothing for crisp pixel scaling
     ctx.set_image_smoothing_enabled(false);
 
-    let rasterizer = CanvasRasterizer::new()?;
+    let rasterizer = CanvasRasterizer::new(FONT_FAMILY, FONT_SIZE)?;
 
     // Measure font metrics directly from canvas
     ctx.set_font(&format!("{}px {}", FONT_SIZE, FONT_FAMILY));
@@ -89,11 +89,7 @@ fn run() -> Result<(), JsValue> {
     web_sys::console::log_1(&"".into());
 
     // First, measure cell size by rasterizing the reference glyph
-    let reference = rasterizer
-        .begin_batch()
-        .font_family(FONT_FAMILY)
-        .font_size(FONT_SIZE)
-        .rasterize(&[("█", FontStyle::Normal)])?;
+    let reference = rasterizer.rasterize(&[("█", FontStyle::Normal)])?;
 
     let ref_glyph = &reference[0];
     let padded_cell_w = ref_glyph.width as i32;
@@ -146,11 +142,7 @@ fn run() -> Result<(), JsValue> {
         ("日", FontStyle::Normal),
     ];
 
-    let glyphs = rasterizer
-        .begin_batch()
-        .font_family(FONT_FAMILY)
-        .font_size(FONT_SIZE)
-        .rasterize(test_glyphs)?;
+    let glyphs = rasterizer.rasterize(test_glyphs)?;
 
     // Clear canvas
     ctx.set_fill_style_str("#1a1a2e");

@@ -57,10 +57,6 @@ pub struct DynamicFontAtlas {
     cell_size: (i32, i32),
     /// Tracks glyphs that were requested but couldn't be rasterized
     glyph_tracker: GlyphTracker,
-    /// Font family CSS string
-    font_family: CompactString,
-    /// Font size in pixels
-    font_size: f32,
     /// Underline configuration
     underline: LineDecoration,
     /// Strikethrough configuration
@@ -84,8 +80,8 @@ impl DynamicFontAtlas {
             .map(|&s| format_compact!("'{s}'"))
             .join_compact(", ");
 
-        let rasterizer = CanvasRasterizer::new()?;
-        let cell_size = Self::measure_cell_size(&rasterizer, &font_family, font_size)?;
+        let rasterizer = CanvasRasterizer::new(&font_family, font_size)?;
+        let cell_size = Self::measure_cell_size(&rasterizer)?;
         let padded_cell_size = (
             cell_size.0 + FontAtlasData::PADDING * 2,
             cell_size.1 + FontAtlasData::PADDING * 2,
@@ -100,8 +96,6 @@ impl DynamicFontAtlas {
             glyphs_pending_upload: PendingUploads::new(),
             cell_size,
             glyph_tracker: GlyphTracker::new(),
-            font_family,
-            font_size,
             underline: LineDecoration::new(0.9, 0.05), // near bottom, thin
             strikethrough: LineDecoration::new(0.5, 0.05), // middle, thin
         };
@@ -140,12 +134,7 @@ impl DynamicFontAtlas {
             .map(|g| (g.key.as_str(), g.style))
             .collect();
 
-        let rasterized = self
-            .rasterizer
-            .begin_batch()
-            .font_family(&self.font_family)
-            .font_size(self.font_size)
-            .rasterize(&graphemes)?;
+        let rasterized = self.rasterizer.rasterize(&graphemes)?;
 
         self.upload_glyphs(gl, pending, rasterized)?;
 
@@ -174,12 +163,7 @@ impl DynamicFontAtlas {
                 .map(|g| (g.key.as_str(), g.style))
                 .collect();
 
-            let rasterized = self
-                .rasterizer
-                .begin_batch()
-                .font_family(&self.font_family)
-                .font_size(self.font_size)
-                .rasterize(&graphemes)?;
+            let rasterized = self.rasterizer.rasterize(&graphemes)?;
 
             self.upload_glyphs(gl, batch_vec, rasterized)?;
         }
@@ -233,16 +217,8 @@ impl DynamicFontAtlas {
         self.symbol_lookup.borrow_mut().clear();
     }
 
-    fn measure_cell_size(
-        rasterizer: &CanvasRasterizer,
-        font_family: &str,
-        font_size: f32,
-    ) -> Result<(i32, i32), Error> {
-        let reference_glyphs = rasterizer
-            .begin_batch()
-            .font_family(font_family)
-            .font_size(font_size)
-            .rasterize(&[("█", FontStyle::Normal)])?;
+    fn measure_cell_size(rasterizer: &CanvasRasterizer) -> Result<(i32, i32), Error> {
+        let reference_glyphs = rasterizer.rasterize(&[("█", FontStyle::Normal)])?;
 
         if let Some(g) = reference_glyphs.first() {
             Ok((
@@ -367,8 +343,6 @@ impl std::fmt::Debug for DynamicFontAtlas {
         f.debug_struct("DynamicFontAtlas")
             .field("cell_size", &self.cell_size)
             .field("cache", &*self.cache.borrow())
-            .field("font_family", &self.font_family)
-            .field("font_size", &self.font_size)
             .finish_non_exhaustive()
     }
 }
