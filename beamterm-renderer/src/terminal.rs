@@ -614,12 +614,16 @@ impl TerminalDebugApi {
     pub fn get_symbol_lookup(&self) -> js_sys::Array {
         let grid = self.grid.borrow();
         let atlas = grid.atlas();
-        let mut glyphs: Vec<_> = atlas.get_symbol_lookup().iter().collect();
+
+        let mut glyphs: Vec<(u16, String)> = Vec::new();
+        atlas.for_each_symbol(&mut |glyph_id, symbol| {
+            glyphs.push((glyph_id, symbol.to_string()));
+        });
 
         glyphs.sort();
 
         let js_array = js_sys::Array::new();
-        for (glyph_id, symbol) in glyphs.into_iter() {
+        for (glyph_id, symbol) in glyphs.iter() {
             let obj = js_sys::Object::new();
             js_sys::Reflect::set(&obj, &"glyph_id".into(), &JsValue::from(*glyph_id)).unwrap();
             js_sys::Reflect::set(&obj, &"symbol".into(), &JsValue::from(symbol.as_str())).unwrap();

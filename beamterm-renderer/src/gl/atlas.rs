@@ -1,9 +1,4 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-};
+use std::{borrow::Cow, cell::RefCell, collections::HashSet, fmt::Debug};
 
 use compact_str::CompactString;
 
@@ -57,7 +52,11 @@ pub(crate) trait Atlas {
     /// This clears the cache - glyphs will be re-rasterized on next access.
     fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error>;
 
-    fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString>;
+    /// Iterates over all glyph ID to symbol mappings.
+    ///
+    /// Calls the provided closure for each (glyph_id, symbol) pair in the atlas.
+    /// This is used for debugging and exposing the atlas contents to JavaScript.
+    fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str));
 
     /// Resolves a glyph to its texture slot.
     ///
@@ -136,8 +135,8 @@ impl FontAtlas {
         self.inner.recreate_texture(gl)
     }
 
-    pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
-        self.inner.get_symbol_lookup()
+    pub(crate) fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
+        self.inner.for_each_symbol(f)
     }
 
     pub(crate) fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {

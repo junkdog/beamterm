@@ -1,12 +1,12 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     ops::Not,
 };
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
-use compact_str::{CompactString, CompactStringExt, format_compact};
+use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
 use once_cell::unsync::Lazy;
 use web_sys::WebGl2RenderingContext;
 
@@ -50,6 +50,8 @@ pub struct DynamicFontAtlas {
     rasterizer: CanvasRasterizer,
     /// Cache mapping graphemes to texture slots (RefCell for interior mutability)
     cache: RefCell<GlyphCache>,
+    /// Reverse lookup: slot ID to grapheme symbol
+    symbol_lookup: RefCell<HashMap<u16, CompactString>>,
     /// Tracks glyphs pending rasterization/upload
     glyphs_pending_upload: PendingUploads,
     /// The size of each character cell in pixels (without padding)
@@ -96,6 +98,7 @@ impl DynamicFontAtlas {
             texture,
             rasterizer,
             cache: RefCell::new(GlyphCache::new()),
+            symbol_lookup: RefCell::new(HashMap::new()),
             glyphs_pending_upload: PendingUploads::new(),
             cell_size,
             glyph_tracker: GlyphTracker::new(),
@@ -187,6 +190,7 @@ impl DynamicFontAtlas {
     /// Clears all cached glyphs. They will be re-rasterized on next access.
     pub fn clear(&self) {
         self.cache.borrow_mut().clear();
+        self.symbol_lookup.borrow_mut().clear();
     }
 
     fn measure_cell_size(
@@ -242,8 +246,10 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
-        // todo: dynamic atlas doesn't maintain a reverse lookup
-        None
+        self.symbol_lookup
+            .borrow()
+            .get(&glyph_id)
+            .map(|s| Cow::from(s.to_compact_string()))
     }
 
     fn glyph_tracker(&self) -> &GlyphTracker {
@@ -272,12 +278,15 @@ impl Atlas for DynamicFontAtlas {
         self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
         self.cache.borrow_mut().clear();
+        self.symbol_lookup.borrow_mut().clear();
 
         Ok(())
     }
 
-    fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
-        todo!()
+    fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
+        for (glyph_id, symbol) in self.symbol_lookup.borrow().iter() {
+            f(*glyph_id, symbol.as_str());
+        }
     }
 
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
@@ -289,6 +298,12 @@ impl Atlas for DynamicFontAtlas {
 
         // glyph not present, insert and mark for upload
         let (slot, _) = self.cache.borrow_mut().insert(key, style);
+
+        // add reverse lookup (base slot ID without style bits -> symbol)
+        let base_slot_id = slot.slot_id() & Glyph::GLYPH_ID_MASK;
+        self.symbol_lookup
+            .borrow_mut()
+            .insert(base_slot_id, CompactString::new(key));
 
         self.glyphs_pending_upload
             .add(PendingGlyph { slot, key: CompactString::new(key), style });

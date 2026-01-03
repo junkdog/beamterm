@@ -1,12 +1,8 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-};
+use std::{borrow::Cow, collections::HashMap};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, ToCompactString};
-use web_sys::{WebGl2RenderingContext, console};
+use web_sys::WebGl2RenderingContext;
 
 use crate::{
     GlyphTracker,
@@ -109,61 +105,6 @@ impl StaticFontAtlas {
 }
 
 impl Atlas for StaticFontAtlas {
-    /// Recreates the GPU texture after a WebGL context loss.
-    ///
-    /// This method rebuilds the texture from the retained atlas data. All glyph
-    /// mappings and other CPU-side state are preserved; only the GPU texture
-    /// handle is recreated.
-    ///
-    /// # Parameters
-    /// * `gl` - The new WebGL2 rendering context
-    ///
-    /// # Returns
-    /// * `Ok(())` - Texture successfully recreated
-    /// * `Err(Error)` - Failed to create texture
-    fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-        // Delete old texture if it exists (may be invalid after context loss)
-        self.texture.delete(gl);
-
-        // Recreate texture from retained atlas data
-        self.texture =
-            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
-
-        Ok(())
-    }
-
-    fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
-        &self.symbol_lookup
-    }
-
-    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
-        if key.len() == 1 {
-            let ch = key.chars().next().unwrap();
-            if ch.is_ascii() {
-                // 0x00..0x7f double as layer
-                let id = ch as u16;
-                return Some(GlyphSlot::Normal(id | style_bits));
-            }
-        }
-
-        match self.glyph_coords.get(key) {
-            Some(base_glyph_id) => {
-                let id = base_glyph_id | style_bits;
-                match () {
-                    _ if *base_glyph_id >= self.last_halfwidth_base_glyph_id => {
-                        Some(GlyphSlot::Wide(id))
-                    },
-                    _ if id & Glyph::EMOJI_FLAG != 0 => Some(GlyphSlot::Emoji(id)),
-                    _ => Some(GlyphSlot::Normal(id)),
-                }
-            },
-            None => {
-                self.glyph_tracker.record_missing(key);
-                None
-            },
-        }
-    }
-
     fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
         let base_id = self.get_base_glyph_id(key)?;
         Some(base_id | style_bits)
@@ -244,6 +185,71 @@ impl Atlas for StaticFontAtlas {
 
     fn flush(&self, _gl: &WebGl2RenderingContext) -> Result<(), Error> {
         Ok(()) // static atlas has no pending glyphs
+    }
+
+    /// Recreates the GPU texture after a WebGL context loss.
+    ///
+    /// This method rebuilds the texture from the retained atlas data. All glyph
+    /// mappings and other CPU-side state are preserved; only the GPU texture
+    /// handle is recreated.
+    ///
+    /// # Parameters
+    /// * `gl` - The new WebGL2 rendering context
+    ///
+    /// # Returns
+    /// * `Ok(())` - Texture successfully recreated
+    /// * `Err(Error)` - Failed to create texture
+    fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        // Delete old texture if it exists (may be invalid after context loss)
+        self.texture.delete(gl);
+
+        // Recreate texture from retained atlas data
+        self.texture =
+            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
+
+        Ok(())
+    }
+
+    fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
+        // ASCII printable characters (0x20..0x80)
+        for code in 0x20u16..0x80 {
+            let ch = code as u8 as char;
+            let mut buf = [0u8; 4];
+            let s = ch.encode_utf8(&mut buf);
+            f(code, s);
+        }
+        // Non-ASCII glyphs from symbol lookup
+        for (glyph_id, symbol) in &self.symbol_lookup {
+            f(*glyph_id, symbol.as_str());
+        }
+    }
+
+    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+        if key.len() == 1 {
+            let ch = key.chars().next().unwrap();
+            if ch.is_ascii() {
+                // 0x00..0x7f double as layer
+                let id = ch as u16;
+                return Some(GlyphSlot::Normal(id | style_bits));
+            }
+        }
+
+        match self.glyph_coords.get(key) {
+            Some(base_glyph_id) => {
+                let id = base_glyph_id | style_bits;
+                match () {
+                    _ if *base_glyph_id >= self.last_halfwidth_base_glyph_id => {
+                        Some(GlyphSlot::Wide(id))
+                    },
+                    _ if id & Glyph::EMOJI_FLAG != 0 => Some(GlyphSlot::Emoji(id)),
+                    _ => Some(GlyphSlot::Normal(id)),
+                }
+            },
+            None => {
+                self.glyph_tracker.record_missing(key);
+                None
+            },
+        }
     }
 
     fn base_lookup_mask(&self) -> u32 {
