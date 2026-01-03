@@ -15,7 +15,7 @@ integrations.
 ## Key Features
 
 - **Single Draw Call** - Renders entire terminal (e.g., 200×80 cells) in one instanced draw
-- **Zero-Copy Updates** - Direct memory mapping for dynamic cell updates
+- **Flexible Font Atlases** - Static pre-generated atlases or dynamic on-demand rasterization with LRU caching
 - **Unicode and Emoji Support** - Complete Unicode support with grapheme clustering
 - **Selection Support** - Mouse-driven text selection with clipboard integration (Block/Linear modes)
 - **Optional JS/TS Bindings** - Provides a [JavaScript/TypeScript API](js/README.md) for easy integration
