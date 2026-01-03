@@ -46,7 +46,7 @@ maintaining sub-millisecond render times on 2019-era hardware (i9-9900K / RTX 20
 
 The renderer consists of three crates:
 
-**`beamterm-atlas`** - Generates GPU-optimized font atlases from TTF/OTF files. Automatically 
+**`beamterm-atlas`** - Generates GPU-optimized static font atlases from TTF/OTF files. Automatically
 calculates cell dimensions, supports font styles (normal/bold/italic), and outputs packed
 texture data.
 
@@ -55,6 +55,48 @@ versioned format with header validation and cross-platform encoding.
 
 **`beamterm-renderer`** - The WebGL2 rendering engine. Implements instanced rendering with optimized
 buffer management and state tracking for consistent sub-millisecond performance.
+
+
+## Font Atlas Types
+
+beamterm supports two font atlas strategies, each with different trade-offs:
+
+### Static Font Atlas (Default)
+
+Pre-generated atlas loaded from a binary `.atlas` file. Best when character sets are
+known and consistent rendering is required.
+
+**Usage:**
+```rust
+// Uses embedded default atlas
+let terminal = Terminal::builder("#canvas").build()?;
+
+// Or load a custom atlas
+let atlas_data = FontAtlasData::load("custom.atlas")?;
+let terminal = Terminal::builder("#canvas")
+    .font_atlas(atlas_data)
+    .build()?;
+```
+
+Generate custom atlases with the `beamterm-atlas` CLI tool (see [beamterm-atlas/README.md](beamterm-atlas/README.md)).
+
+### Dynamic Font Atlas
+
+Rasterizes glyphs on-demand using the browser's Canvas API. Handles unpredictable content and can
+use any system font without pre-generation.
+
+**Usage:**
+```rust
+let terminal = Terminal::builder("#canvas")
+    .dynamic_font_atlas(&["JetBrains Mono", "Fira Code"], 16.0)
+    .build()?;
+```
+
+**How it works:**
+- Glyphs are rasterized on first use via `OffscreenCanvas`
+- ASCII characters (0x20-0x7E) are pre-loaded at startup
+- Double-width characters (emoji, CJK) automatically use two consecutive texture slots
+- 4096 total glyph slots (2048 single-width + 1024 double-width)
 
 
 ## Architecture Overview
@@ -138,10 +180,13 @@ Each terminal cell requires:
 
 ## Font Atlas 2D Texture Array Architecture
 
-The font atlas uses a WebGL 2D texture array where each layer contains a 1×32 grid of glyphs (32
-per layer). This provides optimal memory utilization and cache efficiency while maintaining O(1)
-coordinate lookups through simple bit operations. The system supports 1024 base glyphs per font
-style and 2048 emoji (using 4096 glyph IDs).
+Both atlas types use a WebGL 2D texture array where each layer contains a 1×32 grid of glyphs.
+However, they differ significantly in how glyphs are addressed and organized.
+
+### Static Atlas: Style-Encoded Glyph IDs
+
+The static atlas uses 16-bit glyph IDs with style information encoded directly in the ID.
+This allows the GPU to compute texture coordinates from the ID alone.
 
 | Layer Range | Style          | Glyph ID Range | Total Layers |
 |-------------|----------------|----------------|--------------|
@@ -154,13 +199,15 @@ style and 2048 emoji (using 4096 glyph IDs).
 Each font style reserves exactly 32 layers (1024 glyph slots), creating gaps if fewer glyphs are used.
 Emoji layers start at layer 128, regardless of how many base glyphs are actually defined.
 
-### Glyph ID Encoding and Mapping
+**Texture lookup mask:** `0x1FFF` (13 bits) - includes style bits for layer calculation.
+
+#### Glyph ID Encoding (Static Atlas)
 
 The glyph ID is a 16-bit value that efficiently packs both the base glyph identifier
 and style information (such as weight, style flags, etc.) into a single value. This
 packed representation is passed directly to the GPU.
 
-### Glyph ID Bit Layout (16-bit)
+#### Glyph ID Bit Layout (16-bit)
 
 | Bit(s) | Flag Name     | Hex Mask | Binary Mask           | Description               |
 |--------|---------------|----------|-----------------------|---------------------------|
@@ -208,12 +255,40 @@ The atlas stores these as left/right half-pairs with consecutive glyph IDs:
 
 Both types are rasterized at 2× cell width, then split into left (even ID) and right (odd ID) halves.
 
+
 ### ASCII Optimization
 
 Non-ASCII character lookups use a HashMap to find their glyph IDs. ASCII characters (0-127) bypass
 the HashMap lookup entirely through direct bit manipulation. For ASCII input, the glyph ID is computed
 as `char_code | style_bits`, providing zero-overhead character mapping. This approach optimizes for
 the common case while maintaining full Unicode capability.
+
+### Dynamic Atlas: Flat Slot Addressing
+
+The dynamic atlas uses a simpler flat addressing scheme with 12-bit slot IDs. Font styles are
+tracked separately in a cache rather than encoded in the slot ID.
+
+| Slot Range  | Purpose                     | Capacity                    |
+|-------------|-----------------------------|-----------------------------|
+| 0-94        | ASCII (Normal style only)   | 95 pre-allocated slots      |
+| 95-2047     | Normal glyphs (any style)   | 1953 LRU-managed slots      |
+| 2048-4095   | Wide glyphs (emoji, CJK)    | 1024 glyphs × 2 slots each  |
+
+**Key differences from static atlas:**
+- **No style encoding in ID**: 'A' _italic_ and 'A' _bold_ occupy separate slots rather than computed IDs (0x0041 vs 0x0441)
+- **LRU eviction**: When a region fills up, least-recently-used glyphs are evicted and re-rasterized on next access
+- **On-demand rasterization**: Glyphs are rendered via `OffscreenCanvas` when first encountered
+- **Texture lookup mask:** `0x0FFF` (12 bits) - flat slot index without style bits
+
+**Slot to texture coordinate:**
+```
+layer = slot / 32
+position = slot % 32
+```
+
+ASCII characters (0x20-0x7E) in _normal_ style are pre-loaded at startup and occupy fixed slots 0-94, requiring
+no HashMap lookup for mapping. All other characters and styles are dynamically managed.
+
 
 ## GPU Buffer Architecture
 
@@ -295,7 +370,7 @@ ANGLE bugs affecting uint bit operations on certain GPU drivers (AMD, Qualcomm).
 Performs the core rendering logic with efficient 2D array texture lookups:
 
 - Uses pre-extracted glyph ID and colors from vertex shader
-- Masks with `0x1FFF` to exclude effect flags before computing layer index (glyph_id → layer/position)
+- Masks glyph ID with a configurable uniform (`0x1FFF` for static atlas, `0x0FFF` for dynamic) to compute layer index
 - Computes layer index and vertical position using bit operations
 - Samples from 2D texture array using direct layer indexing
 - Detects emoji glyphs via bit 12 for special color handling

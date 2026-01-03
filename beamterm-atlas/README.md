@@ -1,6 +1,6 @@
 # beamterm-atlas
 
-A font atlas generator for WebGL terminal renderers, optimized for GPU texture memory and
+A static font atlas generator for WebGL terminal renderers, optimized for GPU texture memory and
 rendering efficiency.
 
 ## Overview
@@ -8,6 +8,11 @@ rendering efficiency.
 `beamterm-atlas` generates tightly-packed 2D texture array atlases from TTF/OTF font files, producing a
 binary format optimized for GPU upload. The system supports multiple font styles, full Unicode
 including emoji, and automatic grapheme clustering.
+
+This tool is used for generating **static font atlases** - pre-built atlas files that are loaded
+at runtime. For applications where the required character set isn't known at build time, consider
+using `beamterm-renderer`'s **dynamic font atlas** which rasterizes glyphs on-demand using the
+browser's Canvas API (see [main README](../README.md#dynamic-font-atlas)).
 
 ## Architecture
 

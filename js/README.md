@@ -53,8 +53,15 @@ import { main as init, style, cell, BeamtermRenderer, SelectionMode } from '@bea
 // Initialize WASM module
 await init();
 
-// Create renderer attached to canvas
+// Create renderer with embedded static atlas (default)
 const renderer = new BeamtermRenderer('#terminal');
+
+// Or use a dynamic font atlas with any system font
+const dynamicRenderer = BeamtermRenderer.withDynamicAtlas(
+    '#terminal',
+    ['JetBrains Mono', 'Fira Code'],  // font fallback chain
+    16.0                               // font size in pixels
+);
 
 // Get terminal dimensions
 const size = renderer.terminalSize();
@@ -113,8 +120,21 @@ async function createTerminal(): Promise<void> {
 The main renderer class that manages the WebGL2 context and rendering pipeline.
 
 ```javascript
+// Using embedded static font atlas (default)
 const renderer = new BeamtermRenderer(canvasSelector);
+
+// Using dynamic font atlas with browser fonts
+const renderer = BeamtermRenderer.withDynamicAtlas(canvasSelector, fontFamilies, fontSize);
 ```
+
+#### Static Methods
+
+- **`withDynamicAtlas(canvasSelector, fontFamilies, fontSize)`**: Create a renderer with a dynamic
+  font atlas that rasterizes glyphs on-demand using browser fonts. Best when character set isn't
+  known at build time.
+  - `canvasSelector`: CSS selector for the canvas element
+  - `fontFamilies`: Array of font family names (e.g., `['JetBrains Mono', 'Fira Code']`)
+  - `fontSize`: Font size in pixels
 
 #### Methods
 
