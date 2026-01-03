@@ -74,26 +74,16 @@ impl GlyphCache {
         }
     }
 
-    /// Checks if a glyph is in the cache.
-    pub fn contains(&self, key: &str, style: FontStyle) -> bool {
-        let cache_key = (CompactString::new(key), style);
-
-        match () {
-            // emoji glyphs disregard style
-            _ if emojis::get(key).is_some() => self
-                .wide
-                .contains(&(CompactString::new(key), FontStyle::Normal)),
-
-            // double-width glyphs
-            _ if key.width() == 2 => self.wide.contains(&cache_key),
-
-            // normal glyphs
-            _ => self.normal.contains(&cache_key),
-        }
-    }
-
     /// Inserts a glyph, returning its slot. Evicts LRU if region is full.
     pub fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
+        // avoid inserting ASCII normal glyphs into cache
+        if key.len() == 1 && style == FontStyle::Normal {
+            let slot = GlyphSlot::Normal(
+                (key.chars().next().unwrap() as SlotId).saturating_sub(0x20),
+            );
+            return (slot, None);
+        }
+
         let cache_key = (CompactString::new(key), style);
         let is_emoji = emojis::get(key).is_some();
         let double_width = is_emoji || key.width() == 2;
@@ -164,7 +154,8 @@ impl GlyphCache {
     pub fn clear(&mut self) {
         self.normal.clear();
         self.wide.clear();
-        self.normal_next = 0;
+
+        self.normal_next = ASCII_SLOTS;
         self.wide_next = WIDE_BASE;
     }
 }

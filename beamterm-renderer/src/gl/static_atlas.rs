@@ -252,6 +252,10 @@ impl Atlas for StaticFontAtlas {
         }
     }
 
+    /// Returns `0x1FFF` to support the full glyph encoding from `beamterm-atlas`.
+    ///
+    /// This 13-bit mask includes the emoji flag (bit 12) so that emoji base IDs
+    /// can be extracted correctly for symbol lookup and texture coordinate calculation.
     fn base_lookup_mask(&self) -> u32 {
         0x1FFF
     }

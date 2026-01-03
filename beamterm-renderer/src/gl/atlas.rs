@@ -67,6 +67,24 @@ pub(crate) trait Atlas {
     /// rendering to populate the texture.
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
 
+    /// Returns the bitmask for extracting the base glyph ID from a styled glyph ID.
+    ///
+    /// The glyph ID encodes both the base glyph index and style/effect flags. This mask
+    /// isolates the base ID portion, which is used for texture coordinate calculation
+    /// and symbol reverse-lookup.
+    ///
+    /// # Implementation Differences
+    ///
+    /// - **`StaticFontAtlas`** returns `0x1FFF` (13 bits):
+    ///   - Bits 0-9: Base glyph ID (1024 values for regular glyphs)
+    ///   - Bits 10-11: Reserved for font style derivation
+    ///   - Bit 12: Emoji flag (included in mask for emoji base ID extraction)
+    ///   - Supports the full glyph ID encoding scheme from `beamterm-atlas`
+    ///
+    /// - **`DynamicFontAtlas`** returns `0x0FFF` (12 bits):
+    ///   - Uses a flat slot-based addressing (4096 total slots)
+    ///   - Emoji are tracked via `GlyphSlot::Emoji` variant rather than a flag bit
+    ///   - Simpler addressing since glyphs are assigned sequentially at runtime
     fn base_lookup_mask(&self) -> u32;
 }
 

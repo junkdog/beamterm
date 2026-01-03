@@ -54,9 +54,16 @@ impl Texture {
 
     /// Creates an empty texture array for dynamic glyph rasterization.
     ///
+    /// Allocates a fixed-size 2D texture array and initializes all layers to transparent
+    /// black (RGBA 0,0,0,0).
+    ///
+    /// **LRU eviction**: When the glyph cache evicts old entries, the texture slots
+    /// are reused. The new glyph completely overwrites the slot, so no explicit
+    /// clearing is needed on eviction.
+    ///
     /// # Arguments
     /// * `gl` - WebGL2 context
-    /// * `format` - Texture format (typically RGBA)
+    /// * `format` - Texture format
     /// * `cell_size` - (width, height) of each glyph cell in pixels
     /// * `initial_layers` - Number of texture layers to allocate initially
     pub(super) fn for_dynamic_font_atlas(
@@ -87,25 +94,25 @@ impl Texture {
             initial_layers,
         );
 
-        // Clear to transparent black
-        let empty_data = vec![0u8; (width * height * 4) as usize];
-        for layer in 0..initial_layers {
-            gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
-                GL::TEXTURE_2D_ARRAY,
-                0,
-                0,
-                0,
-                layer,
-                width,
-                height,
-                1,
-                GL::RGBA,
-                GL::UNSIGNED_BYTE,
-                Some(&empty_data),
-                0,
-            )
-            .map_err(|_| Error::texture_creation_failed())?;
-        }
+        // Initialize all layers to transparent black to prevent undefined memory artifacts.
+        // See doc comment above for rationale. We upload all layers in a single call to
+        // minimize GPU state changes (1 call vs 128 per-layer calls).
+        let empty_data = vec![0u8; (width * height * initial_layers * 4) as usize];
+        gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
+            GL::TEXTURE_2D_ARRAY,
+            0,     // mip level
+            0,     // x offset
+            0,     // y offset
+            0,     // z offset (first layer)
+            width,
+            height,
+            initial_layers, // all layers at once
+            GL::RGBA,
+            GL::UNSIGNED_BYTE,
+            Some(&empty_data),
+            0,
+        )
+        .map_err(|_| Error::texture_creation_failed())?;
 
         Self::setup_mipmap(gl);
 
@@ -161,16 +168,6 @@ impl Texture {
     /// Returns the texture dimensions (width, height, layers)
     pub(super) fn dimensions(&self) -> (i32, i32, i32) {
         self.dimensions
-    }
-
-    pub(super) fn update_texture_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        cell_size: (i32, i32),
-        glyphs: &[Glyph],
-    ) -> Result<(), Error> {
-        // TODO: implement batch update if needed
-        Ok(())
     }
 
     pub fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {

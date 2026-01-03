@@ -121,11 +121,6 @@ impl DynamicFontAtlas {
             .map(|slot| slot.slot_id())
     }
 
-    /// Checks if a glyph is in the cache without updating access order.
-    pub fn contains(&self, key: &str, style: FontStyle) -> bool {
-        self.cache.borrow().contains(key, style)
-    }
-
     /// Uploads pending glyphs to the texture.
     ///
     /// Rasterizes and uploads up to 32 glyphs per call.
@@ -328,6 +323,8 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
 
+        self.upload_ascii_glyphs(gl);
+
         Ok(())
     }
 
@@ -339,13 +336,14 @@ impl Atlas for DynamicFontAtlas {
 
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         let style = FontStyle::from_u16(style_bits & FontStyle::MASK);
-        let glyph = self.cache.borrow_mut().get(key, style);
+        let mut cache = self.cache.borrow_mut();
+        let glyph = cache.get(key, style);
         if glyph.is_some() {
             return glyph;
         }
 
         // glyph not present, insert and mark for upload
-        let (slot, _) = self.cache.borrow_mut().insert(key, style);
+        let (slot, _) = cache.insert(key, style);
 
         // add reverse lookup
         self.symbol_lookup
@@ -358,6 +356,11 @@ impl Atlas for DynamicFontAtlas {
         Some(slot)
     }
 
+    /// Returns `0x0FFF` for flat 12-bit slot addressing.
+    ///
+    /// The dynamic atlas uses sequential slot assignment (4096 total slots) rather
+    /// than the encoded glyph ID scheme. Emoji are tracked via `GlyphSlot::Emoji`
+    /// variant instead of a flag bit, so we only need 12 bits for the slot index.
     fn base_lookup_mask(&self) -> u32 {
         0x0FFF
     }
