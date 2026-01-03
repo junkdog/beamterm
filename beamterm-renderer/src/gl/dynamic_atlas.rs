@@ -293,7 +293,7 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
 
-        self.upload_ascii_glyphs(gl);
+        self.upload_ascii_glyphs(gl)?;
 
         Ok(())
     }

@@ -98,19 +98,20 @@ class TerminalApp {
         const windowY = 6;
         const windowHeight = this.rows - 10;
 
-        // Demo content inside window
+        // Demo content showcasing dynamic atlas capabilities
         const demoLines = [
             { text: "$ npm create beamterm-app my-terminal", color: tokyoNight.fg },
             { text: "✓ Created project structure", color: tokyoNight.success },
             { text: "✓ Installed dependencies", color: tokyoNight.success },
             { text: "✓ Generated WebGL shaders", color: tokyoNight.success },
             { text: "", color: tokyoNight.fg },
-            { text: "$ cd my-terminal && npm run dev", color: tokyoNight.fg },
-            { text: "  VITE v5.0.0  ready in 324 ms", color: tokyoNight.secondary },
+            { text: "# Dynamic atlas: emoji, CJK, and more! 🎉", color: tokyoNight.warning },
+            { text: "  Emoji:  🚀 🔥 ✨ 🎮 🎯 💻 🦀 📦", color: tokyoNight.fg },
+            { text: "  CJK:    日本語 中文 한국어", color: tokyoNight.fg },
+            { text: "  Arrows: ← → ↑ ↓ ⇐ ⇒ ⇑ ⇓", color: tokyoNight.fg },
+            { text: "  Math:   ∑ ∏ ∫ √ ∞ ≈ ≠ ≤ ≥", color: tokyoNight.fg },
             { text: "", color: tokyoNight.fg },
-            { text: "  ➜  Local:   http://localhost:5173/", color: tokyoNight.primary },
-            { text: "  ➜  Network: use --host to expose", color: tokyoNight.primary },
-            { text: "  ➜  press h + enter to show help", color: tokyoNight.fg },
+            { text: "  ➜  Fonts rasterized on-demand via Canvas API", color: tokyoNight.primary },
         ];
 
         demoLines.forEach((line, i) => {
@@ -121,7 +122,7 @@ class TerminalApp {
     }
 
     private drawStatus(batch: Batch): void {
-        const status = `Cols: ${this.cols} | Rows: ${this.rows} | Batch API | Ready`;
+        const status = `${this.cols}x${this.rows} | Dynamic Atlas | Ready`;
         const y = this.rows - 2;
 
         // Draw status bar background
@@ -161,8 +162,12 @@ async function main() {
     // Initialize WASM module
     await init();
 
-    // Create renderer
-    const renderer = new BeamtermRenderer('#terminal');
+    // Create renderer with dynamic font atlas using browser fonts
+    const renderer = BeamtermRenderer.withDynamicAtlas(
+        '#terminal',
+        ['JetBrains Mono', 'Fira Code', 'Cascadia Code'],
+        16.0
+    );
     const app = new TerminalApp(renderer);
 
     // Set initial canvas size
