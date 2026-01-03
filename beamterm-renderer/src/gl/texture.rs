@@ -100,10 +100,10 @@ impl Texture {
         let empty_data = vec![0u8; (width * height * initial_layers * 4) as usize];
         gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
             GL::TEXTURE_2D_ARRAY,
-            0,     // mip level
-            0,     // x offset
-            0,     // y offset
-            0,     // z offset (first layer)
+            0, // mip level
+            0, // x offset
+            0, // y offset
+            0, // z offset (first layer)
             width,
             height,
             initial_layers, // all layers at once

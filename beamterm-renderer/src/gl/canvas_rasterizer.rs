@@ -35,9 +35,10 @@
 //! ```
 
 use beamterm_data::{FontAtlasData, FontStyle};
-use compact_str::{CompactString, CompactStringExt, format_compact};
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
+
+use crate::error::Error;
 
 // padding around glyphs matches StaticFontAtlas to unify texture packing.
 const PADDING: u32 = FontAtlasData::PADDING as u32;
@@ -97,13 +98,16 @@ impl CanvasRasterizer {
     /// # Returns
     ///
     /// A configured rasterizer context, or an error if canvas creation fails.
-    pub fn new() -> Result<Self, JsValue> {
-        let canvas = OffscreenCanvas::new(OFFSCREEN_CANVAS_WIDTH, OFFSCREEN_CANVAS_HEIGHT)?;
+    pub fn new() -> Result<Self, Error> {
+        let canvas = OffscreenCanvas::new(OFFSCREEN_CANVAS_WIDTH, OFFSCREEN_CANVAS_HEIGHT)
+            .map_err(|e| Error::rasterizer_canvas_creation_failed(js_error_string(&e)))?;
 
         let ctx = canvas
-            .get_context("2d")?
-            .ok_or_else(|| JsValue::from_str("Failed to get 2d context"))?
-            .dyn_into::<OffscreenCanvasRenderingContext2d>()?;
+            .get_context("2d")
+            .map_err(|e| Error::rasterizer_canvas_creation_failed(js_error_string(&e)))?
+            .ok_or_else(Error::rasterizer_context_failed)?
+            .dyn_into::<OffscreenCanvasRenderingContext2d>()
+            .map_err(|_| Error::rasterizer_context_failed())?;
 
         ctx.set_text_baseline("top");
         ctx.set_text_align("left");
@@ -120,7 +124,7 @@ impl CanvasRasterizer {
 
     /// Measures cell size by rendering "█" and scanning actual pixel bounds.
     /// This is more accurate than text metrics which can have rounding issues.
-    pub(super) fn measure_cell_metrics(&self) -> Result<CellMetrics, JsValue> {
+    pub(super) fn measure_cell_metrics(&self) -> Result<CellMetrics, Error> {
         let buffer_size = 128u32;
         let draw_offset = 16.0; // Draw with offset to capture any negative positioning
 
@@ -128,11 +132,13 @@ impl CanvasRasterizer {
             .clear_rect(0.0, 0.0, buffer_size as f64, buffer_size as f64);
         self.render_ctx.set_fill_style_str("white");
         self.render_ctx
-            .fill_text("█", draw_offset, draw_offset)?;
+            .fill_text("█", draw_offset, draw_offset)
+            .map_err(|e| Error::rasterizer_measure_failed(js_error_string(&e)))?;
 
-        let image_data =
-            self.render_ctx
-                .get_image_data(0.0, 0.0, buffer_size as f64, buffer_size as f64)?;
+        let image_data = self
+            .render_ctx
+            .get_image_data(0.0, 0.0, buffer_size as f64, buffer_size as f64)
+            .map_err(|e| Error::rasterizer_measure_failed(js_error_string(&e)))?;
 
         let pixels = image_data.data();
 
@@ -223,18 +229,18 @@ impl<'a> RasterizeGlyphs<'a> {
     pub fn rasterize(
         mut self,
         symbols: &[(&'a str, FontStyle)],
-    ) -> Result<Vec<RasterizedGlyph>, JsValue> {
+    ) -> Result<Vec<RasterizedGlyph>, Error> {
         if symbols.is_empty() {
             return Ok(Vec::new());
         }
 
         let font_family = self
             .font_family
-            .ok_or_else(|| JsValue::from_str("font_family must be set before rasterizing"))?;
+            .ok_or_else(Error::rasterizer_missing_font_family)?;
 
         let font_size = self
             .font_size
-            .ok_or_else(|| JsValue::from_str("font_size must be set before rasterizing"))?;
+            .ok_or_else(Error::rasterizer_missing_font_size)?;
 
         self.rasterizer
             .render_ctx
@@ -279,16 +285,16 @@ impl<'a> RasterizeGlyphs<'a> {
             let y = (i as u32 * cell_h) as f64;
             self.rasterizer
                 .render_ctx
-                .fill_text(grapheme, PADDING as f64, y + y_offset)?;
+                .fill_text(grapheme, PADDING as f64, y + y_offset)
+                .map_err(|e| Error::rasterizer_fill_text_failed(grapheme, js_error_string(&e)))?;
         }
 
         // extract all pixels at once
-        let image_data = self.rasterizer.render_ctx.get_image_data(
-            0.0,
-            0.0,
-            canvas_width as f64,
-            canvas_height as f64,
-        )?;
+        let image_data = self
+            .rasterizer
+            .render_ctx
+            .get_image_data(0.0, 0.0, canvas_width as f64, canvas_height as f64)
+            .map_err(|e| Error::rasterizer_get_image_data_failed(js_error_string(&e)))?;
         let all_pixels = image_data.data().to_vec();
 
         // split into individual glyphs
@@ -317,7 +323,7 @@ impl<'a> RasterizeGlyphs<'a> {
         Ok(results)
     }
 
-    fn resolve_cell_metrics(&mut self) -> Result<CellMetrics, JsValue> {
+    fn resolve_cell_metrics(&mut self) -> Result<CellMetrics, Error> {
         if let Some(metrics) = self.cell_metrics {
             return Ok(metrics);
         }
@@ -327,6 +333,12 @@ impl<'a> RasterizeGlyphs<'a> {
 
         Ok(metrics)
     }
+}
+
+/// Converts a JsValue error to a displayable string for error messages.
+fn js_error_string(err: &JsValue) -> String {
+    err.as_string()
+        .unwrap_or_else(|| format!("{err:?}"))
 }
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).

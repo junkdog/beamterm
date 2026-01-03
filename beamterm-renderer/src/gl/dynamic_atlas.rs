@@ -84,8 +84,7 @@ impl DynamicFontAtlas {
             .map(|&s| format_compact!("'{s}'"))
             .join_compact(", ");
 
-        let rasterizer =
-            CanvasRasterizer::new().map_err(|_| Error::rasterizer_canvas_creation_failed())?;
+        let rasterizer = CanvasRasterizer::new()?;
         let cell_size = Self::measure_cell_size(&rasterizer, &font_family, font_size)?;
         let padded_cell_size = (
             cell_size.0 + FontAtlasData::PADDING * 2,
@@ -146,8 +145,7 @@ impl DynamicFontAtlas {
             .begin_batch()
             .font_family(&self.font_family)
             .font_size(self.font_size)
-            .rasterize(&graphemes)
-            .map_err(|_| Error::rasterizer_failed())?;
+            .rasterize(&graphemes)?;
 
         self.upload_glyphs(gl, pending, rasterized)?;
 
@@ -181,8 +179,7 @@ impl DynamicFontAtlas {
                 .begin_batch()
                 .font_family(&self.font_family)
                 .font_size(self.font_size)
-                .rasterize(&graphemes)
-                .map_err(|_| Error::rasterizer_failed())?;
+                .rasterize(&graphemes)?;
 
             self.upload_glyphs(gl, batch_vec, rasterized)?;
         }
@@ -245,8 +242,7 @@ impl DynamicFontAtlas {
             .begin_batch()
             .font_family(font_family)
             .font_size(font_size)
-            .rasterize(&[("█", FontStyle::Normal)])
-            .map_err(|_| Error::texture_creation_failed())?;
+            .rasterize(&[("█", FontStyle::Normal)])?;
 
         if let Some(g) = reference_glyphs.first() {
             Ok((
@@ -254,7 +250,7 @@ impl DynamicFontAtlas {
                 g.height as i32 - FontAtlasData::PADDING * 2,
             ))
         } else {
-            Err(Error::texture_creation_failed())
+            Err(Error::rasterizer_empty_reference_glyph())
         }
     }
 }

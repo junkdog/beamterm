@@ -20,6 +20,10 @@ pub enum Error {
     /// Event listener errors, related to mouse input handling.
     #[error("Event listener error: {0}")]
     Callback(String),
+
+    /// Canvas rasterization errors during dynamic font atlas generation.
+    #[error("Rasterization error: {0}")]
+    Rasterization(String),
 }
 
 impl Error {
@@ -72,15 +76,51 @@ impl Error {
         Self::Resource("Failed to create texture".to_string())
     }
 
-    pub(crate) fn rasterizer_canvas_creation_failed() -> Self {
-        Self::Resource("Failed to create texture offscreen canvas for rasterization".to_string())
+    pub(crate) fn rasterizer_canvas_creation_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Rasterization(format!("Failed to create offscreen canvas: {detail}"))
     }
 
-    pub(crate) fn rasterizer_failed() -> Self {
-        Self::Resource("Failed to rasterize glyphs to offscreen canvas".to_string())
+    pub(crate) fn rasterizer_context_failed() -> Self {
+        Self::Rasterization("Failed to get 2d rendering context from offscreen canvas".to_string())
+    }
+
+    pub(crate) fn rasterizer_missing_font_family() -> Self {
+        Self::Rasterization("font_family must be set before rasterizing".to_string())
+    }
+
+    pub(crate) fn rasterizer_missing_font_size() -> Self {
+        Self::Rasterization("font_size must be set before rasterizing".to_string())
+    }
+
+    pub(crate) fn rasterizer_fill_text_failed(
+        grapheme: &str,
+        detail: impl std::fmt::Display,
+    ) -> Self {
+        Self::Rasterization(format!("Failed to render glyph '{grapheme}': {detail}"))
+    }
+
+    pub(crate) fn rasterizer_get_image_data_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Rasterization(format!("Failed to read pixel data from canvas: {detail}"))
+    }
+
+    pub(crate) fn rasterizer_measure_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Rasterization(format!("Failed to measure cell metrics: {detail}"))
+    }
+
+    pub(crate) fn rasterizer_empty_reference_glyph() -> Self {
+        Self::Rasterization(
+            "Reference glyph rasterization produced no pixels; cannot determine cell size"
+                .to_string(),
+        )
     }
 
     pub(crate) fn uniform_location_failed(name: &str) -> Self {
         Self::Resource(format!("Failed to get uniform location: {name}"))
+    }
+}
+
+impl From<Error> for wasm_bindgen::JsValue {
+    fn from(err: Error) -> Self {
+        wasm_bindgen::JsValue::from_str(&err.to_string())
     }
 }

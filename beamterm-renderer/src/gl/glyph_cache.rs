@@ -78,9 +78,8 @@ impl GlyphCache {
     pub fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
         // avoid inserting ASCII normal glyphs into cache
         if key.len() == 1 && style == FontStyle::Normal {
-            let slot = GlyphSlot::Normal(
-                (key.chars().next().unwrap() as SlotId).saturating_sub(0x20),
-            );
+            let slot =
+                GlyphSlot::Normal((key.chars().next().unwrap() as SlotId).saturating_sub(0x20));
             return (slot, None);
         }
 
