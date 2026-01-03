@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::{FontAtlasData, Glyph};
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use serde_wasm_bindgen::from_value;
 use unicode_segmentation::UnicodeSegmentation;
 use wasm_bindgen::prelude::*;
@@ -459,14 +459,14 @@ impl BeamtermRenderer {
     ///
     /// # Arguments
     /// * `canvas_id` - CSS selector for the canvas element
-    /// * `font_family` - Array of font family names (e.g., `["JetBrains Mono", "monospace"]`)
+    /// * `font_family` - Array of font family names (e.g., `["Hack", "JetBrains Mono"]`)
     /// * `font_size` - Font size in pixels
     ///
     /// # Example
     /// ```javascript
     /// const renderer = BeamtermRenderer.withDynamicAtlas(
     ///     "#terminal",
-    ///     ["JetBrains Mono", "Fira Code", "monospace"],
+    ///     ["JetBrains Mono", "Fira Code"],
     ///     16.0
     /// );
     /// ```
@@ -481,12 +481,10 @@ impl BeamtermRenderer {
         let renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
 
-        // Convert JS array to Vec<&'static str> by leaking the strings
-        // (these are long-lived font names that persist for the renderer's lifetime)
-        let font_families: Vec<&'static str> = font_family
+        let font_families: Vec<CompactString> = font_family
             .iter()
             .filter_map(|v| v.as_string())
-            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
+            .map(|s| s.to_compact_string())
             .collect();
 
         if font_families.is_empty() {

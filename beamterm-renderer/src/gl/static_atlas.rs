@@ -150,7 +150,7 @@ impl Atlas for StaticFontAtlas {
     }
 
     /// Returns the symbol for the given glyph ID, if it exists
-    fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
+    fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         let base_glyph_id = if glyph_id & Glyph::EMOJI_FLAG != 0 {
             glyph_id & Glyph::GLYPH_ID_EMOJI_MASK
         } else {
@@ -160,11 +160,9 @@ impl Atlas for StaticFontAtlas {
         if (0x20..0x80).contains(&base_glyph_id) {
             // ASCII characters are directly mapped to their code point
             let ch = base_glyph_id as u8 as char;
-            Some(Cow::from(ch.to_compact_string()))
+            Some(ch.to_compact_string())
         } else {
-            self.symbol_lookup
-                .get(&base_glyph_id)
-                .map(|s| Cow::from(s.as_str()))
+            self.symbol_lookup.get(&base_glyph_id).cloned()
         }
     }
 

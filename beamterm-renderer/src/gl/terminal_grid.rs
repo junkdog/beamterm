@@ -209,7 +209,11 @@ impl TerminalGrid {
         let mut text = CompactString::new("");
 
         for (idx, require_newline_after) in selection {
-            text.push_str(&self.get_cell_symbol(idx));
+            let cell_symbol = self.get_cell_symbol(idx);
+            if cell_symbol.is_some() {
+                text.push_str(&cell_symbol.unwrap_or_default());
+            }
+
             if require_newline_after {
                 text.push('\n'); // add newline after each row
             }
@@ -218,15 +222,16 @@ impl TerminalGrid {
         text
     }
 
-    fn get_cell_symbol(&self, idx: usize) -> Cow<'_, str> {
+    fn get_cell_symbol(&self, idx: usize) -> Option<CompactString> {
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
-            self.atlas
-                .get_symbol(glyph_id)
-                .unwrap_or_else(|| self.fallback_symbol())
-        } else {
-            self.fallback_symbol()
+            let cell_symbol = self.atlas.get_symbol(glyph_id);
+            if cell_symbol.is_some() {
+                return cell_symbol;
+            }
         }
+
+        self.fallback_symbol()
     }
 
     /// Uploads uniform buffer data for screen and cell dimensions.
@@ -527,10 +532,8 @@ impl TerminalGrid {
         self.atlas.get_base_glyph_id(symbol)
     }
 
-    fn fallback_symbol(&self) -> Cow<'_, str> {
-        self.atlas
-            .get_symbol(self.fallback_glyph)
-            .unwrap_or(Cow::Borrowed(" "))
+    fn fallback_symbol(&self) -> Option<CompactString> {
+        self.atlas.get_symbol(self.fallback_glyph)
     }
 }
 

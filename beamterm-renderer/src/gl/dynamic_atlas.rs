@@ -70,12 +70,12 @@ impl DynamicFontAtlas {
     /// * `font_size` - Font size in pixels
     pub(crate) fn new(
         gl: &web_sys::WebGl2RenderingContext,
-        font_family: &[&str],
+        font_family: &[CompactString],
         font_size: f32,
     ) -> Result<Self, Error> {
         let font_family = font_family
             .iter()
-            .map(|&s| format_compact!("'{s}'"))
+            .map(|s| format_compact!("'{s}'"))
             .join_compact(", ");
 
         let rasterizer = CanvasRasterizer::new(&font_family, font_size)?;
@@ -100,16 +100,6 @@ impl DynamicFontAtlas {
         atlas.upload_ascii_glyphs(gl)?;
 
         Ok(atlas)
-    }
-
-    /// Returns the slot ID for a cached glyph, if it exists.
-    ///
-    /// This does NOT rasterize missing glyphs - use `ensure_glyph` for that.
-    fn get_slot(&self, key: &str, style: FontStyle) -> Option<SlotId> {
-        self.cache
-            .borrow_mut()
-            .get(key, style)
-            .map(|slot| slot.slot_id())
     }
 
     /// Uploads pending glyphs to the texture.
@@ -204,17 +194,6 @@ impl DynamicFontAtlas {
         Ok(())
     }
 
-    /// Returns the number of glyphs currently cached in the atlas.
-    fn glyph_count(&self) -> usize {
-        self.cache.borrow().len()
-    }
-
-    /// Clears all cached glyphs. They will be re-rasterized on next access.
-    fn clear(&self) {
-        self.cache.borrow_mut().clear();
-        self.symbol_lookup.borrow_mut().clear();
-    }
-
     fn measure_cell_size(rasterizer: &CanvasRasterizer) -> Result<(i32, i32), Error> {
         let reference_glyphs = rasterizer.rasterize(&[("█", FontStyle::Normal)])?;
 
@@ -258,11 +237,11 @@ impl Atlas for DynamicFontAtlas {
         self.strikethrough
     }
 
-    fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
+    fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.symbol_lookup
             .borrow()
             .get(&glyph_id)
-            .map(|s| Cow::from(s.to_compact_string()))
+            .cloned()
     }
 
     fn glyph_tracker(&self) -> &GlyphTracker {
@@ -367,7 +346,7 @@ impl PendingUploads {
 
     fn take(&self, count: usize) -> Vec<PendingGlyph> {
         let mut glyphs = self.glyphs.borrow_mut();
-        let mut pending_upload = Vec::new();
+        let mut pending_upload = Vec::with_capacity(count.min(glyphs.len()));
 
         for _ in 0..count {
             if let Some(glyph) = glyphs.pop_last() {
@@ -393,10 +372,7 @@ fn split_double_width_glyph(
     glyph: &super::canvas_rasterizer::RasterizedGlyph,
     cell_w: u32,
     cell_h: u32,
-) -> (
-    super::canvas_rasterizer::RasterizedGlyph,
-    super::canvas_rasterizer::RasterizedGlyph,
-) {
+) -> (RasterizedGlyph, RasterizedGlyph) {
     use beamterm_data::FontAtlasData;
 
     use super::canvas_rasterizer::RasterizedGlyph;

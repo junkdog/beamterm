@@ -27,7 +27,7 @@ pub(crate) trait Atlas {
     fn strikethrough(&self) -> beamterm_data::LineDecoration;
 
     /// Returns the symbol for the given glyph ID, if it exists
-    fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>>;
+    fn get_symbol(&self, glyph_id: u16) -> Option<CompactString>;
 
     /// Returns a reference to the glyph tracker for accessing missing glyphs.
     fn glyph_tracker(&self) -> &GlyphTracker;
@@ -134,7 +134,7 @@ impl FontAtlas {
         self.inner.strikethrough()
     }
 
-    pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
+    pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.inner.get_symbol(glyph_id)
     }
 
