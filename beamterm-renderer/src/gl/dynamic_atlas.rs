@@ -10,7 +10,7 @@ use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compa
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
-    CanvasRasterizer, GlyphTracker,
+    CanvasRasterizer, GlyphTracker, RasterizedGlyph,
     error::Error,
     gl::{
         GL,
@@ -93,7 +93,7 @@ impl DynamicFontAtlas {
         );
         let texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
-        Ok(Self {
+        let atlas = Self {
             texture,
             rasterizer,
             cache: RefCell::new(GlyphCache::new()),
@@ -105,7 +105,10 @@ impl DynamicFontAtlas {
             font_size,
             underline: LineDecoration::new(0.9, 0.05), // near bottom, thin
             strikethrough: LineDecoration::new(0.5, 0.05), // middle, thin
-        })
+        };
+        atlas.upload_ascii_glyphs(gl)?;
+
+        Ok(atlas)
     }
 
     /// Returns the slot ID for a cached glyph, if it exists.
@@ -151,6 +154,53 @@ impl DynamicFontAtlas {
             .rasterize(&graphemes)
             .map_err(|_| Error::rasterizer_failed())?;
 
+        self.upload_glyphs(gl, pending, rasterized)?;
+
+        Ok(())
+    }
+
+    fn upload_ascii_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+        // Batch ASCII uploads to avoid exceeding canvas height (1024px).
+        // With ~30px cell height, we can fit ~32 glyphs per batch.
+        const BATCH_SIZE: usize = 32;
+
+        let all_pending: Vec<PendingGlyph> = (0x20u8..=0x7Eu8)
+            .map(|b| PendingGlyph {
+                slot: GlyphSlot::Normal(b as u16 - 0x20), // occupy first 95 slots
+                key: CompactString::from_utf8([b]).expect("valid ascii"),
+                style: FontStyle::Normal,
+            })
+            .collect();
+
+        for batch in all_pending.chunks(BATCH_SIZE) {
+            let batch_vec: Vec<PendingGlyph> = batch.to_vec();
+
+            // build grapheme/style pairs for rasterization
+            let graphemes: Vec<(&str, FontStyle)> = batch_vec
+                .iter()
+                .map(|g| (g.key.as_str(), g.style))
+                .collect();
+
+            let rasterized = self
+                .rasterizer
+                .begin_batch()
+                .font_family(&self.font_family)
+                .font_size(self.font_size)
+                .rasterize(&graphemes)
+                .map_err(|_| Error::rasterizer_failed())?;
+
+            self.upload_glyphs(gl, batch_vec, rasterized)?;
+        }
+
+        Ok(())
+    }
+
+    fn upload_glyphs(
+        &self,
+        gl: &WebGl2RenderingContext,
+        pending: Vec<PendingGlyph>,
+        rasterized: Vec<RasterizedGlyph>,
+    ) -> Result<(), Error> {
         let padded_cell_size = (
             self.cell_size.0 + FontAtlasData::PADDING * 2,
             self.cell_size.1 + FontAtlasData::PADDING * 2,
@@ -177,7 +227,6 @@ impl DynamicFontAtlas {
                 )?;
             }
         }
-
         Ok(())
     }
 
@@ -298,11 +347,10 @@ impl Atlas for DynamicFontAtlas {
         // glyph not present, insert and mark for upload
         let (slot, _) = self.cache.borrow_mut().insert(key, style);
 
-        // add reverse lookup (base slot ID without style bits -> symbol)
-        let base_slot_id = slot.slot_id() & Glyph::GLYPH_ID_MASK;
+        // add reverse lookup
         self.symbol_lookup
             .borrow_mut()
-            .insert(base_slot_id, CompactString::new(key));
+            .insert(slot.slot_id(), CompactString::new(key));
 
         self.glyphs_pending_upload
             .add(PendingGlyph { slot, key: CompactString::new(key), style });
@@ -330,7 +378,7 @@ struct PendingUploads {
     glyphs: RefCell<BTreeSet<PendingGlyph>>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct PendingGlyph {
     slot: GlyphSlot,
     key: CompactString,

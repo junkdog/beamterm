@@ -222,9 +222,9 @@ impl<'a> RasterizeGlyphs<'a> {
     /// Returns an error if font_family was not set, or if canvas operations fail.
     pub fn rasterize(
         mut self,
-        graphemes: &[(&'a str, FontStyle)],
+        symbols: &[(&'a str, FontStyle)],
     ) -> Result<Vec<RasterizedGlyph>, JsValue> {
-        if graphemes.is_empty() {
+        if symbols.is_empty() {
             return Ok(Vec::new());
         }
 
@@ -247,7 +247,7 @@ impl<'a> RasterizeGlyphs<'a> {
         let cell_w = metrics.padded_width;
         let cell_h = metrics.padded_height;
 
-        let num_glyphs = graphemes.len() as u32;
+        let num_glyphs = symbols.len() as u32;
 
         // canvas needs to be double-width (for emoji) and tall enough for all glyphs
         let canvas_width = cell_w * 2;
@@ -264,7 +264,7 @@ impl<'a> RasterizeGlyphs<'a> {
         let y_offset = PADDING as f64 + metrics.ascent;
 
         // draw each glyph on its own row
-        for (i, &(grapheme, style)) in graphemes.iter().enumerate() {
+        for (i, &(grapheme, style)) in symbols.iter().enumerate() {
             // emoji always uses normal style (no bold/italic variants)
             let effective_style =
                 if emojis::get(grapheme).is_some() { FontStyle::Normal } else { style };
@@ -296,9 +296,9 @@ impl<'a> RasterizeGlyphs<'a> {
         let row_stride = canvas_width as usize * bytes_per_pixel;
         let glyph_stride = cell_h as usize * row_stride;
 
-        let mut results = Vec::with_capacity(graphemes.len());
+        let mut results = Vec::with_capacity(symbols.len());
 
-        for (i, &(grapheme, _)) in graphemes.iter().enumerate() {
+        for (i, &(grapheme, _)) in symbols.iter().enumerate() {
             let padded_width = if is_double_width(grapheme) { cell_w * 2 } else { cell_w };
 
             let glyph_start = i * glyph_stride;

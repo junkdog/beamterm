@@ -11,6 +11,9 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::gl::atlas::{GlyphSlot, SlotId};
 
+/// Pre-allocated slots for normal-styled ASCII glyphs (0x20..0x7E)
+const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
+
 /// Normal glyphs: slots 0..2048
 const NORMAL_CAPACITY: usize = 2048;
 /// Double-width glyphs: slots 2048..4096 (1024 glyphs × 2 slots each)
@@ -39,7 +42,7 @@ impl GlyphCache {
         Self {
             normal: LruCache::unbounded(),
             wide: LruCache::unbounded(),
-            normal_next: 0,
+            normal_next: ASCII_SLOTS,
             wide_next: WIDE_BASE,
         }
     }
@@ -49,18 +52,26 @@ impl GlyphCache {
         let cache_key = (CompactString::new(key), style);
 
         match () {
+            // ascii glyphs with normal font styles are always allocated (outside cache)
+            _ if key.len() == 1 && style == FontStyle::Normal => Some(GlyphSlot::Normal(
+                (key.chars().next().unwrap() as SlotId).saturating_sub(0x20),
+            )),
+
+            // ascii glyphs are always single-width
+            _ if key.len() == 1 => self.normal.get(&cache_key).copied(),
+
             // emoji glyphs disregard style
             _ if emojis::get(key).is_some() => self
                 .wide
-                .get(&(CompactString::new(key), FontStyle::Normal)),
+                .get(&(CompactString::new(key), FontStyle::Normal))
+                .copied(),
 
             // double-width glyphs
-            _ if key.width() == 2 => self.wide.get(&cache_key),
+            _ if key.width() == 2 => self.wide.get(&cache_key).copied(),
 
             // normal glyphs
-            _ => self.normal.get(&cache_key),
+            _ => self.normal.get(&cache_key).copied(),
         }
-        .copied()
     }
 
     /// Checks if a glyph is in the cache.
@@ -179,16 +190,40 @@ mod tests {
 
     const S: FontStyle = FontStyle::Normal;
 
+    // First normal slot after reserved ASCII slots (0-94)
+    const FIRST_NORMAL_SLOT: SlotId = ASCII_SLOTS; // 95
+
+    // Emoji slots include EMOJI_FLAG (0x1000)
+    const EMOJI_SLOT_BASE: SlotId = WIDE_BASE | Glyph::EMOJI_FLAG; // 2048 | 4096 = 6144
+
+    #[test]
+    fn test_ascii_fast_path() {
+        // ASCII characters with Normal style use the fast path in get()
+        // They return slot = char - 0x20, without using the cache
+        let mut cache = GlyphCache::new();
+
+        // 'A' = 0x41, so slot = 0x41 - 0x20 = 33
+        assert_eq!(cache.get("A", S), Some(GlyphSlot::Normal(33)));
+        // ' ' = 0x20, so slot = 0
+        assert_eq!(cache.get(" ", S), Some(GlyphSlot::Normal(0)));
+        // '~' = 0x7E, so slot = 0x7E - 0x20 = 94
+        assert_eq!(cache.get("~", S), Some(GlyphSlot::Normal(94)));
+    }
+
     #[test]
     fn test_normal_insert_get() {
         let mut cache = GlyphCache::new();
 
-        let (slot, evicted) = cache.insert("A", S);
-        assert_eq!(slot, GlyphSlot::Normal(0));
+        // Non-ASCII single-width character (uses cache, not fast path)
+        let (slot, evicted) = cache.insert("→", S);
+        assert_eq!(slot, GlyphSlot::Normal(FIRST_NORMAL_SLOT));
         assert!(evicted.is_none());
 
-        assert_eq!(cache.get("A", S), Some(GlyphSlot::Normal(0)));
-        assert!(cache.get("B", S).is_none());
+        assert_eq!(
+            cache.get("→", S),
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT))
+        );
+        assert!(cache.get("←", S).is_none());
     }
 
     #[test]
@@ -198,12 +233,15 @@ mod tests {
         let (slot1, _) = cache.insert("🚀", S);
         let (slot2, _) = cache.insert("🎮", S);
 
-        // Emoji slots start at 2048, each takes 2 slots
-        assert_eq!(slot1, GlyphSlot::Emoji(2048));
-        assert_eq!(slot2, GlyphSlot::Emoji(2050));
+        // Emoji slots start at WIDE_BASE with EMOJI_FLAG, each takes 2 slots
+        assert_eq!(slot1, GlyphSlot::Emoji(EMOJI_SLOT_BASE));
+        assert_eq!(slot2, GlyphSlot::Emoji(EMOJI_SLOT_BASE + 2));
 
-        assert_eq!(cache.get("🚀", S), Some(GlyphSlot::Emoji(2048)));
-        assert_eq!(cache.get("🎮", S), Some(GlyphSlot::Emoji(2050)));
+        assert_eq!(cache.get("🚀", S), Some(GlyphSlot::Emoji(EMOJI_SLOT_BASE)));
+        assert_eq!(
+            cache.get("🎮", S),
+            Some(GlyphSlot::Emoji(EMOJI_SLOT_BASE + 2))
+        );
     }
 
     #[test]
@@ -213,58 +251,76 @@ mod tests {
         let (slot1, _) = cache.insert("中", S);
         let (slot2, _) = cache.insert("文", S);
 
-        // CJK wide slots start at 2048, each takes 2 slots
-        assert_eq!(slot1, GlyphSlot::Wide(2048));
-        assert_eq!(slot2, GlyphSlot::Wide(2050));
+        // CJK wide slots start at WIDE_BASE (no emoji flag), each takes 2 slots
+        assert_eq!(slot1, GlyphSlot::Wide(WIDE_BASE));
+        assert_eq!(slot2, GlyphSlot::Wide(WIDE_BASE + 2));
 
-        assert_eq!(cache.get("中", S), Some(GlyphSlot::Wide(2048)));
-        assert_eq!(cache.get("文", S), Some(GlyphSlot::Wide(2050)));
+        assert_eq!(cache.get("中", S), Some(GlyphSlot::Wide(WIDE_BASE)));
+        assert_eq!(cache.get("文", S), Some(GlyphSlot::Wide(WIDE_BASE + 2)));
     }
 
     #[test]
     fn test_mixed_insert() {
         let mut cache = GlyphCache::new();
 
-        let (s1, _) = cache.insert("A", S);
+        // Use non-ASCII chars to test cache behavior (ASCII uses fast path)
+        let (s1, _) = cache.insert("→", S);
         let (s2, _) = cache.insert("🚀", S);
-        let (s3, _) = cache.insert("B", S);
+        let (s3, _) = cache.insert("←", S);
 
-        assert_eq!(s1, GlyphSlot::Normal(0)); // normal slot 0
-        assert_eq!(s2, GlyphSlot::Emoji(2048)); // emoji slot
-        assert_eq!(s3, GlyphSlot::Normal(1)); // normal slot 1
+        assert_eq!(s1, GlyphSlot::Normal(FIRST_NORMAL_SLOT));
+        assert_eq!(s2, GlyphSlot::Emoji(EMOJI_SLOT_BASE));
+        assert_eq!(s3, GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1));
 
-        assert_eq!(cache.get("A", S), Some(GlyphSlot::Normal(0)));
-        assert_eq!(cache.get("🚀", S), Some(GlyphSlot::Emoji(2048)));
-        assert_eq!(cache.get("B", S), Some(GlyphSlot::Normal(1)));
+        assert_eq!(
+            cache.get("→", S),
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT))
+        );
+        assert_eq!(cache.get("🚀", S), Some(GlyphSlot::Emoji(EMOJI_SLOT_BASE)));
+        assert_eq!(
+            cache.get("←", S),
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1))
+        );
     }
 
     #[test]
     fn test_style_differentiation() {
         let mut cache = GlyphCache::new();
 
+        // ASCII with Bold style uses cache (not fast path which is Normal-only)
         let (slot1, _) = cache.insert("A", FontStyle::Normal);
         let (slot2, _) = cache.insert("A", FontStyle::Bold);
 
-        assert_eq!(slot1, GlyphSlot::Normal(0));
-        assert_eq!(slot2, GlyphSlot::Normal(1));
+        // Both go through cache since Bold doesn't use fast path
+        assert_eq!(slot1, GlyphSlot::Normal(FIRST_NORMAL_SLOT));
+        assert_eq!(slot2, GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1));
 
+        // get() for Normal style uses fast path: 'A' = 0x41 - 0x20 = 33
         assert_eq!(
             cache.get("A", FontStyle::Normal),
-            Some(GlyphSlot::Normal(0))
+            Some(GlyphSlot::Normal(33))
         );
-        assert_eq!(cache.get("A", FontStyle::Bold), Some(GlyphSlot::Normal(1)));
+        // get() for Bold uses cache
+        assert_eq!(
+            cache.get("A", FontStyle::Bold),
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT + 1))
+        );
     }
 
     #[test]
     fn test_reinsert_existing() {
         let mut cache = GlyphCache::new();
 
-        let (slot1, _) = cache.insert("A", S);
-        let (slot2, evicted) = cache.insert("A", S);
+        // Use non-ASCII to test cache reinsert behavior
+        let (slot1, _) = cache.insert("→", S);
+        let (slot2, evicted) = cache.insert("→", S);
 
         assert_eq!(slot1, slot2);
         assert!(evicted.is_none());
         assert_eq!(cache.len(), 1);
-        assert_eq!(cache.get("A", S), Some(GlyphSlot::Normal(0)));
+        assert_eq!(
+            cache.get("→", S),
+            Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT))
+        );
     }
 }

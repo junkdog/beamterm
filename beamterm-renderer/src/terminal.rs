@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::FontAtlasData;
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use wasm_bindgen::prelude::*;
 
 use crate::{
@@ -615,9 +615,9 @@ impl TerminalDebugApi {
         let grid = self.grid.borrow();
         let atlas = grid.atlas();
 
-        let mut glyphs: Vec<(u16, String)> = Vec::new();
+        let mut glyphs: Vec<(u16, CompactString)> = Vec::new();
         atlas.for_each_symbol(&mut |glyph_id, symbol| {
-            glyphs.push((glyph_id, symbol.to_string()));
+            glyphs.push((glyph_id, symbol.to_compact_string()));
         });
 
         glyphs.sort();
