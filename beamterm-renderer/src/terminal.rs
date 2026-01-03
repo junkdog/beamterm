@@ -1,11 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::FontAtlasData;
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, Error, FontAtlas, Renderer, TerminalGrid,
+    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid,
     gl::{CellQuery, ContextLossHandler, SelectionMode},
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
@@ -118,7 +118,16 @@ impl Terminal {
     ) -> Result<(), Error> {
         self.grid
             .borrow_mut()
-            .update_cells_by_position(self.renderer.gl(), cells)
+            .update_cells_by_position(cells)
+    }
+
+    pub fn update_cells_by_index<'a>(
+        &mut self,
+        cells: impl Iterator<Item = (usize, CellData<'a>)>,
+    ) -> Result<(), Error> {
+        self.grid
+            .borrow_mut()
+            .update_cells_by_index(cells)
     }
 
     /// Returns the WebGL2 rendering context.
@@ -305,6 +314,7 @@ impl Terminal {
 ///
 /// Supports both CSS selector strings and direct `HtmlCanvasElement` references
 /// for flexible terminal creation.
+#[derive(Debug)]
 enum CanvasSource {
     /// CSS selector string for canvas lookup (e.g., "#terminal", "canvas").
     Id(CompactString),
@@ -321,7 +331,7 @@ enum CanvasSource {
 ///
 /// ```rust,no_run
 /// // Simple terminal with default configuration
-/// use beamterm_renderer::{FontAtlas, FontAtlasData, Terminal};
+/// use beamterm_renderer::{FontAtlasData, Terminal};
 ///
 /// let terminal = Terminal::builder("#canvas").build().unwrap();
 ///
@@ -334,11 +344,17 @@ enum CanvasSource {
 /// ```
 pub struct TerminalBuilder {
     canvas: CanvasSource,
-    atlas_data: Option<FontAtlasData>,
+    atlas_kind: AtlasKind,
     fallback_glyph: Option<CompactString>,
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
     enable_debug_api: bool,
+}
+
+#[derive(Debug)]
+enum AtlasKind {
+    Static(Option<FontAtlasData>),
+    Dynamic { font_size: f32, font_family: Vec<CompactString> },
 }
 
 impl TerminalBuilder {
@@ -346,7 +362,7 @@ impl TerminalBuilder {
     fn new(canvas: CanvasSource) -> Self {
         TerminalBuilder {
             canvas,
-            atlas_data: None,
+            atlas_kind: AtlasKind::Static(None),
             fallback_glyph: None,
             input_handler: None,
             canvas_padding_color: 0x000000,
@@ -354,12 +370,39 @@ impl TerminalBuilder {
         }
     }
 
-    /// Sets a custom font atlas for the terminal.
+    /// Sets a custom static font atlas for the terminal.
     ///
     /// By default, the terminal uses an embedded font atlas. Use this method
     /// to provide a custom atlas with different fonts, sizes, or character sets.
+    ///
+    /// Static atlases are pre-generated using the `beamterm-atlas` CLI tool and
+    /// loaded from binary `.atlas` files. They provide consistent rendering but
+    /// require the character set to be known at build time.
+    ///
+    /// For dynamic glyph rasterization at runtime, see [`dynamic_font_atlas`](Self::dynamic_font_atlas).
     pub fn font_atlas(mut self, atlas: FontAtlasData) -> Self {
-        self.atlas_data = Some(atlas);
+        self.atlas_kind = AtlasKind::Static(Some(atlas));
+        self
+    }
+
+    /// Configures the terminal to use a dynamic font atlas.
+    ///
+    /// Unlike static atlases, the dynamic atlas rasterizes glyphs on-demand using
+    /// the browser's Canvas API. This enables:
+    /// - Runtime font selection without pre-generation
+    /// - Support for any system font available in the browser
+    /// - Automatic handling of unpredictable Unicode content
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order (e.g., `&["JetBrains Mono", "Fira Code"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// For pre-generated atlases with fixed character sets, see [`font_atlas`](Self::font_atlas).
+    pub fn dynamic_font_atlas(mut self, font_family: &[&str], font_size: f32) -> Self {
+        self.atlas_kind = AtlasKind::Dynamic {
+            font_family: font_family.iter().map(|&s| s.into()).collect(),
+            font_size,
+        };
         self
     }
 
@@ -424,7 +467,14 @@ impl TerminalBuilder {
 
         // load font atlas
         let gl = renderer.gl();
-        let atlas = FontAtlas::load(gl, self.atlas_data.unwrap_or_default())?;
+        let atlas: FontAtlas = match self.atlas_kind {
+            AtlasKind::Static(atlas_data) => {
+                StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
+            },
+            AtlasKind::Dynamic { font_family, font_size } => {
+                DynamicFontAtlas::new(gl, &font_family, font_size)?.into()
+            },
+        };
 
         // create terminal grid
         let canvas_size = renderer.canvas_size();
@@ -586,12 +636,16 @@ impl TerminalDebugApi {
     pub fn get_symbol_lookup(&self) -> js_sys::Array {
         let grid = self.grid.borrow();
         let atlas = grid.atlas();
-        let mut glyphs: Vec<_> = atlas.get_symbol_lookup().iter().collect();
+
+        let mut glyphs: Vec<(u16, CompactString)> = Vec::new();
+        atlas.for_each_symbol(&mut |glyph_id, symbol| {
+            glyphs.push((glyph_id, symbol.to_compact_string()));
+        });
 
         glyphs.sort();
 
         let js_array = js_sys::Array::new();
-        for (glyph_id, symbol) in glyphs.into_iter() {
+        for (glyph_id, symbol) in glyphs.iter() {
             let obj = js_sys::Object::new();
             js_sys::Reflect::set(&obj, &"glyph_id".into(), &JsValue::from(*glyph_id)).unwrap();
             js_sys::Reflect::set(&obj, &"symbol".into(), &JsValue::from(symbol.as_str())).unwrap();

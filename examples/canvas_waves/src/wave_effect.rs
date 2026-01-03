@@ -135,8 +135,8 @@ impl Shader for WaveInterference {
     }
 
     fn cell_filter(&self) -> Option<&CellFilter> {
-        // self.cell_filter.as_ref().map(|f| f.filter_ref())
-        None
+        self.cell_filter.as_ref().map(|f| f.filter_ref())
+        // None
     }
 
     fn filter_processor(&self) -> Option<&FilterProcessor> {

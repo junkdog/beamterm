@@ -29,6 +29,7 @@ compact_str = { workspace = true }
 console_error_panic_hook = { workspace = true }
 thiserror = { workspace = true }
 js-sys = { workspace = true }
+unicode-width.workspace = true
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = "0.4.54"
 
@@ -38,7 +39,9 @@ optional = true
 
 [dependencies.emojis]
 workspace = true
-optional = true
+
+[dependencies.lru]
+version = "0.16"
 
 [dependencies.serde]
 optional = true
@@ -68,8 +71,11 @@ features = [
     'MouseEvent',
     'Navigator',
     'Node',
+    'OffscreenCanvas',
+    'OffscreenCanvasRenderingContext2d',
     'Performance',
     'Screen',
+    'TextMetrics',
     'WebGl2RenderingContext',
     'WebGlBuffer',
     'WebGlContextEvent',
@@ -86,7 +92,6 @@ features = [
 js-api = [
     "compact_str/serde",
 
-    "dep:emojis",
     "dep:serde",
     "dep:serde_json",
     "dep:serde-wasm-bindgen",

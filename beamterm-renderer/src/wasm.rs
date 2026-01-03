@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::{FontAtlasData, Glyph};
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use serde_wasm_bindgen::from_value;
 use unicode_segmentation::UnicodeSegmentation;
 use wasm_bindgen::prelude::*;
@@ -9,8 +9,8 @@ use web_sys::console;
 
 use crate::{
     gl::{
-        CellData, CellQuery as RustCellQuery, FontAtlas, Renderer,
-        SelectionMode as RustSelectionMode, TerminalGrid, select,
+        CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
+        SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
     mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
 };
@@ -226,7 +226,8 @@ impl Batch {
     /// Updates a single cell at the given position.
     #[wasm_bindgen(js_name = "cell")]
     pub fn cell(&mut self, x: u16, y: u16, cell_data: &Cell) {
-        self.terminal_grid
+        let _ = self
+            .terminal_grid
             .borrow_mut()
             .update_cell(x, y, cell_data.as_cell_data());
     }
@@ -234,7 +235,8 @@ impl Batch {
     /// Updates a cell by its buffer index.
     #[wasm_bindgen(js_name = "cellByIndex")]
     pub fn cell_by_index(&mut self, idx: usize, cell_data: &Cell) {
-        self.terminal_grid
+        let _ = self
+            .terminal_grid
             .borrow_mut()
             .update_cell_by_index(idx, cell_data.as_cell_data());
     }
@@ -254,7 +256,7 @@ impl Batch {
 
                 let mut terminal_grid = self.terminal_grid.borrow_mut();
                 terminal_grid
-                    .update_cells_by_position(&self.gl, cell_data)
+                    .update_cells_by_position(cell_data)
                     .map_err(|e| JsValue::from_str(&e.to_string()))
             },
             e => e.map(|_| ()),
@@ -279,7 +281,9 @@ impl Batch {
             }
 
             let cell = CellData::new_with_style_bits(ch, style.style_bits, style.fg, style.bg);
-            terminal_grid.update_cell(current_col, y, cell);
+            terminal_grid
+                .update_cell(current_col, y, cell)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
             if emojis::get(ch).is_some() {
                 width_offset += 1;
@@ -308,7 +312,9 @@ impl Batch {
         let fill_cell = cell_data.as_cell_data();
         for y in y..y + height {
             for x in x..x + width {
-                terminal_grid.update_cell(x, y, fill_cell);
+                terminal_grid
+                    .update_cell(x, y, fill_cell)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
             }
         }
 
@@ -324,7 +330,9 @@ impl Batch {
         let clear_cell = CellData::new_with_style_bits(" ", 0, 0xFFFFFF, bg);
         for y in 0..rows {
             for x in 0..cols {
-                terminal_grid.update_cell(x, y, clear_cell);
+                terminal_grid
+                    .update_cell(x, y, clear_cell)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
             }
         }
 
@@ -401,24 +409,104 @@ impl Cell {
 
 #[wasm_bindgen]
 impl BeamtermRenderer {
-    /// Create a new terminal renderer
+    /// Create a new terminal renderer with the default embedded font atlas.
     #[wasm_bindgen(constructor)]
     pub fn new(canvas_id: &str) -> Result<BeamtermRenderer, JsValue> {
+        Self::with_static_atlas(canvas_id, None)
+    }
+
+    /// Create a terminal renderer with custom static font atlas data.
+    ///
+    /// # Arguments
+    /// * `canvas_id` - CSS selector for the canvas element
+    /// * `atlas_data` - Binary atlas data (from .atlas file), or null for default
+    #[wasm_bindgen(js_name = "withStaticAtlas")]
+    pub fn with_static_atlas(
+        canvas_id: &str,
+        atlas_data: Option<js_sys::Uint8Array>,
+    ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
         let renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
 
         let gl = renderer.gl();
-        let atlas_data = FontAtlasData::default();
-        let atlas = FontAtlas::load(gl, atlas_data)
+        let atlas_config = match atlas_data {
+            Some(data) => {
+                let bytes = data.to_vec();
+                FontAtlasData::from_binary(&bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e:?}")))?
+            },
+            None => FontAtlasData::default(),
+        };
+
+        let atlas = StaticFontAtlas::load(gl, atlas_config)
             .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
 
         let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas, canvas_size)
+        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(&"BeamtermRenderer initialized successfully".into());
+        console::log_1(&"BeamtermRenderer initialized with static atlas".into());
+        let terminal_grid = Rc::new(RefCell::new(terminal_grid));
+        Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
+    }
+
+    /// Create a terminal renderer with a dynamic font atlas using browser fonts.
+    ///
+    /// The dynamic atlas rasterizes glyphs on-demand using the browser's canvas API,
+    /// enabling support for any system font, emoji, and complex scripts.
+    ///
+    /// # Arguments
+    /// * `canvas_id` - CSS selector for the canvas element
+    /// * `font_family` - Array of font family names (e.g., `["Hack", "JetBrains Mono"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```javascript
+    /// const renderer = BeamtermRenderer.withDynamicAtlas(
+    ///     "#terminal",
+    ///     ["JetBrains Mono", "Fira Code"],
+    ///     16.0
+    /// );
+    /// ```
+    #[wasm_bindgen(js_name = "withDynamicAtlas")]
+    pub fn with_dynamic_atlas(
+        canvas_id: &str,
+        font_family: js_sys::Array,
+        font_size: f32,
+    ) -> Result<BeamtermRenderer, JsValue> {
+        console_error_panic_hook::set_once();
+
+        let renderer = Renderer::create(canvas_id)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
+
+        let font_families: Vec<CompactString> = font_family
+            .iter()
+            .filter_map(|v| v.as_string())
+            .map(|s| s.to_compact_string())
+            .collect();
+
+        if font_families.is_empty() {
+            return Err(JsValue::from_str("font_family array cannot be empty"));
+        }
+
+        let gl = renderer.gl();
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
+
+        let canvas_size = renderer.canvas_size();
+        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+
+        console::log_1(
+            &format!(
+                "BeamtermRenderer initialized with dynamic atlas (font: {}, size: {}px)",
+                font_families.join(", "),
+                font_size
+            )
+            .into(),
+        );
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }

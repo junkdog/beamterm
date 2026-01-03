@@ -1,252 +1,231 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-};
+use std::{cell::RefCell, collections::HashSet, fmt::Debug};
 
-use beamterm_data::{FontAtlasData, FontStyle, Glyph};
-use compact_str::{CompactString, ToCompactString};
-use web_sys::console;
+use compact_str::CompactString;
 
-use crate::{error::Error, gl::GL};
+use crate::{DynamicFontAtlas, Error, StaticFontAtlas};
 
-/// A texture atlas containing font glyphs for efficient WebGL text rendering.
-///
-/// `FontAtlas` manages a WebGL 2D texture array where each layer contains a single
-/// character glyph. This design enables efficient instanced rendering of text by
-/// allowing the GPU to select the appropriate character layer for each rendered cell.
-///
-/// # Architecture
-/// The atlas uses a **WebGL 2D texture array** where:
-/// - Each layer contains one character glyph
-/// - ASCII characters use their ASCII value as the layer index
-/// - Non-ASCII characters are stored in a hash map for layer lookup
-/// - All glyphs have uniform cell dimensions for consistent spacing
-#[derive(Debug)]
-pub struct FontAtlas {
-    /// The underlying texture
-    texture: crate::gl::texture::Texture,
-    /// Symbol to 3d texture index
-    glyph_coords: HashMap<CompactString, u16>,
-    /// Base glyph identifier to symbol mapping
-    symbol_lookup: HashMap<u16, CompactString>,
-    /// The size of each character cell in pixels
-    cell_size: (i32, i32),
-    /// The number of slices in the atlas texture
-    num_slices: u32,
-    /// Underline configuration
-    underline: beamterm_data::LineDecoration,
-    /// Strikethrough configuration
-    strikethrough: beamterm_data::LineDecoration,
-    /// Tracks glyphs that were requested but not found in the atlas
-    glyph_tracker: GlyphTracker,
-    /// The last assigned halfwidth base glyph ID, before fullwidth
-    last_halfwidth_base_glyph_id: u16,
-    /// Retained atlas data for context loss recovery
-    atlas_data: FontAtlasData,
-}
+pub(super) type SlotId = u16;
+pub(super) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
+pub(super) const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 
-impl FontAtlas {
-    /// Loads the default embedded font atlas.
-    pub fn load_default(gl: &web_sys::WebGl2RenderingContext) -> Result<Self, Error> {
-        let config = FontAtlasData::default();
-        Self::load(gl, config)
-    }
-
-    /// Creates a TextureAtlas from a grid of equal-sized cells
-    pub fn load(
-        gl: &web_sys::WebGl2RenderingContext,
-        config: FontAtlasData,
-    ) -> Result<Self, Error> {
-        let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &config)?;
-        let num_slices = config.texture_dimensions.2;
-
-        let texture_layers = config
-            .glyphs
-            .iter()
-            .map(|g| g.id as i32)
-            .max()
-            .unwrap_or(0)
-            + 1;
-
-        let (cell_width, cell_height) = config.cell_size;
-        let mut layers = HashMap::new();
-        let mut symbol_lookup = HashMap::new();
-
-        // we only store the normal-styled glyphs (incl emoji) in the atlas lookup,
-        // as the correct layer id can be derived from the base glyph id plus font style.
-        //
-        // emoji are (currently all) double-width and occupy two consecutive glyph ids,
-        // but we only store the first id in the lookup.
-        config.glyphs.iter()
-            .filter(|g| g.style == FontStyle::Normal) // only normal style glyphs
-            .filter(|g| !g.is_ascii())                // only non-ascii glyphs
-            .for_each(|g| {
-                symbol_lookup.insert(g.id, g.symbol.clone());
-                layers.insert(g.symbol.clone(), g.id);
-            });
-
-        Ok(Self {
-            texture,
-            glyph_coords: layers,
-            last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id,
-            symbol_lookup,
-            cell_size: (cell_width, cell_height),
-            num_slices: num_slices as u32,
-            underline: config.underline,
-            strikethrough: config.strikethrough,
-            glyph_tracker: GlyphTracker::new(),
-            atlas_data: config,
-        })
-    }
-
-    /// Binds the atlas texture to the specified texture unit
-    pub fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {
-        self.texture.bind(gl, texture_unit);
-    }
-
-    pub fn cell_size(&self) -> (i32, i32) {
-        let (w, h) = self.cell_size;
-        (
-            w - 2 * FontAtlasData::PADDING,
-            h - 2 * FontAtlasData::PADDING,
-        )
-    }
-
-    /// Returns the underline configuration
-    pub fn underline(&self) -> beamterm_data::LineDecoration {
-        self.underline
-    }
-
-    /// Returns the strikethrough configuration
-    pub fn strikethrough(&self) -> beamterm_data::LineDecoration {
-        self.strikethrough
-    }
-
-    /// Returns the symbol for the given glyph ID, if it exists
-    pub fn get_symbol(&self, glyph_id: u16) -> Option<Cow<'_, str>> {
-        let base_glyph_id = if glyph_id & Glyph::EMOJI_FLAG != 0 {
-            glyph_id & Glyph::GLYPH_ID_EMOJI_MASK
-        } else {
-            glyph_id & Glyph::GLYPH_ID_MASK
-        };
-
-        if (0x20..0x80).contains(&base_glyph_id) {
-            // ASCII characters are directly mapped to their code point
-            let ch = base_glyph_id as u8 as char;
-            Some(Cow::from(ch.to_compact_string()))
-        } else {
-            self.symbol_lookup
-                .get(&base_glyph_id)
-                .map(|s| Cow::from(s.as_str()))
-        }
-    }
+/// Trait defining the interface for font atlases.
+pub(crate) trait Atlas {
+    /// Returns the glyph identifier for the given key and style bits
+    fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16>;
 
     /// Returns the base glyph identifier for the given key
-    pub fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
-        if key.len() == 1 {
-            let ch = key.chars().next().unwrap();
-            if ch.is_ascii() {
-                // 0x00..0x7f double as layer
-                let id = ch as u16;
-                return Some(id);
-            }
-        }
+    fn get_base_glyph_id(&self, key: &str) -> Option<u16>;
 
-        match self.glyph_coords.get(key) {
-            Some(id) => Some(*id),
-            None => {
-                self.glyph_tracker.record_missing(key);
-                None
-            },
-        }
-    }
+    /// Returns the height of the atlas in pixels.
+    fn cell_size(&self) -> (i32, i32);
 
-    /// Returns the maximum assigned halfwidth base glyph ID.
-    pub fn get_max_halfwidth_base_glyph_id(&self) -> u16 {
-        self.last_halfwidth_base_glyph_id
-    }
+    /// Binds the font atlas texture to the specified texture unit.
+    fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32);
+
+    /// Returns the underline configuration
+    fn underline(&self) -> beamterm_data::LineDecoration;
+
+    /// Returns the strikethrough configuration
+    fn strikethrough(&self) -> beamterm_data::LineDecoration;
+
+    /// Returns the symbol for the given glyph ID, if it exists
+    fn get_symbol(&self, glyph_id: u16) -> Option<CompactString>;
 
     /// Returns a reference to the glyph tracker for accessing missing glyphs.
-    pub fn glyph_tracker(&self) -> &GlyphTracker {
-        &self.glyph_tracker
-    }
+    fn glyph_tracker(&self) -> &GlyphTracker;
 
-    /// Returns the total number of glyphs available in the atlas.
-    /// This includes ASCII characters (0x20..0x80) plus non-ASCII glyphs.
-    pub(crate) fn glyph_count(&self) -> u32 {
-        // ASCII printable characters: 0x20..0x80 (96 characters)
-        let ascii_count = 0x80 - 0x20;
-        // Non-ASCII glyphs stored in symbol_lookup
-        let non_ascii_count = self.symbol_lookup.len() as u32;
-        ascii_count + non_ascii_count
-    }
+    /// Returns the number of glyphs currently in the atlas.
+    fn glyph_count(&self) -> u32;
 
-    pub(crate) fn get_symbol_lookup(&self) -> &HashMap<u16, CompactString> {
-        &self.symbol_lookup
-    }
+    /// Flushes any pending glyph data to the GPU texture.
+    ///
+    /// For dynamic atlases, this rasterizes and uploads queued glyphs that were
+    /// allocated during [`resolve_glyph_slot`] calls. Must be called after the
+    /// atlas texture is bound and before rendering.
+    ///
+    /// For static atlases, this is a no-op since all glyphs are pre-loaded.
+    ///
+    /// # Errors
+    /// Returns an error if texture upload fails.
+    fn flush(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error>;
 
     /// Recreates the GPU texture after a WebGL context loss.
     ///
-    /// This method rebuilds the texture from the retained atlas data. All glyph
-    /// mappings and other CPU-side state are preserved; only the GPU texture
-    /// handle is recreated.
+    /// This clears the cache - glyphs will be re-rasterized on next access.
+    fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error>;
+
+    /// Iterates over all glyph ID to symbol mappings.
     ///
-    /// # Parameters
-    /// * `gl` - The new WebGL2 rendering context
+    /// Calls the provided closure for each (glyph_id, symbol) pair in the atlas.
+    /// This is used for debugging and exposing the atlas contents to JavaScript.
+    fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str));
+
+    /// Resolves a glyph to its texture slot.
     ///
-    /// # Returns
-    /// * `Ok(())` - Texture successfully recreated
-    /// * `Err(Error)` - Failed to create texture
+    /// For static atlases, performs a lookup and returns `None` if not found.
+    ///
+    /// For dynamic atlases, allocates a slot if missing and queues for upload.
+    /// The slot is immediately valid, but [`flush`] must be called before
+    /// rendering to populate the texture.
+    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
+
+    /// Returns the bitmask for extracting the base glyph ID from a styled glyph ID.
+    ///
+    /// The glyph ID encodes both the base glyph index and style/effect flags. This mask
+    /// isolates the base ID portion, which is used for texture coordinate calculation
+    /// and symbol reverse-lookup.
+    ///
+    /// # Implementation Differences
+    ///
+    /// - **`StaticFontAtlas`** returns `0x1FFF` (13 bits):
+    ///   - Bits 0-9: Base glyph ID (1024 values for regular glyphs)
+    ///   - Bits 10-11: Reserved for font style derivation
+    ///   - Bit 12: Emoji flag (included in mask for emoji base ID extraction)
+    ///   - Supports the full glyph ID encoding scheme from `beamterm-atlas`
+    ///
+    /// - **`DynamicFontAtlas`** returns `0x0FFF` (12 bits):
+    ///   - Uses a flat slot-based addressing (4096 total slots)
+    ///   - Emoji are tracked via `GlyphSlot::Emoji` variant rather than a flag bit
+    ///   - Simpler addressing since glyphs are assigned sequentially at runtime
+    fn base_lookup_mask(&self) -> u32;
+}
+
+pub(crate) struct FontAtlas {
+    inner: Box<dyn Atlas>,
+}
+
+impl<A: Atlas + 'static> From<A> for FontAtlas {
+    fn from(atlas: A) -> Self {
+        FontAtlas::new(atlas)
+    }
+}
+
+impl Debug for FontAtlas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FontAtlas")
+            .finish_non_exhaustive()
+    }
+}
+
+impl FontAtlas {
+    pub(super) fn new(inner: impl Atlas + 'static) -> Self {
+        Self { inner: Box::new(inner) }
+    }
+
+    pub(crate) fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
+        self.inner.get_glyph_id(key, style_bits)
+    }
+
+    pub(crate) fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+        self.inner.get_base_glyph_id(key)
+    }
+
+    pub(crate) fn cell_size(&self) -> (i32, i32) {
+        self.inner.cell_size()
+    }
+
+    pub(crate) fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {
+        self.inner.bind(gl, texture_unit)
+    }
+
+    pub(crate) fn underline(&self) -> beamterm_data::LineDecoration {
+        self.inner.underline()
+    }
+
+    pub(crate) fn strikethrough(&self) -> beamterm_data::LineDecoration {
+        self.inner.strikethrough()
+    }
+
+    pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
+        self.inner.get_symbol(glyph_id)
+    }
+
+    pub(crate) fn glyph_tracker(&self) -> &GlyphTracker {
+        self.inner.glyph_tracker()
+    }
+
+    pub(crate) fn glyph_count(&self) -> u32 {
+        self.inner.glyph_count()
+    }
+
     pub(crate) fn recreate_texture(
         &mut self,
         gl: &web_sys::WebGl2RenderingContext,
     ) -> Result<(), Error> {
-        // Delete old texture if it exists (may be invalid after context loss)
-        self.texture.delete(gl);
+        self.inner.recreate_texture(gl)
+    }
 
-        // Recreate texture from retained atlas data
-        self.texture =
-            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
+    pub(crate) fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
+        self.inner.for_each_symbol(f)
+    }
 
-        Ok(())
+    pub(crate) fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+        self.inner.resolve_glyph_slot(key, style_bits)
+    }
+
+    pub(crate) fn flush(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+        self.inner.flush(gl)
+    }
+
+    pub(super) fn base_lookup_mask(&self) -> u32 {
+        self.inner.base_lookup_mask()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum GlyphSlot {
+    Normal(SlotId),
+    Wide(SlotId),
+    Emoji(SlotId),
+}
+
+impl GlyphSlot {
+    pub fn slot_id(&self) -> SlotId {
+        match *self {
+            GlyphSlot::Normal(id) | GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => id,
+        }
+    }
+
+    /// Returns true if this is a double-width glyph (emoji or wide CJK).
+    pub fn is_double_width(&self) -> bool {
+        matches!(self, GlyphSlot::Wide(_) | GlyphSlot::Emoji(_))
     }
 }
 
 /// Tracks glyphs that were requested but not found in the font atlas.
 #[derive(Debug, Default)]
-pub struct GlyphTracker {
+pub(crate) struct GlyphTracker {
     missing: RefCell<HashSet<CompactString>>,
 }
 
 impl GlyphTracker {
     /// Creates a new empty glyph tracker.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { missing: RefCell::new(HashSet::new()) }
     }
 
     /// Records a glyph as missing.
-    pub fn record_missing(&self, glyph: &str) {
+    pub(crate) fn record_missing(&self, glyph: &str) {
         self.missing.borrow_mut().insert(glyph.into());
     }
 
     /// Returns a copy of all missing glyphs.
-    pub fn missing_glyphs(&self) -> HashSet<CompactString> {
+    pub(crate) fn missing_glyphs(&self) -> HashSet<CompactString> {
         self.missing.borrow().clone()
     }
 
     /// Clears all tracked missing glyphs.
-    pub fn clear(&self) {
+    pub(crate) fn clear(&self) {
         self.missing.borrow_mut().clear();
     }
 
     /// Returns the number of unique missing glyphs.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.missing.borrow().len()
     }
 
     /// Returns true if no glyphs are missing.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.missing.borrow().is_empty()
     }
 }
