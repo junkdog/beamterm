@@ -7,7 +7,6 @@ use std::{
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
-use once_cell::unsync::Lazy;
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
