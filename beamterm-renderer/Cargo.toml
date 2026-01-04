@@ -14,10 +14,7 @@ categories.workspace = true
 
 # Exclude development files from package
 exclude = [
-    "index.html",
-    "tests/**/*",
-    "benches/**/*",
-    ".gitignore",
+    ".gitignore"
 ]
 
 [lib]
