@@ -72,7 +72,7 @@ known and consistent rendering is required.
 let terminal = Terminal::builder("#canvas").build()?;
 
 // Or load a custom atlas
-let atlas_data = FontAtlasData::load("custom.atlas")?;
+let atlas_data = FontAtlasData::from_binary(include_bytes!("hack-8pt.atlas"))?;
 let terminal = Terminal::builder("#canvas")
     .font_atlas(atlas_data)
     .build()?;

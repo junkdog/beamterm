@@ -10,6 +10,7 @@ use lru::LruCache;
 use unicode_width::UnicodeWidthStr;
 
 use crate::gl::atlas::{GlyphSlot, SlotId};
+use crate::terminal::is_double_width;
 
 /// Pre-allocated slots for normal-styled ASCII glyphs (0x20..0x7E)
 const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
@@ -87,7 +88,7 @@ impl GlyphCache {
         let is_emoji = emojis::get(key).is_some();
         let double_width = is_emoji || key.width() == 2;
 
-        if double_width {
+        if is_double_width(key) {
             // Check if already present
             if let Some(&slot) = self.wide.get(&cache_key) {
                 return (slot, None);

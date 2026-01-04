@@ -14,6 +14,7 @@ use crate::{
     },
     mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
 };
+use crate::terminal::is_double_width;
 
 /// JavaScript wrapper for the terminal renderer
 #[wasm_bindgen]
@@ -285,7 +286,7 @@ impl Batch {
                 .update_cell(current_col, y, cell)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-            if emojis::get(ch).is_some() {
+            if is_double_width(ch) {
                 width_offset += 1;
             }
         }

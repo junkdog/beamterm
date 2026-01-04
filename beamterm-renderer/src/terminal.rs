@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use beamterm_data::FontAtlasData;
 use compact_str::{CompactString, ToCompactString};
+use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 
 use crate::{
@@ -542,6 +543,13 @@ enum InputHandler {
         selection_mode: SelectionMode,
         trim_trailing_whitespace: bool,
     },
+}
+
+
+/// Checks if a grapheme is double-width (emoji or fullwidth character).
+pub(crate) fn is_double_width(grapheme: &str) -> bool {
+    grapheme.len() > 1 &&
+        (emojis::get(grapheme).is_some() || grapheme.width() == 2)
 }
 
 /// Debug API exposed to browser console for terminal inspection.

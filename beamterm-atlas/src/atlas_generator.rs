@@ -6,7 +6,7 @@ use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
-use unicode_width::UnicodeWidthChar;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     bitmap_font::BitmapFont,
@@ -282,11 +282,7 @@ impl AtlasFontGenerator {
         let glyphs: Vec<_> = glyphs
             .into_iter()
             .filter(|g| {
-                let is_fullwidth = g
-                    .symbol
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.width() == Some(2));
+                let is_fullwidth = g.symbol.width() == 2;
                 let is_double_width = g.is_emoji || is_fullwidth;
                 !is_double_width || g.id & 1 == 0 // keep left half only
             })
@@ -351,9 +347,7 @@ impl AtlasFontGenerator {
     ) {
         let is_fullwidth = glyph
             .symbol
-            .chars()
-            .next()
-            .is_some_and(|c| c.width() == Some(2));
+            .width() == 2;
 
         debug!(
             symbol = %glyph.symbol,

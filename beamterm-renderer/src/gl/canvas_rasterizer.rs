@@ -32,10 +32,12 @@
 
 use beamterm_data::{FontAtlasData, FontStyle};
 use compact_str::CompactString;
+use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 
 use crate::error::Error;
+use crate::terminal::is_double_width;
 
 // padding around glyphs matches StaticFontAtlas to unify texture packing.
 const PADDING: u32 = FontAtlasData::PADDING as u32;
@@ -280,17 +282,6 @@ fn js_error_string(err: &JsValue) -> String {
         .unwrap_or_else(|| format!("{err:?}"))
 }
 
-/// Checks if a grapheme is double-width (emoji or fullwidth character).
-fn is_double_width(grapheme: &str) -> bool {
-    use unicode_width::UnicodeWidthChar;
-
-    emojis::get(grapheme).is_some()
-        || grapheme
-            .chars()
-            .next()
-            .and_then(UnicodeWidthChar::width)
-            .is_some_and(|w| w == 2)
-}
 
 /// Builds a CSS font string with style modifiers.
 fn build_font_string(font_family: &str, font_size: f32, style: FontStyle) -> String {
