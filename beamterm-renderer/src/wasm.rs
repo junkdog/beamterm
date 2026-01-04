@@ -13,8 +13,8 @@ use crate::{
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
     mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
+    terminal::is_double_width,
 };
-use crate::terminal::is_double_width;
 
 /// JavaScript wrapper for the terminal renderer
 #[wasm_bindgen]

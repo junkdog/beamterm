@@ -545,11 +545,9 @@ enum InputHandler {
     },
 }
 
-
 /// Checks if a grapheme is double-width (emoji or fullwidth character).
 pub(crate) fn is_double_width(grapheme: &str) -> bool {
-    grapheme.len() > 1 &&
-        (emojis::get(grapheme).is_some() || grapheme.width() == 2)
+    grapheme.len() > 1 && (emojis::get(grapheme).is_some() || grapheme.width() == 2)
 }
 
 /// Debug API exposed to browser console for terminal inspection.

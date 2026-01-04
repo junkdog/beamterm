@@ -6,7 +6,7 @@ use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     bitmap_font::BitmapFont,
@@ -345,9 +345,7 @@ impl AtlasFontGenerator {
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) {
-        let is_fullwidth = glyph
-            .symbol
-            .width() == 2;
+        let is_fullwidth = glyph.symbol.width() == 2;
 
         debug!(
             symbol = %glyph.symbol,
