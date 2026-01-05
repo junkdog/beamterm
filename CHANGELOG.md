@@ -2,11 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.11.0] - 2026-01-05
 
 ### 🚀 Features
 
 - *(atlas)* Add `DynamicFontAtlas` for on-demand glyph rasterization with LRU cache (#63)
+
+### 💼 Other
+
+- *(deps-dev)* Bump the minor-and-patch group across 1 directory with 2 updates (#62)
+- *(deps)* Bump serde_json from 1.0.146 to 1.0.148 (#61)
 
 ## [beamterm-v0.10.0] - 2025-12-25
 
