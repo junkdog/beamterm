@@ -223,12 +223,11 @@ impl TerminalGrid {
     }
 
     pub(crate) fn hash_cells(&self, selection: CellQuery) -> u64 {
-        use std::{
-            collections::hash_map::DefaultHasher,
-            hash::{Hash, Hasher},
-        };
+        use std::hash::{Hash, Hasher};
 
-        let mut hasher = DefaultHasher::new();
+        use rustc_hash::FxHasher;
+
+        let mut hasher = FxHasher::default();
         for (idx, _) in self.cell_iter(selection) {
             self.cells[idx].hash(&mut hasher);
         }
