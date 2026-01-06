@@ -78,7 +78,7 @@ pub struct GlyphBitmap {
     /// The bounding box of the rendered glyph.
     pub bounds: GlyphBounds,
     /// The font ID used for rasterization.
-    pub font_id: fontdb::ID
+    pub font_id: fontdb::ID,
 }
 
 impl GlyphBitmap {
@@ -233,10 +233,7 @@ impl AtlasFontGenerator {
         let mut buffer = buffer.borrow_with(&mut self.font_system);
         let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
 
-        Some(FontDimensions {
-            width: bounds.width(),
-            height: bounds.height(),
-        })
+        Some(FontDimensions { width: bounds.width(), height: bounds.height() })
     }
 
     /// Creates a new atlas font generator with the specified font family and rendering parameters.
@@ -342,13 +339,13 @@ impl AtlasFontGenerator {
         let mut texture_data = vec![0u32; config.texture_size()];
 
         // rasterize glyphs and copy into texture, collecting fallback stats
-        let mut fallback_stats = FallbackGlyphStats {
-            total_glyphs: glyphs.len(),
-            ..Default::default()
-        };
+        let mut fallback_stats =
+            FallbackGlyphStats { total_glyphs: glyphs.len(), ..Default::default() };
 
         for glyph in &glyphs {
-            if let Some(fallback) = self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data) {
+            if let Some(fallback) =
+                self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data)
+            {
                 fallback_stats.fallback_glyphs.push(fallback);
             }
         }
@@ -367,7 +364,9 @@ impl AtlasFontGenerator {
 
             for font_name in unique_fallback_fonts {
                 if let Some(dimensions) = self.measure_font_dimensions(&font_name) {
-                    fallback_stats.fallback_font_dimensions.push((font_name, dimensions));
+                    fallback_stats
+                        .fallback_font_dimensions
+                        .push((font_name, dimensions));
                 } else {
                     // Font doesn't have █, skip dimension reporting for this font
                     info!(
@@ -378,7 +377,9 @@ impl AtlasFontGenerator {
             }
 
             // Sort by font name for consistent output
-            fallback_stats.fallback_font_dimensions.sort_by(|a, b| a.0.cmp(&b.0));
+            fallback_stats
+                .fallback_font_dimensions
+                .sort_by(|a, b| a.0.cmp(&b.0));
         }
 
         let texture_data = texture_data
@@ -441,7 +442,11 @@ impl AtlasFontGenerator {
                     font_name: self.font_family_name.clone().into(),
                     font_size: self.metrics.font_size,
                     max_halfwidth_base_glyph_id: halfwidth_glyphs_per_layer,
-                    texture_dimensions: (config.texture_width, config.texture_height, config.layers),
+                    texture_dimensions: (
+                        config.texture_width,
+                        config.texture_height,
+                        config.layers,
+                    ),
                     cell_size: config.padded_cell_size(),
                     underline: nudged_underline,
                     strikethrough: nudged_strikethrough,
@@ -498,8 +503,8 @@ impl AtlasFontGenerator {
             font_id
         } else {
             // Normal glyph rendering
-            let glyph_bitmap = self
-                .rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
+            let glyph_bitmap =
+                self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
             let font_id = glyph_bitmap.font_id;
 
             self.render_pixels_to_texture(
@@ -580,7 +585,7 @@ impl AtlasFontGenerator {
         &mut self,
         glyph: &Glyph,
         cell_w: i32,
-        _cell_h: i32
+        _cell_h: i32,
     ) -> (Buffer, fontdb::ID) {
         // Use emoji font if glyph is emoji, otherwise use main font
         // Emoji fonts typically only have Normal style, not Bold/Italic

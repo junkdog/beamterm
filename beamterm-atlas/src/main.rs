@@ -162,7 +162,8 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
         println!("  From '{}':", font_name);
 
         // Group by style within each font
-        for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic] {
+        for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic]
+        {
             let style_glyphs: Vec<_> = glyphs
                 .iter()
                 .filter(|g| g.style == style)
@@ -177,11 +178,7 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
                         .iter()
                         .map(|g| {
                             let ch = g.symbol.chars().next().unwrap_or('\0');
-                            if ch.is_control() || ch.is_whitespace() {
-                                '·'
-                            } else {
-                                ch
-                            }
+                            if ch.is_control() || ch.is_whitespace() { '·' } else { ch }
                         })
                         .collect();
                     println!("      {}", symbols);
@@ -213,17 +210,39 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
         println!("\n  Font dimensions and glyph metrics (█):");
         println!(
             "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
-            "Font", "Size", "Δw", "Δh", "Norm", "Bold", "Ital", "B+I",
+            "Font",
+            "Size",
+            "Δw",
+            "Δh",
+            "Norm",
+            "Bold",
+            "Ital",
+            "B+I",
             width = max_name_len
         );
         println!(
             "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
-            "", "", "", "", "", "", "", "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
             width = max_name_len
         );
         println!(
             "    {:<width$}  {:>2}x{:<2}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
-            "Primary", primary.width, primary.height, "-", "-", "-", "-", "-", "-",
+            "Primary",
+            primary.width,
+            primary.height,
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
             width = max_name_len
         );
 
@@ -272,12 +291,22 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
         // Print totals row
         println!(
             "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
-            "", "", "", "", "", "", "", "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
             width = max_name_len
         );
         println!(
             "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
-            "Total", "", "", "",
+            "Total",
+            "",
+            "",
+            "",
             total_normal,
             total_bold,
             total_italic,
