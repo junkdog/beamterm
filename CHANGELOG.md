@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 💼 Other
+
+- *(deps)* Bump clap from 4.5.53 to 4.5.54 (#65)
+- *(deps)* Bump cosmic-text from 0.14.2 to 0.16.0 (#64)
+
+### 🐛 Bug Fixes
+
+- *(verify-atlas)* Update for vertical layout and double-width glyphs
+
 ## [beamterm-v0.11.0] - 2026-01-05
 
 ### 🚀 Features
@@ -12,6 +23,10 @@ All notable changes to this project will be documented in this file.
 
 - *(deps-dev)* Bump the minor-and-patch group across 1 directory with 2 updates (#62)
 - *(deps)* Bump serde_json from 1.0.146 to 1.0.148 (#61)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.11.0
 
 ## [beamterm-v0.10.0] - 2025-12-25
 
