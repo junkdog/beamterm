@@ -51,7 +51,7 @@ impl<'a> GlyphRasterizer<'a> {
         self,
         font_system: &mut cosmic_text::FontSystem,
         metrics: cosmic_text::Metrics,
-    ) -> Result<cosmic_text::Buffer> {
+    ) -> Result<(cosmic_text::Buffer, fontdb::ID)> {
         let font_family_name = self
             .font_family_name
             .ok_or_eyre("font family name must be set before rasterizing")?;
@@ -71,7 +71,14 @@ impl<'a> GlyphRasterizer<'a> {
         );
         buffer.shape_until_scroll(font_system, true);
 
-        Ok(buffer)
+        let id = buffer
+            .layout_runs()
+            .last()
+            .and_then(|run| run.glyphs.iter().last())
+            .map(|g| g.font_id)
+            .expect("glyph should be present");
+
+        Ok((buffer, id))
     }
 }
 

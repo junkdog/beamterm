@@ -14,7 +14,7 @@ use clap::Parser;
 use color_eyre::eyre::{Context, Result};
 
 use crate::{
-    atlas_generator::AtlasFontGenerator,
+    atlas_generator::{AtlasFontGenerator, FallbackGlyphStats},
     cli::Cli,
     font_discovery::FontDiscovery,
     logging::{LoggingConfig, init_logging},
@@ -88,7 +88,7 @@ fn main() -> Result<()> {
     };
 
     let additional_symbols = cli.read_symbols_file()?;
-    let bitmap_font = generator.generate(&ranges, &additional_symbols);
+    let (bitmap_font, fallback_stats) = generator.generate(&ranges, &additional_symbols);
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -127,12 +127,68 @@ fn main() -> Result<()> {
             .unwrap_or(0)
     );
 
+    // Report fallback glyphs if any
+    report_fallback_glyphs(&fallback_stats);
+
     // Check for missing glyphs if requested
     if cli.check_missing {
         report_missing_glyphs(&mut generator, &ranges, &additional_symbols);
     }
 
     Ok(())
+}
+
+fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
+    if stats.fallback_glyphs.is_empty() {
+        return;
+    }
+
+    println!(
+        "\n⚠️  {} glyphs used fallback fonts (out of {} total):",
+        stats.fallback_glyphs.len(),
+        stats.total_glyphs
+    );
+
+    // Group by fallback font name
+    let mut by_font: std::collections::HashMap<&str, Vec<_>> = std::collections::HashMap::new();
+    for glyph in &stats.fallback_glyphs {
+        by_font
+            .entry(&glyph.fallback_font_name)
+            .or_default()
+            .push(glyph);
+    }
+
+    for (font_name, glyphs) in by_font {
+        println!("  From '{}':", font_name);
+
+        // Group by style within each font
+        for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic] {
+            let style_glyphs: Vec<_> = glyphs
+                .iter()
+                .filter(|g| g.style == style)
+                .collect();
+
+            if !style_glyphs.is_empty() {
+                println!("    {:?} ({}):", style, style_glyphs.len());
+
+                // Print up to 74 glyphs per line
+                for chunk in style_glyphs.chunks(74) {
+                    let symbols: String = chunk
+                        .iter()
+                        .map(|g| {
+                            let ch = g.symbol.chars().next().unwrap_or('\0');
+                            if ch.is_control() || ch.is_whitespace() {
+                                '·'
+                            } else {
+                                ch
+                            }
+                        })
+                        .collect();
+                    println!("      {}", symbols);
+                }
+            }
+        }
+    }
 }
 
 fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result<String> {
