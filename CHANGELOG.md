@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(atlas)* Detect and report fallback font usage during atlas generation
+- *(selection)* Auto-clear mouse selection when content changes
 
 ### 💼 Other
 

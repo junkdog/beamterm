@@ -222,6 +222,19 @@ impl TerminalGrid {
         text
     }
 
+    pub(crate) fn hash_cells(&self, selection: CellQuery) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        use rustc_hash::FxHasher;
+
+        let mut hasher = FxHasher::default();
+        for (idx, _) in self.cell_iter(selection) {
+            self.cells[idx].hash(&mut hasher);
+        }
+
+        hasher.finish()
+    }
+
     fn get_cell_symbol(&self, idx: usize) -> Option<CompactString> {
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
@@ -390,6 +403,10 @@ impl TerminalGrid {
             return Ok(()); // no pending updates to flush
         }
 
+        // if there is an active selected region with a content hash,
+        // check if the underlying content has changed; if so, clear the selection
+        self.clear_stale_selection();
+
         // If there's an active selection, flip the colors of the selected cells.
         // This ensures that the selected cells are rendered with inverted colors
         // during the GPU upload process.
@@ -416,8 +433,7 @@ impl TerminalGrid {
     fn selected_cells_iter(&self) -> Option<CellIterator> {
         self.selection
             .get_query()
-            .and_then(|query| query.range())
-            .map(|(start, end)| self.cell_iter(start, end, self.selection.mode()))
+            .map(|query| self.cell_iter(query))
     }
 
     fn flip_cell_colors(&mut self, x: u16, y: u16) {
@@ -534,6 +550,15 @@ impl TerminalGrid {
 
     fn fallback_symbol(&self) -> Option<CompactString> {
         self.atlas.get_symbol(self.fallback_glyph)
+    }
+
+    fn clear_stale_selection(&self) {
+        if let Some(query) = self.selection_tracker().get_query()
+            && let Some(hash) = query.content_hash
+            && hash != self.hash_cells(query)
+        {
+            self.selection.clear();
+        }
     }
 }
 
@@ -860,7 +885,7 @@ struct CellStatic {
 ///
 /// # Buffer Upload
 /// Uploaded to GPU using `GL::DYNAMIC_DRAW` for efficient updates.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C, align(4))]
 pub struct CellDynamic {
     /// Packed cell data:

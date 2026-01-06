@@ -24,7 +24,12 @@ use crate::{
 /// multiple components.
 #[derive(Debug, Clone)]
 pub(crate) struct SelectionTracker {
-    query: Rc<RefCell<Option<CellQuery>>>,
+    inner: Rc<RefCell<SelectionTrackerInner>>,
+}
+
+#[derive(Debug, Default)]
+struct SelectionTrackerInner {
+    query: Option<CellQuery>,
 }
 
 /// Tracks terminal dimensions for coordinate calculations.
@@ -38,14 +43,16 @@ pub(crate) struct TerminalDimensions {
 impl SelectionTracker {
     /// Creates a new selection tracker with no active selection.
     pub(super) fn new() -> Self {
-        Self { query: Rc::new(RefCell::new(None)) }
+        Self {
+            inner: Rc::new(RefCell::new(SelectionTrackerInner::default())),
+        }
     }
 
     /// Clears the current selection.
     ///
     /// Removes any active selection from the terminal grid.
     pub(crate) fn clear(&self) {
-        *self.query.borrow_mut() = None;
+        *self.inner.borrow_mut() = SelectionTrackerInner::default();
     }
 
     /// Returns the current selection query.
@@ -62,8 +69,9 @@ impl SelectionTracker {
     ///
     /// Defaults to the default selection mode if no query is active.
     pub(super) fn mode(&self) -> SelectionMode {
-        self.query
+        self.inner
             .borrow()
+            .query
             .as_ref()
             .map_or(SelectionMode::default(), |q| q.mode)
     }
@@ -72,23 +80,31 @@ impl SelectionTracker {
     ///
     /// Safe version that doesn't panic when no selection exists.
     pub(crate) fn get_query(&self) -> Option<CellQuery> {
-        *self.query.borrow()
+        self.inner.borrow().query
     }
 
     /// Sets a new selection query.
     ///
     /// Replaces any existing selection with the provided query.
     pub(crate) fn set_query(&self, query: CellQuery) {
-        *self.query.borrow_mut() = Some(query);
+        self.inner.borrow_mut().query = Some(query);
     }
 
     /// Updates the end position of the current selection.
     ///
     /// Used during mouse drag operations to extend the selection.
-    /// Does nothing if no selection is active.
     pub(crate) fn update_selection_end(&self, end: (u16, u16)) {
-        if let Some(query) = self.query.borrow_mut().as_mut() {
+        if let Some(query) = &mut self.inner.borrow_mut().query {
             *query = query.end(end);
+        }
+    }
+
+    /// Sets the content hash on the current query.
+    ///
+    /// The hash is stored with the query to detect if underlying content changes.
+    pub(crate) fn set_content_hash(&self, hash: u64) {
+        if let Some(query) = &mut self.inner.borrow_mut().query {
+            *query = query.with_content_hash(hash);
         }
     }
 }

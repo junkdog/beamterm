@@ -12,6 +12,9 @@ pub struct CellQuery {
     pub(super) start: Option<(u16, u16)>,
     pub(super) end: Option<(u16, u16)>,
     pub(super) trim_trailing_whitespace: bool,
+    /// Hash of the selected content when selection was completed.
+    /// Used to detect if underlying content has changed.
+    pub(crate) content_hash: Option<u64>,
 }
 
 /// Defines how cells are selected in the terminal grid.
@@ -126,6 +129,15 @@ impl CellQuery {
     /// from the extracted text.
     pub fn trim_trailing_whitespace(mut self, enabled: bool) -> Self {
         self.trim_trailing_whitespace = enabled;
+        self
+    }
+
+    /// Sets the content hash for this query.
+    ///
+    /// The hash is computed from the selected cells when the selection
+    /// is completed, and used to detect if the underlying content changes.
+    pub(crate) fn with_content_hash(mut self, hash: u64) -> Self {
+        self.content_hash = Some(hash);
         self
     }
 }
@@ -275,16 +287,13 @@ impl TerminalGrid {
     ///
     /// # Returns
     /// Iterator yielding (cell_index, needs_newline_after) tuples.
-    pub fn cell_iter(
-        &self,
-        start: (u16, u16),
-        end: (u16, u16),
-        mode: SelectionMode,
-    ) -> CellIterator {
+    pub fn cell_iter(&self, selection: CellQuery) -> CellIterator {
         let cols = self.terminal_size().0;
         let max_cells = self.cell_count();
 
-        match mode {
+        let (start, end) = selection.range().unwrap_or_default();
+
+        match selection.mode {
             SelectionMode::Block => {
                 CellIterator::Block(BlockCellIterator::new(cols, start, end, max_cells))
             },
@@ -305,16 +314,16 @@ impl TerminalGrid {
     /// # Returns
     /// The selected text as a `CompactString`, or empty string if no selection.
     pub fn get_text(&self, selection: CellQuery) -> CompactString {
-        if let Some((start, end)) = selection.range() {
-            let text = self.get_symbols(self.cell_iter(start, end, selection.mode));
+        if selection.is_empty() {
+            return CompactString::const_new("");
+        }
 
-            if selection.trim_trailing_whitespace {
-                text.lines().map(str::trim_end).join_compact("\n")
-            } else {
-                text
-            }
+        let text = self.get_symbols(self.cell_iter(selection));
+
+        if selection.trim_trailing_whitespace {
+            text.lines().map(str::trim_end).join_compact("\n")
         } else {
-            CompactString::const_new("")
+            text
         }
     }
 }
