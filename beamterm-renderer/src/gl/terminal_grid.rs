@@ -222,6 +222,20 @@ impl TerminalGrid {
         text
     }
 
+    pub(crate) fn hash_cells(&self, selection: CellQuery) -> u64 {
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::{Hash, Hasher},
+        };
+
+        let mut hasher = DefaultHasher::new();
+        for (idx, _) in self.cell_iter(selection) {
+            self.cells[idx].hash(&mut hasher);
+        }
+
+        hasher.finish()
+    }
+
     fn get_cell_symbol(&self, idx: usize) -> Option<CompactString> {
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
@@ -416,8 +430,7 @@ impl TerminalGrid {
     fn selected_cells_iter(&self) -> Option<CellIterator> {
         self.selection
             .get_query()
-            .and_then(|query| query.range())
-            .map(|(start, end)| self.cell_iter(start, end, self.selection.mode()))
+            .map(|query| self.cell_iter(query))
     }
 
     fn flip_cell_colors(&mut self, x: u16, y: u16) {
@@ -534,6 +547,17 @@ impl TerminalGrid {
 
     fn fallback_symbol(&self) -> Option<CompactString> {
         self.atlas.get_symbol(self.fallback_glyph)
+    }
+
+    fn validate_or_clear_mouse_selection(&self) {
+        // if there is an active selected region with a content hash,
+        // check if the underlying content has changed; if so, clear the selection
+        if let Some(query) = self.selection_tracker().get_query()
+            && let Some(hash) = query.content_hash
+            && hash != self.hash_cells(query)
+        {
+            self.selection.clear();
+        }
     }
 }
 
@@ -709,6 +733,8 @@ fn enable_vertex_attrib(
 
 impl Drawable for TerminalGrid {
     fn prepare(&self, context: &mut RenderContext) {
+        self.validate_or_clear_mouse_selection();
+
         let gl = context.gl;
 
         self.gpu.shader.use_program(gl);
@@ -860,7 +886,7 @@ struct CellStatic {
 ///
 /// # Buffer Upload
 /// Uploaded to GPU using `GL::DYNAMIC_DRAW` for efficient updates.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C, align(4))]
 pub struct CellDynamic {
     /// Packed cell data:

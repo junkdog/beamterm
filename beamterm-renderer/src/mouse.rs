@@ -376,6 +376,12 @@ impl DefaultSelectionHandler {
                     // b) the selection was canceled by a click inside a single cell
                     if let Some((_start, _end)) = state.complete_selection(event.col, event.row) {
                         active_selection.update_selection_end((event.col, event.row));
+
+                        // hash the selected content and store it with the query;
+                        // this allows us to clear the selection if the content changes
+                        let query = active_selection.query();
+                        active_selection.set_content_hash(grid.hash_cells(query));
+
                         let selected_text = grid.get_text(active_selection.query());
                         copy_to_clipboard(selected_text);
                     } else {
