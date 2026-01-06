@@ -211,20 +211,32 @@ impl AtlasFontGenerator {
     }
 
     /// Measures the dimensions of a font by rasterizing the full block character (█).
-    fn measure_font_dimensions(&mut self, font_family: &str) -> FontDimensions {
-        let (mut buffer, _font_id) = create_rasterizer("\u{2588}")
+    /// Returns None if the glyph is not present in the requested font (i.e., falls back).
+    fn measure_font_dimensions(&mut self, font_family: &str) -> Option<FontDimensions> {
+        let (mut buffer, font_id) = create_rasterizer("\u{2588}")
             .font_family_name(font_family)
             .font_style(FontStyle::Normal)
             .rasterize(&mut self.font_system, self.metrics)
             .expect("reference glyph to rasterize");
 
+        // Verify the glyph came from the requested font
+        let actual_font_name = self.font_name_for_id(font_id);
+        if !actual_font_name.eq_ignore_ascii_case(font_family) {
+            debug!(
+                requested = font_family,
+                actual = actual_font_name,
+                "Reference glyph (█) not present in font, using fallback"
+            );
+            return None;
+        }
+
         let mut buffer = buffer.borrow_with(&mut self.font_system);
         let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
 
-        FontDimensions {
+        Some(FontDimensions {
             width: bounds.width(),
             height: bounds.height(),
-        }
+        })
     }
 
     /// Creates a new atlas font generator with the specified font family and rendering parameters.
@@ -344,7 +356,7 @@ impl AtlasFontGenerator {
         // Measure font dimensions for primary and fallback fonts
         if !fallback_stats.fallback_glyphs.is_empty() {
             fallback_stats.primary_font_dimensions =
-                Some(self.measure_font_dimensions(&self.font_family_name.clone()));
+                self.measure_font_dimensions(&self.font_family_name.clone());
 
             // Collect unique fallback font names and measure each
             let unique_fallback_fonts: HashSet<_> = fallback_stats
@@ -354,8 +366,15 @@ impl AtlasFontGenerator {
                 .collect();
 
             for font_name in unique_fallback_fonts {
-                let dimensions = self.measure_font_dimensions(&font_name);
-                fallback_stats.fallback_font_dimensions.push((font_name, dimensions));
+                if let Some(dimensions) = self.measure_font_dimensions(&font_name) {
+                    fallback_stats.fallback_font_dimensions.push((font_name, dimensions));
+                } else {
+                    // Font doesn't have █, skip dimension reporting for this font
+                    info!(
+                        font = font_name,
+                        "Skipping dimension measurement - font lacks reference glyph (█)"
+                    );
+                }
             }
 
             // Sort by font name for consistent output

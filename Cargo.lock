@@ -109,6 +109,7 @@ dependencies = [
  "cosmic-text",
  "directories",
  "emojis",
+ "fontdb",
  "itertools",
  "tracing",
  "tracing-appender",
