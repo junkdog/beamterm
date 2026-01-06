@@ -40,12 +40,45 @@ pub struct MissingGlyphReport {
     pub font_family_name: String,
 }
 
+/// A glyph that was rendered using a fallback font instead of the requested font.
+#[derive(Debug, Clone)]
+pub struct FallbackGlyph {
+    /// The character or grapheme that used a fallback font.
+    pub symbol: String,
+    /// The font style that was requested.
+    pub style: FontStyle,
+    /// The name of the fallback font that was used.
+    pub fallback_font_name: String,
+}
+
+/// Measured dimensions of a font's reference glyph (█).
+#[derive(Debug, Clone, Copy)]
+pub struct FontDimensions {
+    pub width: i32,
+    pub height: i32,
+}
+
+/// Statistics about glyphs that used fallback fonts during atlas generation.
+#[derive(Debug, Default)]
+pub struct FallbackGlyphStats {
+    /// Glyphs that were rendered using a fallback font.
+    pub fallback_glyphs: Vec<FallbackGlyph>,
+    /// Total number of glyphs processed.
+    pub total_glyphs: usize,
+    /// Dimensions of the primary font's reference glyph.
+    pub primary_font_dimensions: Option<FontDimensions>,
+    /// Dimensions of each fallback font's reference glyph, keyed by font name.
+    pub fallback_font_dimensions: Vec<(String, FontDimensions)>,
+}
+
 /// A rasterized glyph with pixel data and bounding box information.
 pub struct GlyphBitmap {
     /// Pixel data as (x, y, color) tuples.
     pub data: Vec<(i32, i32, Color)>,
     /// The bounding box of the rendered glyph.
     pub bounds: GlyphBounds,
+    /// The font ID used for rasterization.
+    pub font_id: fontdb::ID
 }
 
 impl GlyphBitmap {
@@ -74,7 +107,7 @@ impl GlyphBitmap {
                 _ => (),
             });
 
-        Self { data, bounds: self.bounds }
+        Self { data, ..self }
     }
 
     /// Splits double-width emoji pixels into left half (x < split_point).
@@ -87,7 +120,7 @@ impl GlyphBitmap {
             .collect();
 
         let bounds = Self::calculate_bounds(&data, cell_w);
-        Self { data, bounds }
+        Self { data, bounds, font_id: source.font_id }
     }
 
     /// Splits double-width emoji pixels into right half (x >= split_point), normalized to 0-based.
@@ -100,7 +133,7 @@ impl GlyphBitmap {
             .collect();
 
         let bounds = Self::calculate_bounds(&data, cell_w);
-        Self { data, bounds }
+        Self { data, bounds, font_id: source.font_id }
     }
 
     fn pixels(&self) -> Vec<(i32, i32, Color)> {
@@ -161,6 +194,51 @@ pub struct AtlasFontGenerator {
 }
 
 impl AtlasFontGenerator {
+    /// Returns true if the font_id belongs to the expected font family (by name).
+    fn is_expected_font(&self, font_id: fontdb::ID) -> bool {
+        let font_name = self.font_name_for_id(font_id);
+        font_name.eq_ignore_ascii_case(&self.font_family_name)
+    }
+
+    /// Looks up the font family name for a given font ID.
+    fn font_name_for_id(&self, font_id: fontdb::ID) -> String {
+        self.font_system
+            .db()
+            .face(font_id)
+            .and_then(|face| face.families.first())
+            .map(|(name, _)| name.clone())
+            .unwrap_or_else(|| format!("Unknown (ID: {:?})", font_id))
+    }
+
+    /// Measures the dimensions of a font by rasterizing the full block character (█).
+    /// Returns None if the glyph is not present in the requested font (i.e., falls back).
+    fn measure_font_dimensions(&mut self, font_family: &str) -> Option<FontDimensions> {
+        let (mut buffer, font_id) = create_rasterizer("\u{2588}")
+            .font_family_name(font_family)
+            .font_style(FontStyle::Normal)
+            .rasterize(&mut self.font_system, self.metrics)
+            .expect("reference glyph to rasterize");
+
+        // Verify the glyph came from the requested font
+        let actual_font_name = self.font_name_for_id(font_id);
+        if !actual_font_name.eq_ignore_ascii_case(font_family) {
+            debug!(
+                requested = font_family,
+                actual = actual_font_name,
+                "Reference glyph (█) not present in font, using fallback"
+            );
+            return None;
+        }
+
+        let mut buffer = buffer.borrow_with(&mut self.font_system);
+        let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
+
+        Some(FontDimensions {
+            width: bounds.width(),
+            height: bounds.height(),
+        })
+    }
+
     /// Creates a new atlas font generator with the specified font family and rendering parameters.
     ///
     /// # Arguments
@@ -228,12 +306,13 @@ impl AtlasFontGenerator {
     ///
     /// # Returns
     ///
-    /// A [`BitmapFont`] containing the atlas texture data and glyph metadata.
+    /// A tuple of [`BitmapFont`] containing the atlas texture data and glyph metadata,
+    /// and [`FallbackGlyphStats`] with information about glyphs that used fallback fonts.
     pub fn generate(
         &mut self,
         unicode_ranges: &[RangeInclusive<char>],
         other_symbols: &str,
-    ) -> BitmapFont {
+    ) -> (BitmapFont, FallbackGlyphStats) {
         info!(
             font_family = %self.font_family_name,
             "Starting font generation"
@@ -262,9 +341,44 @@ impl AtlasFontGenerator {
         // allocate 3d rgba texture data
         let mut texture_data = vec![0u32; config.texture_size()];
 
-        // rasterize glyphs and copy into texture
+        // rasterize glyphs and copy into texture, collecting fallback stats
+        let mut fallback_stats = FallbackGlyphStats {
+            total_glyphs: glyphs.len(),
+            ..Default::default()
+        };
+
         for glyph in &glyphs {
-            self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data);
+            if let Some(fallback) = self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data) {
+                fallback_stats.fallback_glyphs.push(fallback);
+            }
+        }
+
+        // Measure font dimensions for primary and fallback fonts
+        if !fallback_stats.fallback_glyphs.is_empty() {
+            fallback_stats.primary_font_dimensions =
+                self.measure_font_dimensions(&self.font_family_name.clone());
+
+            // Collect unique fallback font names and measure each
+            let unique_fallback_fonts: HashSet<_> = fallback_stats
+                .fallback_glyphs
+                .iter()
+                .map(|g| g.fallback_font_name.clone())
+                .collect();
+
+            for font_name in unique_fallback_fonts {
+                if let Some(dimensions) = self.measure_font_dimensions(&font_name) {
+                    fallback_stats.fallback_font_dimensions.push((font_name, dimensions));
+                } else {
+                    // Font doesn't have █, skip dimension reporting for this font
+                    info!(
+                        font = font_name,
+                        "Skipping dimension measurement - font lacks reference glyph (█)"
+                    );
+                }
+            }
+
+            // Sort by font name for consistent output
+            fallback_stats.fallback_font_dimensions.sort_by(|a, b| a.0.cmp(&b.0));
         }
 
         let texture_data = texture_data
@@ -321,30 +435,35 @@ impl AtlasFontGenerator {
             "Font generation completed successfully"
         );
 
-        BitmapFont {
-            atlas_data: FontAtlasData {
-                font_name: self.font_family_name.clone().into(),
-                font_size: self.metrics.font_size,
-                max_halfwidth_base_glyph_id: halfwidth_glyphs_per_layer,
-                texture_dimensions: (config.texture_width, config.texture_height, config.layers),
-                cell_size: config.padded_cell_size(),
-                underline: nudged_underline,
-                strikethrough: nudged_strikethrough,
-                glyphs,
-                texture_data,
+        (
+            BitmapFont {
+                atlas_data: FontAtlasData {
+                    font_name: self.font_family_name.clone().into(),
+                    font_size: self.metrics.font_size,
+                    max_halfwidth_base_glyph_id: halfwidth_glyphs_per_layer,
+                    texture_dimensions: (config.texture_width, config.texture_height, config.layers),
+                    cell_size: config.padded_cell_size(),
+                    underline: nudged_underline,
+                    strikethrough: nudged_strikethrough,
+                    glyphs,
+                    texture_data,
+                },
             },
-        }
+            fallback_stats,
+        )
     }
 
     /// Rasterizes a glyph and writes its pixels into the 3D texture at the computed atlas position.
     /// For emoji and fullwidth glyphs, splits the double-width rendering into left and right halves
     /// placed in consecutive cells.
+    ///
+    /// Returns `Some(FallbackGlyph)` if the glyph was rendered using a fallback font.
     fn place_glyph_in_3d_texture(
         &mut self,
         glyph: &Glyph,
         config: &RasterizationConfig,
         texture: &mut [u32],
-    ) {
+    ) -> Option<FallbackGlyph> {
         let is_fullwidth = glyph.symbol.width() == 2;
 
         debug!(
@@ -356,11 +475,12 @@ impl AtlasFontGenerator {
             "Rasterizing glyph"
         );
 
-        if glyph.is_emoji || is_fullwidth {
+        let font_id = if glyph.is_emoji || is_fullwidth {
             // Render double-width glyph at 2× width and split into left/right halves
             let bounds = config.double_width_glyph_bounds();
             let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
             let cell_w = config.glyph_bounds().width();
+            let font_id = bitmap.font_id;
 
             let half_bitmap = if glyph.id & 1 == 0 {
                 GlyphBitmap::split_left(&bitmap, cell_w)
@@ -374,13 +494,33 @@ impl AtlasFontGenerator {
                 config,
                 texture,
             );
+
+            font_id
         } else {
             // Normal glyph rendering
-            let pixels = self
-                .rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds())
-                .pixels();
+            let glyph_bitmap = self
+                .rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
+            let font_id = glyph_bitmap.font_id;
 
-            self.render_pixels_to_texture(pixels, glyph.atlas_coordinate(), config, texture);
+            self.render_pixels_to_texture(
+                glyph_bitmap.pixels(),
+                glyph.atlas_coordinate(),
+                config,
+                texture,
+            );
+
+            font_id
+        };
+
+        // Check if this glyph used a fallback font (skip emoji - they use a separate font)
+        if !glyph.is_emoji && !self.is_expected_font(font_id) {
+            Some(FallbackGlyph {
+                symbol: glyph.symbol.to_string(),
+                style: glyph.style,
+                fallback_font_name: self.font_name_for_id(font_id),
+            })
+        } else {
+            None
         }
     }
 
@@ -423,12 +563,12 @@ impl AtlasFontGenerator {
             Glyph::new(symbol, style, (0, 0))
         };
 
-        let mut buffer = self.render_to_buffer(&glyph, bounds.width(), bounds.height());
+        let (mut buffer, font_id) = self.render_to_buffer(&glyph, bounds.width(), bounds.height());
         let mut buffer = buffer.borrow_with(&mut self.font_system);
 
         let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
 
-        GlyphBitmap { data: pixels, bounds }
+        GlyphBitmap { data: pixels, bounds, font_id }
     }
 
     /// Creates a cosmic-text buffer with the glyph rendered.
@@ -436,7 +576,12 @@ impl AtlasFontGenerator {
     /// The `cell_w` parameter determines the rendering width:
     /// - For normal glyphs: single cell width
     /// - For double-width emoji: 2× cell width (via `double_width_glyph_bounds()`)
-    fn render_to_buffer(&mut self, glyph: &Glyph, cell_w: i32, _cell_h: i32) -> Buffer {
+    fn render_to_buffer(
+        &mut self,
+        glyph: &Glyph,
+        cell_w: i32,
+        _cell_h: i32
+    ) -> (Buffer, fontdb::ID) {
         // Use emoji font if glyph is emoji, otherwise use main font
         // Emoji fonts typically only have Normal style, not Bold/Italic
         let (font_family, font_style) = if glyph.is_emoji {
@@ -560,7 +705,7 @@ impl AtlasFontGenerator {
             dynamic_metrics.font_size = self.metrics.font_size * adjustment;
             dynamic_metrics.line_height = dynamic_metrics.font_size * self.line_height;
 
-            let mut buffer = create_rasterizer(&reference_glyph.symbol) // Full block character
+            let (mut buffer, _font_id) = create_rasterizer(&reference_glyph.symbol) // Full block character
                 .font_family_name(&self.font_family_name)
                 .font_style(reference_glyph.style)
                 .rasterize(&mut self.font_system, dynamic_metrics)
@@ -669,7 +814,7 @@ impl AtlasFontGenerator {
         glyph: &Glyph,
         bounds: GlyphBounds,
     ) -> Vec<(i32, i32, Color)> {
-        let mut buffer = create_rasterizer(&glyph.symbol)
+        let (mut buffer, _font_id) = create_rasterizer(&glyph.symbol)
             .font_family_name(&self.font_family_name)
             .font_style(glyph.style)
             .rasterize(&mut self.font_system, self.metrics)

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+### 🚀 Features
+
+- *(atlas)* Detect and report fallback font usage during atlas generation
+
 ### 💼 Other
 
 - *(deps)* Bump clap from 4.5.53 to 4.5.54 (#65)
