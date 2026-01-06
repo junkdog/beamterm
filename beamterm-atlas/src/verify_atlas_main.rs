@@ -52,12 +52,12 @@ fn find_glyph_symbol(atlas: &FontAtlasData, layer: u16, pos: u16) -> Option<&Gly
 }
 
 fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::error::Error>> {
-    let cells_per_row = 8; // Display 8 cells per row for readability
-    let rows = 32 / cells_per_row; // 4 rows of 8 cells
+    let cells_per_row = 16; // Display 16 cells per row
+    let rows = 32 / cells_per_row; // 2 rows of 16 cells
     let display_width = atlas.cell_size.0 as usize * cells_per_row;
     let cell_height = atlas.cell_size.1 as usize;
 
-    // Display each row of 8 cells
+    // Display each row of 16 cells
     for row in 0..rows {
         let start_cell = row * cells_per_row;
 
@@ -70,7 +70,7 @@ fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::
         for x in 0..display_width {
             if x % atlas.cell_size.0 as usize == 0 {
                 let col = x / atlas.cell_size.0 as usize;
-                write!(&mut output, "{}", format!("{}", col).blue()).ok();
+                write!(&mut output, "{}", format!("{:X}", col).blue()).ok(); // Hex for 0-F
             } else {
                 write!(&mut output, " ").ok();
             }
