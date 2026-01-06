@@ -67,6 +67,7 @@ impl<'a> GlyphRasterizer<'a> {
             self.symbol,
             &attrs,
             cosmic_text::Shaping::Advanced,
+            Some(cosmic_text::Align::Left),
         );
         buffer.shape_until_scroll(font_system, true);
 
