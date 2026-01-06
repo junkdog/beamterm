@@ -51,6 +51,13 @@ pub struct FallbackGlyph {
     pub fallback_font_name: String,
 }
 
+/// Measured dimensions of a font's reference glyph (█).
+#[derive(Debug, Clone, Copy)]
+pub struct FontDimensions {
+    pub width: i32,
+    pub height: i32,
+}
+
 /// Statistics about glyphs that used fallback fonts during atlas generation.
 #[derive(Debug, Default)]
 pub struct FallbackGlyphStats {
@@ -58,6 +65,10 @@ pub struct FallbackGlyphStats {
     pub fallback_glyphs: Vec<FallbackGlyph>,
     /// Total number of glyphs processed.
     pub total_glyphs: usize,
+    /// Dimensions of the primary font's reference glyph.
+    pub primary_font_dimensions: Option<FontDimensions>,
+    /// Dimensions of each fallback font's reference glyph, keyed by font name.
+    pub fallback_font_dimensions: Vec<(String, FontDimensions)>,
 }
 
 /// A rasterized glyph with pixel data and bounding box information.
@@ -199,6 +210,23 @@ impl AtlasFontGenerator {
             .unwrap_or_else(|| format!("Unknown (ID: {:?})", font_id))
     }
 
+    /// Measures the dimensions of a font by rasterizing the full block character (█).
+    fn measure_font_dimensions(&mut self, font_family: &str) -> FontDimensions {
+        let (mut buffer, _font_id) = create_rasterizer("\u{2588}")
+            .font_family_name(font_family)
+            .font_style(FontStyle::Normal)
+            .rasterize(&mut self.font_system, self.metrics)
+            .expect("reference glyph to rasterize");
+
+        let mut buffer = buffer.borrow_with(&mut self.font_system);
+        let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
+
+        FontDimensions {
+            width: bounds.width(),
+            height: bounds.height(),
+        }
+    }
+
     /// Creates a new atlas font generator with the specified font family and rendering parameters.
     ///
     /// # Arguments
@@ -311,6 +339,27 @@ impl AtlasFontGenerator {
             if let Some(fallback) = self.place_glyph_in_3d_texture(glyph, &config, &mut texture_data) {
                 fallback_stats.fallback_glyphs.push(fallback);
             }
+        }
+
+        // Measure font dimensions for primary and fallback fonts
+        if !fallback_stats.fallback_glyphs.is_empty() {
+            fallback_stats.primary_font_dimensions =
+                Some(self.measure_font_dimensions(&self.font_family_name.clone()));
+
+            // Collect unique fallback font names and measure each
+            let unique_fallback_fonts: HashSet<_> = fallback_stats
+                .fallback_glyphs
+                .iter()
+                .map(|g| g.fallback_font_name.clone())
+                .collect();
+
+            for font_name in unique_fallback_fonts {
+                let dimensions = self.measure_font_dimensions(&font_name);
+                fallback_stats.fallback_font_dimensions.push((font_name, dimensions));
+            }
+
+            // Sort by font name for consistent output
+            fallback_stats.fallback_font_dimensions.sort_by(|a, b| a.0.cmp(&b.0));
         }
 
         let texture_data = texture_data

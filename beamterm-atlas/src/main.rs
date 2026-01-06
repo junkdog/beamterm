@@ -189,6 +189,102 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
             }
         }
     }
+
+    // Report font dimensions in a table
+    if let Some(primary) = stats.primary_font_dimensions {
+        // Find max font name length for alignment
+        let max_name_len = stats
+            .fallback_font_dimensions
+            .iter()
+            .map(|(name, _)| name.len())
+            .max()
+            .unwrap_or(0)
+            .max("Primary".len());
+
+        // Count glyphs per font+style
+        let count_glyphs = |font: &str, style: FontStyle| -> usize {
+            stats
+                .fallback_glyphs
+                .iter()
+                .filter(|g| g.fallback_font_name == font && g.style == style)
+                .count()
+        };
+
+        println!("\n  Font dimensions and glyph metrics (█):");
+        println!(
+            "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Font", "Size", "Δw", "Δh", "Norm", "Bold", "Ital", "B+I",
+            width = max_name_len
+        );
+        println!(
+            "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
+            "", "", "", "", "", "", "", "",
+            width = max_name_len
+        );
+        println!(
+            "    {:<width$}  {:>2}x{:<2}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Primary", primary.width, primary.height, "-", "-", "-", "-", "-", "-",
+            width = max_name_len
+        );
+
+        let mut total_normal = 0usize;
+        let mut total_bold = 0usize;
+        let mut total_italic = 0usize;
+        let mut total_bold_italic = 0usize;
+
+        for (font_name, dims) in &stats.fallback_font_dimensions {
+            let width_diff = dims.width - primary.width;
+            let height_diff = dims.height - primary.height;
+
+            let fmt_diff = |diff: i32| -> String {
+                match diff.cmp(&0) {
+                    std::cmp::Ordering::Greater => format!("+{}", diff),
+                    std::cmp::Ordering::Less => format!("{}", diff),
+                    std::cmp::Ordering::Equal => "0".to_string(),
+                }
+            };
+
+            let normal = count_glyphs(font_name, FontStyle::Normal);
+            let bold = count_glyphs(font_name, FontStyle::Bold);
+            let italic = count_glyphs(font_name, FontStyle::Italic);
+            let bold_italic = count_glyphs(font_name, FontStyle::BoldItalic);
+
+            total_normal += normal;
+            total_bold += bold;
+            total_italic += italic;
+            total_bold_italic += bold_italic;
+
+            println!(
+                "    {:<width$}  {:>2}x{:<2}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+                font_name,
+                dims.width,
+                dims.height,
+                fmt_diff(width_diff),
+                fmt_diff(height_diff),
+                normal,
+                bold,
+                italic,
+                bold_italic,
+                width = max_name_len
+            );
+        }
+
+        // Print totals row
+        println!(
+            "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
+            "", "", "", "", "", "", "", "",
+            width = max_name_len
+        );
+        println!(
+            "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Total", "", "", "",
+            total_normal,
+            total_bold,
+            total_italic,
+            total_bold_italic,
+            width = max_name_len
+        );
+    }
 }
 
 fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result<String> {
