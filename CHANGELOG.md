@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(atlas)* Detect and report fallback font usage during atlas generation
-- *(selection)* Auto-clear mouse selection when content changes
+- *(selection)* Auto-clear mouse selection when content changes (#68)
 
 ### 💼 Other
 
@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - *(verify-atlas)* Update for vertical layout and double-width glyphs
+- *(dynamic-atlas)* Clip glyph rasterization to prevent pixel bleed
 
 ## [beamterm-v0.11.0] - 2026-01-05
 

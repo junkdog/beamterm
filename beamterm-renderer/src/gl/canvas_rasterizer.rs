@@ -168,7 +168,7 @@ impl CanvasRasterizer {
         let mut current_style: Option<FontStyle> = Some(FontStyle::Normal);
         let y_offset = PADDING as f64 + self.cell_metrics.ascent;
 
-        // draw each glyph on its own row
+        // draw each glyph on its own row with clipping to prevent bleed
         for (i, &(grapheme, style)) in symbols.iter().enumerate() {
             // emoji always uses normal style (no bold/italic variants)
             let effective_style =
@@ -182,9 +182,19 @@ impl CanvasRasterizer {
             }
 
             let y = (i as u32 * cell_h) as f64;
+
+            // clip to this glyph's cell area to prevent bleeding into adjacent glyphs
+            self.render_ctx.save();
+            self.render_ctx.begin_path();
+            self.render_ctx
+                .rect(0.0, y, canvas_width as f64, cell_h as f64);
+            self.render_ctx.clip();
+
             self.render_ctx
                 .fill_text(grapheme, PADDING as f64, y + y_offset)
                 .map_err(|e| Error::rasterizer_fill_text_failed(grapheme, js_error_string(&e)))?;
+
+            self.render_ctx.restore();
         }
 
         // extract all pixels at once
