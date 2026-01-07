@@ -299,8 +299,11 @@ impl Atlas for DynamicFontAtlas {
             .borrow_mut()
             .insert(slot.slot_id(), CompactString::new(key));
 
-        self.glyphs_pending_upload
-            .add(PendingGlyph { slot, key: CompactString::new(key), style: font_variant });
+        self.glyphs_pending_upload.add(PendingGlyph {
+            slot,
+            key: CompactString::new(key),
+            style: font_variant,
+        });
 
         Some(slot.with_styling(styling))
     }
