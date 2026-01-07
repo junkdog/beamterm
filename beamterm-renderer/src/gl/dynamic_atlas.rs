@@ -283,15 +283,16 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
-        let style = FontStyle::from_u16(style_bits & FontStyle::MASK);
+        let font_variant = FontStyle::from_u16(style_bits & FontStyle::MASK);
+        let styling = style_bits & (Glyph::STRIKETHROUGH_FLAG | Glyph::UNDERLINE_FLAG);
+
         let mut cache = self.cache.borrow_mut();
-        let glyph = cache.get(key, style);
-        if glyph.is_some() {
-            return glyph;
+        if let Some(glyph) = cache.get(key, font_variant) {
+            return Some(glyph.with_styling(styling));
         }
 
         // glyph not present, insert and mark for upload
-        let (slot, _) = cache.insert(key, style);
+        let (slot, _) = cache.insert(key, font_variant);
 
         // add reverse lookup
         self.symbol_lookup
@@ -299,9 +300,9 @@ impl Atlas for DynamicFontAtlas {
             .insert(slot.slot_id(), CompactString::new(key));
 
         self.glyphs_pending_upload
-            .add(PendingGlyph { slot, key: CompactString::new(key), style });
+            .add(PendingGlyph { slot, key: CompactString::new(key), style: font_variant });
 
-        Some(slot)
+        Some(slot.with_styling(styling))
     }
 
     /// Returns `0x0FFF` for flat 12-bit slot addressing.

@@ -186,6 +186,15 @@ impl GlyphSlot {
         }
     }
 
+    pub fn with_styling(self, style_bits: u16) -> Self {
+        use GlyphSlot::*;
+        match self {
+            Normal(id) => Normal(id | style_bits),
+            Wide(id) => Wide(id | style_bits),
+            Emoji(id) => Emoji(id | style_bits),
+        }
+    }
+
     /// Returns true if this is a double-width glyph (emoji or wide CJK).
     pub fn is_double_width(&self) -> bool {
         matches!(self, GlyphSlot::Wide(_) | GlyphSlot::Emoji(_))

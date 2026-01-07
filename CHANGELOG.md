@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 - *(verify-atlas)* Update for vertical layout and double-width glyphs
 - *(dynamic-atlas)* Clip glyph rasterization to prevent pixel bleed
+- *(dynamic-atlas)* Account for underline/strikethrough flags
 
 ## [beamterm-v0.11.0] - 2026-01-05
 
