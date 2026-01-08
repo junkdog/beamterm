@@ -253,10 +253,17 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
-        self.symbol_lookup
-            .borrow()
-            .get(&glyph_id)
-            .cloned()
+        // ASCII characters (slots 0-94) are directly mapped: slot_id = codepoint - 0x20
+        // This matches upload_ascii_glyphs() which assigns slots 0-94 for 0x20-0x7E
+        if glyph_id < 95 {
+            let ch = (glyph_id + 0x20) as u8 as char;
+            Some(ch.to_compact_string())
+        } else {
+            self.symbol_lookup
+                .borrow()
+                .get(&glyph_id)
+                .cloned()
+        }
     }
 
     fn glyph_tracker(&self) -> &GlyphTracker {
