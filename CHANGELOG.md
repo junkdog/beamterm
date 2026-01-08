@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 
 - *(atlas)* Detect and report fallback font usage during atlas generation
 - *(selection)* Auto-clear mouse selection when content changes (#68)
+- *(examples)* Add performance metrics display to canvas_waves
+- *(static-atlas)* Add `--debug-space-pattern` option for pixel-perfect validation
+- *(dynamic-atlas)* Add `Terminal::builder().debug_dynamic_font_atlas()` to validate pixel-perfect rendering
 
 ### 💼 Other
 

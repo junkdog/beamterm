@@ -4,7 +4,7 @@ use std::{
     ops::Not,
 };
 
-use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
 use web_sys::WebGl2RenderingContext;
 
@@ -58,6 +58,8 @@ pub(crate) struct DynamicFontAtlas {
     underline: LineDecoration,
     /// Strikethrough configuration
     strikethrough: LineDecoration,
+    /// Debug pattern for space glyph (for pixel-perfect validation)
+    debug_space_pattern: Option<DebugSpacePattern>,
 }
 
 impl DynamicFontAtlas {
@@ -67,10 +69,12 @@ impl DynamicFontAtlas {
     /// * `gl` - WebGL2 rendering context
     /// * `font_family` - CSS font-family string (e.g., "'JetBrains Mono', monospace")
     /// * `font_size` - Font size in pixels
+    /// * `debug_space_pattern` - Optional checkered pattern for space glyph (for pixel-perfect validation)
     pub(crate) fn new(
         gl: &web_sys::WebGl2RenderingContext,
         font_family: &[CompactString],
         font_size: f32,
+        debug_space_pattern: Option<DebugSpacePattern>,
     ) -> Result<Self, Error> {
         let font_family = font_family
             .iter()
@@ -95,6 +99,7 @@ impl DynamicFontAtlas {
             glyph_tracker: GlyphTracker::new(),
             underline: LineDecoration::new(0.9, 0.05), // near bottom, thin
             strikethrough: LineDecoration::new(0.5, 0.05), // middle, thin
+            debug_space_pattern,
         };
         atlas.upload_ascii_glyphs(gl)?;
 
@@ -173,9 +178,20 @@ impl DynamicFontAtlas {
 
         // upload rasterized glyphs
         for (pending_glyph, glyph_data) in pending.iter().zip(rasterized.iter()) {
+            // Replace space glyph with checkered pattern if debug mode is enabled
+            let glyph_data = if pending_glyph.key == " " {
+                if let Some(pattern) = self.debug_space_pattern {
+                    std::borrow::Cow::Owned(generate_checkered_glyph(cell_w, cell_h, pattern))
+                } else {
+                    std::borrow::Cow::Borrowed(glyph_data)
+                }
+            } else {
+                std::borrow::Cow::Borrowed(glyph_data)
+            };
+
             if pending_glyph.slot.is_double_width() {
                 // split double-width glyph into left and right halves
-                let (left, right) = split_double_width_glyph(glyph_data, cell_w, cell_h);
+                let (left, right) = split_double_width_glyph(&glyph_data, cell_w, cell_h);
                 let slot_id = pending_glyph.slot.slot_id() & Glyph::EMOJI_FLAG.not();
                 self.texture
                     .upload_glyph(gl, slot_id, padded_cell_size, &left)?;
@@ -186,7 +202,7 @@ impl DynamicFontAtlas {
                     gl,
                     pending_glyph.slot.slot_id(),
                     padded_cell_size,
-                    glyph_data,
+                    &glyph_data,
                 )?;
             }
         }
@@ -365,6 +381,36 @@ impl PendingUploads {
     fn is_empty(&self) -> bool {
         self.glyphs.borrow().is_empty()
     }
+}
+
+/// Generates a checkered glyph pattern for validating pixel-perfect rendering.
+fn generate_checkered_glyph(
+    width: u32,
+    height: u32,
+    pattern: DebugSpacePattern,
+) -> RasterizedGlyph {
+    let bytes_per_pixel = 4usize;
+    let mut pixels = vec![0u8; (width * height) as usize * bytes_per_pixel];
+
+    for y in 0..height {
+        for x in 0..width {
+            let is_white = match pattern {
+                DebugSpacePattern::OnePixel => (x + y) % 2 == 0,
+                DebugSpacePattern::TwoByTwo => ((x / 2) + (y / 2)) % 2 == 0,
+            };
+
+            if is_white {
+                let idx = ((y * width + x) as usize) * bytes_per_pixel;
+                pixels[idx] = 0xff; // R
+                pixels[idx + 1] = 0xff; // G
+                pixels[idx + 2] = 0xff; // B
+                pixels[idx + 3] = 0xff; // A
+            }
+            // Black pixels (alpha=0) are already initialized to 0
+        }
+    }
+
+    RasterizedGlyph::new(pixels, width, height)
 }
 
 /// Splits a double-width glyph into left and right halves.

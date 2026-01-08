@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use beamterm_data::FontAtlasData;
+use beamterm_data::{DebugSpacePattern, FontAtlasData};
 use compact_str::{CompactString, ToCompactString};
 use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
@@ -355,7 +355,15 @@ pub struct TerminalBuilder {
 #[derive(Debug)]
 enum AtlasKind {
     Static(Option<FontAtlasData>),
-    Dynamic { font_size: f32, font_family: Vec<CompactString> },
+    Dynamic {
+        font_size: f32,
+        font_family: Vec<CompactString>,
+    },
+    DebugDynamic {
+        font_size: f32,
+        font_family: Vec<CompactString>,
+        debug_space_pattern: DebugSpacePattern,
+    },
 }
 
 impl TerminalBuilder {
@@ -403,6 +411,29 @@ impl TerminalBuilder {
         self.atlas_kind = AtlasKind::Dynamic {
             font_family: font_family.iter().map(|&s| s.into()).collect(),
             font_size,
+        };
+        self
+    }
+
+    /// Configures the terminal to use a dynamic font atlas with debug space pattern.
+    ///
+    /// This is the same as [`dynamic_font_atlas`](Self::dynamic_font_atlas), but replaces
+    /// the space glyph with a checkered pattern for validating pixel-perfect rendering.
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order
+    /// * `font_size` - Font size in pixels
+    /// * `pattern` - The checkered pattern to use (1px or 2x2 pixels)
+    pub fn debug_dynamic_font_atlas(
+        mut self,
+        font_family: &[&str],
+        font_size: f32,
+        pattern: DebugSpacePattern,
+    ) -> Self {
+        self.atlas_kind = AtlasKind::DebugDynamic {
+            font_family: font_family.iter().map(|&s| s.into()).collect(),
+            font_size,
+            debug_space_pattern: pattern,
         };
         self
     }
@@ -473,7 +504,11 @@ impl TerminalBuilder {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
             AtlasKind::Dynamic { font_family, font_size } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size)?.into()
+                DynamicFontAtlas::new(gl, &font_family, font_size, None)?.into()
+            },
+            AtlasKind::DebugDynamic { font_family, font_size, debug_space_pattern } => {
+                DynamicFontAtlas::new(gl, &font_family, font_size, Some(debug_space_pattern))?
+                    .into()
             },
         };
 

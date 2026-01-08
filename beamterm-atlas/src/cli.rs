@@ -1,12 +1,10 @@
 use std::{ops::RangeInclusive, path::PathBuf};
 
+use beamterm_data::DebugSpacePattern;
 use clap::Parser;
 use color_eyre::{Report, eyre::eyre};
 
-use crate::{
-    atlas_generator::DebugSpacePattern,
-    font_discovery::{FontDiscovery, FontFamily},
-};
+use crate::font_discovery::{FontDiscovery, FontFamily};
 
 #[derive(Parser, Debug)]
 #[command(

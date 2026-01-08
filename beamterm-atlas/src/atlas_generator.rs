@@ -1,6 +1,6 @@
 use std::{collections::HashSet, ops::RangeInclusive};
 
-use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use color_eyre::Report;
 use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
@@ -17,15 +17,6 @@ use crate::{
     grapheme::{GraphemeSet, is_emoji},
     raster_config::RasterizationConfig,
 };
-
-/// Debug pattern for validating pixel-perfect rendering of cell dimensions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DebugSpacePattern {
-    /// 1px alternating checkerboard pattern
-    OnePixel,
-    /// 2x2 pixel checkerboard pattern
-    TwoByTwo,
-}
 
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
@@ -576,10 +567,10 @@ impl AtlasFontGenerator {
         bounds: GlyphBounds,
     ) -> GlyphBitmap {
         // Check for debug space pattern - must return early since space has no pixels
-        if symbol == " " {
-            if let Some(pattern) = self.debug_space_pattern {
-                return Self::generate_checkered_bitmap(bounds, pattern);
-            }
+        if symbol == " "
+            && let Some(pattern) = self.debug_space_pattern
+        {
+            return Self::generate_checkered_bitmap(bounds, pattern);
         }
 
         let glyph = if is_emoji(symbol) {

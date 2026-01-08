@@ -10,7 +10,7 @@ pub mod wasm;
 
 pub mod mouse;
 
-pub use ::beamterm_data::{FontAtlasData, GlyphEffect};
+pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect};
 pub use beamterm_data::FontStyle;
 pub use terminal::*;
 

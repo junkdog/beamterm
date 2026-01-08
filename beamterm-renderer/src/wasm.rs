@@ -493,7 +493,7 @@ impl BeamtermRenderer {
         }
 
         let gl = renderer.gl();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size)
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
         let canvas_size = renderer.canvas_size();
