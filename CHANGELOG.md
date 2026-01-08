@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.12.0] - 2026-01-08
 
 ### 🚀 Features
 
@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - *(verify-atlas)* Update for vertical layout and double-width glyphs
 - *(dynamic-atlas)* Clip glyph rasterization to prevent pixel bleed
 - *(dynamic-atlas)* Account for underline/strikethrough flags
+- *(dynamic-atlas)* Handle ASCII characters in `get_symbol()` (#70)
 
 ## [beamterm-v0.11.0] - 2026-01-05
 
