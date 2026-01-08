@@ -18,6 +18,15 @@ use crate::{
     raster_config::RasterizationConfig,
 };
 
+/// Debug pattern for validating pixel-perfect rendering of cell dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DebugSpacePattern {
+    /// 1px alternating checkerboard pattern
+    OnePixel,
+    /// 2x2 pixel checkerboard pattern
+    TwoByTwo,
+}
+
 const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
 /// A glyph that failed to render in a specific font style.
@@ -191,6 +200,7 @@ pub struct AtlasFontGenerator {
     strikethrough: LineDecoration,
     font_family_name: String,
     emoji_font_family_name: String,
+    debug_space_pattern: Option<DebugSpacePattern>,
 }
 
 impl AtlasFontGenerator {
@@ -246,6 +256,7 @@ impl AtlasFontGenerator {
     /// * `line_height` - Line height multiplier (e.g., 1.2 for 120% line height)
     /// * `underline` - Underline decoration position and thickness
     /// * `strikethrough` - Strikethrough decoration position and thickness
+    /// * `debug_space_pattern` - Optional checkered pattern for space glyph debugging
     ///
     /// # Returns
     ///
@@ -258,6 +269,7 @@ impl AtlasFontGenerator {
         line_height: f32,
         underline: LineDecoration,
         strikethrough: LineDecoration,
+        debug_space_pattern: Option<DebugSpacePattern>,
     ) -> Result<Self, Report> {
         info!(
             font_family = %font_family.name,
@@ -285,6 +297,7 @@ impl AtlasFontGenerator {
             strikethrough,
             font_family_name: font_family.name.clone(),
             emoji_font_family_name,
+            debug_space_pattern,
         })
     }
 
@@ -562,6 +575,13 @@ impl AtlasFontGenerator {
         style: FontStyle,
         bounds: GlyphBounds,
     ) -> GlyphBitmap {
+        // Check for debug space pattern - must return early since space has no pixels
+        if symbol == " " {
+            if let Some(pattern) = self.debug_space_pattern {
+                return Self::generate_checkered_bitmap(bounds, pattern);
+            }
+        }
+
         let glyph = if is_emoji(symbol) {
             Glyph::new_emoji(0, symbol, (0, 0))
         } else {
@@ -574,6 +594,30 @@ impl AtlasFontGenerator {
         let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
 
         GlyphBitmap { data: pixels, bounds, font_id }
+    }
+
+    /// Generates a checkered bitmap to validate pixel-perfect rendering of cell dimensions.
+    fn generate_checkered_bitmap(bounds: GlyphBounds, pattern: DebugSpacePattern) -> GlyphBitmap {
+        let width = bounds.width();
+        let height = bounds.height();
+        let mut pixels = Vec::new();
+
+        let white = Color::rgba(0xff, 0xff, 0xff, 0xff); // White with full alpha
+
+        for y in 0..height {
+            for x in 0..width {
+                let is_white = match pattern {
+                    DebugSpacePattern::OnePixel => (x + y) % 2 == 0,
+                    DebugSpacePattern::TwoByTwo => ((x / 2) + (y / 2)) % 2 == 0,
+                };
+                // Only emit white pixels; black (transparent) pixels are implicit
+                if is_white {
+                    pixels.push((x, y, white));
+                }
+            }
+        }
+
+        GlyphBitmap { data: pixels, bounds, font_id: fontdb::ID::dummy() }
     }
 
     /// Creates a cosmic-text buffer with the glyph rendered.
@@ -973,6 +1017,7 @@ mod tests {
             1.0,
             LineDecoration::new(0.85, 0.05),
             LineDecoration::new(0.5, 0.05),
+            None,
         )
         .expect("Failed to create generator");
 

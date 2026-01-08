@@ -79,6 +79,7 @@ fn main() -> Result<()> {
         cli.line_height,
         underline,
         strikethrough,
+        cli.debug_space_pattern,
     )?;
 
     let ranges = if cli.ranges.is_empty() {
