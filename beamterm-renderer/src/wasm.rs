@@ -512,21 +512,35 @@ impl BeamtermRenderer {
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
 
-    /// Enable default mouse selection behavior with built-in copy to clipboard
+    /// Enable default mouse selection behavior with built-in copy to clipboard.
+    ///
+    /// # Arguments
+    /// * `mode` - Selection mode (Linear or Block)
+    /// * `trim_whitespace` - Whether to trim trailing whitespace from selections
+    /// * `drag_threshold_ms` - Optional minimum time (ms) before drag activates selection.
+    ///   Defaults to 200ms. Higher values prevent accidental selections during fast gestures.
     #[wasm_bindgen(js_name = "enableSelection")]
     pub fn enable_selection(
         &mut self,
         mode: SelectionMode,
         trim_whitespace: bool,
+        drag_threshold_ms: Option<f64>,
     ) -> Result<(), JsValue> {
         // clean up existing mouse handler if present
         if let Some(old_handler) = self.mouse_handler.take() {
             old_handler.cleanup();
         }
 
+        let threshold =
+            drag_threshold_ms.unwrap_or(crate::mouse::DEFAULT_SELECTION_DRAG_THRESHOLD_MS);
+
         let selection_tracker = self.terminal_grid.borrow().selection_tracker();
-        let handler =
-            DefaultSelectionHandler::new(self.terminal_grid.clone(), mode.into(), trim_whitespace);
+        let handler = DefaultSelectionHandler::new(
+            self.terminal_grid.clone(),
+            mode.into(),
+            trim_whitespace,
+            threshold,
+        );
 
         let mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),

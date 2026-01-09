@@ -9,7 +9,8 @@ use crate::{
     CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid,
     gl::{CellQuery, ContextLossHandler, SelectionMode},
     mouse::{
-        DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
+        DEFAULT_SELECTION_DRAG_THRESHOLD_MS, DefaultSelectionHandler, MouseEventCallback,
+        TerminalMouseEvent, TerminalMouseHandler,
     },
 };
 
@@ -350,6 +351,7 @@ pub struct TerminalBuilder {
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
     enable_debug_api: bool,
+    selection_drag_threshold_ms: f64,
 }
 
 #[derive(Debug)]
@@ -376,6 +378,7 @@ impl TerminalBuilder {
             input_handler: None,
             canvas_padding_color: 0x000000,
             enable_debug_api: false,
+            selection_drag_threshold_ms: DEFAULT_SELECTION_DRAG_THRESHOLD_MS,
         }
     }
 
@@ -488,6 +491,30 @@ impl TerminalBuilder {
         self
     }
 
+    /// Sets the minimum time (in milliseconds) between mouse down and drag
+    /// before text selection activates.
+    ///
+    /// This threshold prevents accidental selections during quick mouse
+    /// gestures (e.g., in IRC clients like weechat or irssi). A higher value
+    /// makes it harder to accidentally trigger selection during fast clicks.
+    ///
+    /// Default: [`DEFAULT_SELECTION_DRAG_THRESHOLD_MS`] (200ms)
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, SelectionMode};
+    ///
+    /// let terminal = Terminal::builder("#canvas")
+    ///     .default_mouse_input_handler(SelectionMode::Block, true)
+    ///     .selection_drag_threshold_ms(250.0)  // 250ms threshold
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn selection_drag_threshold_ms(mut self, threshold_ms: f64) -> Self {
+        self.selection_drag_threshold_ms = threshold_ms;
+        self
+    }
+
     /// Builds the terminal with the configured options.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
@@ -537,6 +564,7 @@ impl TerminalBuilder {
                     grid.clone(),
                     selection_mode,
                     trim_trailing_whitespace,
+                    self.selection_drag_threshold_ms,
                 );
 
                 let mut mouse_input = TerminalMouseHandler::new(
