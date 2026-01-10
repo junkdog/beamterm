@@ -142,7 +142,9 @@ impl TerminalGrid {
         let cell_size = atlas.cell_size();
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
 
-        let cell_data = create_terminal_cell_data(cols, rows, &[' ' as u16]);
+        // Get the proper glyph ID for space from the atlas
+        let space_glyph = atlas.get_base_glyph_id(" ").unwrap_or(0);
+        let cell_data = create_terminal_cell_data(cols, rows, &[space_glyph]);
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         let gpu = GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?;
@@ -153,7 +155,7 @@ impl TerminalGrid {
             canvas_size_px: screen_size,
             cells: cell_data,
             atlas,
-            fallback_glyph: ' ' as u16,
+            fallback_glyph: 0, // For dynamic atlas: slot 0 = space (0x20 - 0x20)
             selection: SelectionTracker::new(),
             cells_pending_flush: false,
         };
@@ -485,7 +487,8 @@ impl TerminalGrid {
 
         // resize cell data vector
         let current_size = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
-        let cell_data = resize_cell_grid(&self.cells, current_size, (cols, rows));
+        let space_glyph = self.atlas.get_base_glyph_id(" ").unwrap_or(0);
+        let cell_data = resize_cell_grid(&self.cells, current_size, (cols, rows), space_glyph);
         self.cells = cell_data;
 
         let cell_pos = CellStatic::create_grid(cols, rows);
@@ -566,12 +569,13 @@ fn resize_cell_grid(
     cells: &[CellDynamic],
     old_size: (i32, i32),
     new_size: (i32, i32),
+    space_glyph: u16,
 ) -> Vec<CellDynamic> {
     let new_len = new_size.0 * new_size.1;
 
     let mut new_cells = Vec::with_capacity(new_len as usize);
     for _ in 0..new_len {
-        new_cells.push(CellDynamic::new(' ' as u16, 0xFFFFFF, 0x000000));
+        new_cells.push(CellDynamic::new(space_glyph, 0xFFFFFF, 0x000000));
     }
 
     for y in 0..min(old_size.1, new_size.1) {
