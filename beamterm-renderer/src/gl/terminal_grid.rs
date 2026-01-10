@@ -142,18 +142,17 @@ impl TerminalGrid {
         let cell_size = atlas.cell_size();
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
 
-        let cell_data = create_terminal_cell_data(cols, rows, &[' ' as u16]);
+        let space_glyph = atlas.space_glyph_id();
+        let cell_data = create_terminal_cell_data(cols, rows, space_glyph);
         let cell_pos = CellStatic::create_grid(cols, rows);
 
-        let gpu = GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?;
-
         let grid = Self {
-            gpu,
+            gpu: GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?,
             terminal_size: (cols as u16, rows as u16),
             canvas_size_px: screen_size,
             cells: cell_data,
             atlas,
-            fallback_glyph: ' ' as u16,
+            fallback_glyph: space_glyph,
             selection: SelectionTracker::new(),
             cells_pending_flush: false,
         };
@@ -485,7 +484,7 @@ impl TerminalGrid {
 
         // resize cell data vector
         let current_size = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
-        let cell_data = resize_cell_grid(&self.cells, current_size, (cols, rows));
+        let cell_data = self.resize_cell_grid(current_size, (cols, rows));
         self.cells = cell_data;
 
         let cell_pos = CellStatic::create_grid(cols, rows);
@@ -560,29 +559,27 @@ impl TerminalGrid {
             self.selection.clear();
         }
     }
-}
 
-fn resize_cell_grid(
-    cells: &[CellDynamic],
-    old_size: (i32, i32),
-    new_size: (i32, i32),
-) -> Vec<CellDynamic> {
-    let new_len = new_size.0 * new_size.1;
+    fn resize_cell_grid(&self, old_size: (i32, i32), new_size: (i32, i32)) -> Vec<CellDynamic> {
+        let empty_cell = CellDynamic::new(self.atlas.space_glyph_id(), 0xFFFFFF, 0x000000);
 
-    let mut new_cells = Vec::with_capacity(new_len as usize);
-    for _ in 0..new_len {
-        new_cells.push(CellDynamic::new(' ' as u16, 0xFFFFFF, 0x000000));
-    }
-
-    for y in 0..min(old_size.1, new_size.1) {
-        for x in 0..min(old_size.0, new_size.0) {
-            let new_idx = (y * new_size.0 + x) as usize;
-            let old_idx = (y * old_size.0 + x) as usize;
-            new_cells[new_idx] = cells[old_idx];
+        let new_len = new_size.0 * new_size.1;
+        let mut new_cells = Vec::with_capacity(new_len as usize);
+        for _ in 0..new_len {
+            new_cells.push(empty_cell);
         }
-    }
 
-    new_cells
+        let cells = &self.cells;
+        for y in 0..min(old_size.1, new_size.1) {
+            for x in 0..min(old_size.0, new_size.0) {
+                let new_idx = (y * new_size.0 + x) as usize;
+                let old_idx = (y * old_size.0 + x) as usize;
+                new_cells[new_idx] = cells[old_idx];
+            }
+        }
+
+        new_cells
+    }
 }
 
 fn create_vao(gl: &WebGl2RenderingContext) -> Result<web_sys::WebGlVertexArrayObject, Error> {
@@ -1057,10 +1054,9 @@ impl CellFragmentUbo {
     }
 }
 
-fn create_terminal_cell_data(cols: i32, rows: i32, fill_glyph: &[u16]) -> Vec<CellDynamic> {
-    let glyph_len = fill_glyph.len();
+fn create_terminal_cell_data(cols: i32, rows: i32, fill_glyph: u16) -> Vec<CellDynamic> {
     (0..cols * rows)
-        .map(|i| CellDynamic::new(fill_glyph[i as usize % glyph_len], 0x00ff_ffff, 0x0000_0000))
+        .map(|i| CellDynamic::new(fill_glyph, 0x00ff_ffff, 0x0000_0000))
         .collect()
 }
 

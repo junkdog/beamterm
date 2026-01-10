@@ -170,6 +170,11 @@ impl FontAtlas {
     pub(super) fn base_lookup_mask(&self) -> u32 {
         self.inner.base_lookup_mask()
     }
+
+    pub(super) fn space_glyph_id(&self) -> u16 {
+        self.get_glyph_id(" ", 0x0)
+            .expect("space glyph exists in every font atlas")
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
