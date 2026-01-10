@@ -123,6 +123,50 @@ impl Shader for WaveInterference {
             ));
         });
 
+        // Draw text in the center with border
+        let text = "This is Beamterm";
+        let text_len = text.len() as u16;
+        let center_x = area.x + (area.width.saturating_sub(text_len + 4)) / 2;
+        let center_y = area.y + area.height / 2;
+
+        let border_left = center_x;
+        let border_right = center_x + text_len + 3;
+        let border_top = center_y.saturating_sub(1);
+        let border_bottom = center_y + 1;
+
+        // Draw border
+        for x in border_left..=border_right {
+            for y in border_top..=border_bottom {
+                if x >= area.x + area.width || y >= area.y + area.height {
+                    continue;
+                }
+                let ch = match (x, y) {
+                    (x, y) if x == border_left && y == border_top => '┌',
+                    (x, y) if x == border_right && y == border_top => '┐',
+                    (x, y) if x == border_left && y == border_bottom => '└',
+                    (x, y) if x == border_right && y == border_bottom => '┘',
+                    (_, y) if y == border_top || y == border_bottom => '─',
+                    (x, _) if x == border_left || x == border_right => '│',
+                    _ => ' ',
+                };
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_char(ch);
+                    cell.set_fg(ratzilla::ratatui::style::Color::White);
+                }
+            }
+        }
+
+        // Draw text
+        for (i, ch) in text.chars().enumerate() {
+            let x = center_x + 2 + i as u16;
+            if x < area.x + area.width {
+                if let Some(cell) = buf.cell_mut((x, center_y)) {
+                    cell.set_char(ch);
+                    cell.set_fg(ratzilla::ratatui::style::Color::White);
+                }
+            }
+        }
+
         None
     }
 
