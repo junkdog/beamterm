@@ -171,9 +171,8 @@ impl Terminal {
 
     /// Sets the pixel ratio for HiDPI displays.
     ///
-    /// Updates both the renderer and terminal grid to use the new pixel ratio.
-    /// Call this when `window.devicePixelRatio` changes (e.g., moving window
-    /// between displays with different DPI).
+    /// Call this when `window.devicePixelRatio` changes
+    /// (e.g., moving window between displays with different DPI).
     pub fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
         self.renderer.set_pixel_ratio(pixel_ratio);
     }

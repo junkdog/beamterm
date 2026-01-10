@@ -36,6 +36,7 @@ impl Renderer {
     ///
     /// # Parameters
     /// * `canvas_id` - CSS selector for the canvas element (e.g., "canvas" or "#my-canvas")
+    /// * `pixel_ratio` - Canvas resolution multiplier for HiDPI displays
     ///
     /// # Returns
     /// * `Ok(Renderer)` - Successfully created renderer
@@ -62,7 +63,7 @@ impl Renderer {
         self
     }
 
-    /// Sets the pixel ratio and resizes the canvas accordingly
+    /// Sets the pixel ratio and resizes the canvas accordingly.
     pub fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
         self.pixel_ratio = pixel_ratio;
         self.resize(self.canvas_size.0, self.canvas_size.1);
@@ -76,6 +77,7 @@ impl Renderer {
     ///
     /// # Parameters
     /// * `canvas` - HTML canvas element to use for rendering
+    /// * `pixel_ratio` - Canvas resolution multiplier for HiDPI displays
     ///
     /// # Returns
     /// * `Ok(Renderer)` - Successfully created renderer
