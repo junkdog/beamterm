@@ -448,7 +448,6 @@ impl BeamtermRenderer {
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(&"BeamtermRenderer initialized with static atlas".into());
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -500,14 +499,6 @@ impl BeamtermRenderer {
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(
-            &format!(
-                "BeamtermRenderer initialized with dynamic atlas (font: {}, size: {}px)",
-                font_families.join(", "),
-                font_size
-            )
-            .into(),
-        );
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -720,7 +711,6 @@ impl BeamtermRenderer {
 
         self.update_mouse_handler_metrics();
 
-        console::log_1(&"Replaced atlas with static atlas".into());
         Ok(())
     }
 
@@ -764,14 +754,6 @@ impl BeamtermRenderer {
 
         self.update_mouse_handler_metrics();
 
-        console::log_1(
-            &format!(
-                "Replaced atlas with dynamic atlas (font: {}, size: {}px)",
-                font_families.join(", "),
-                font_size
-            )
-            .into(),
-        );
         Ok(())
     }
 }
