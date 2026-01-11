@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(atlas)* Runtime font atlas replacement (#73)
+
+### 🐛 Bug Fixes
+
+- *(dynamic-atlas)* Use atlas glyph ID for space instead of ASCII code
+
 ## [beamterm-v0.12.0] - 2026-01-08
 
 ### 🚀 Features
@@ -23,6 +33,10 @@ All notable changes to this project will be documented in this file.
 - *(dynamic-atlas)* Clip glyph rasterization to prevent pixel bleed
 - *(dynamic-atlas)* Account for underline/strikethrough flags
 - *(dynamic-atlas)* Handle ASCII characters in `get_symbol()` (#70)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.12.0
 
 ## [beamterm-v0.11.0] - 2026-01-05
 
