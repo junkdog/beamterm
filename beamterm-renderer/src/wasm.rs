@@ -12,7 +12,9 @@ use crate::{
         CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
-    mouse::{DefaultSelectionHandler, MouseSelectOptions, TerminalMouseEvent, TerminalMouseHandler},
+    mouse::{
+        DefaultSelectionHandler, MouseSelectOptions, TerminalMouseEvent, TerminalMouseHandler,
+    },
     terminal::is_double_width,
 };
 
