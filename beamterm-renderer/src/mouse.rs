@@ -44,7 +44,7 @@ use web_sys::console;
 
 use crate::{
     Error, SelectionMode, TerminalGrid,
-    gl::{SelectionTracker, TerminalDimensions},
+    gl::{SelectionTracker, TerminalMetrics},
     select,
 };
 
@@ -71,8 +71,8 @@ pub struct TerminalMouseHandler {
     on_mouse_up: Closure<dyn FnMut(web_sys::MouseEvent)>,
     /// Closure for mousemove events.
     on_mouse_move: Closure<dyn FnMut(web_sys::MouseEvent)>,
-    /// Cached terminal dimensions for coordinate conversion.
-    terminal_dimensions: crate::gl::TerminalDimensions,
+    /// Cached terminal metrics (dimensions + cell size) for coordinate conversion.
+    metrics: TerminalMetrics,
     /// Optional default selection handler.
     pub(crate) default_input_handler: Option<DefaultSelectionHandler>,
 }
@@ -180,7 +180,7 @@ impl TerminalMouseHandler {
     ///
     /// # Implementation Details
     /// - Wraps handler in Rc<RefCell> for sharing between event closures
-    /// - Caches terminal dimensions for fast coordinate conversion
+    /// - Caches terminal metrics for fast coordinate conversion
     /// - Creates three closures (one per event type) that share the handler
     fn new_internal(
         canvas: &web_sys::HtmlCanvasElement,
@@ -193,19 +193,19 @@ impl TerminalMouseHandler {
         // Get grid metrics for coordinate conversion
         let (cell_width, cell_height) = grid.borrow().cell_size();
         let (cols, rows) = grid.borrow().terminal_size();
-        let terminal_dimensions = TerminalDimensions::new(cols, rows);
+        let metrics = TerminalMetrics::new(cols, rows, cell_width, cell_height);
 
         // Create pixel-to-cell coordinate converter
-        let dimensions_ref = terminal_dimensions.clone_ref();
+        let metrics_ref = metrics.clone_ref();
         let pixel_to_cell = move |event: &web_sys::MouseEvent| -> Option<(u16, u16)> {
             let x = event.offset_x() as f32;
             let y = event.offset_y() as f32;
 
-            let col = (x / cell_width as f32).floor() as u16;
-            let row = (y / cell_height as f32).floor() as u16;
+            let m = metrics_ref.borrow();
+            let col = (x / m.cell_width as f32).floor() as u16;
+            let row = (y / m.cell_height as f32).floor() as u16;
 
-            let (max_cols, max_rows) = *dimensions_ref.borrow();
-            if col < max_cols && row < max_rows { Some((col, row)) } else { None }
+            if col < m.cols && row < m.rows { Some((col, row)) } else { None }
         };
 
         // Create event handlers
@@ -241,7 +241,7 @@ impl TerminalMouseHandler {
             on_mouse_down,
             on_mouse_up,
             on_mouse_move,
-            terminal_dimensions,
+            metrics,
             default_input_handler: None,
         })
     }
@@ -264,16 +264,19 @@ impl TerminalMouseHandler {
         );
     }
 
-    /// Updates the cached terminal dimensions.
+    /// Updates the cached terminal metrics.
     ///
-    /// Should be called when the terminal is resized to ensure accurate
-    /// coordinate conversion.
+    /// Should be called when the terminal is resized or the font atlas is
+    /// replaced to ensure accurate pixel-to-cell coordinate conversion.
     ///
     /// # Arguments
     /// * `cols` - New column count
     /// * `rows` - New row count
-    pub fn update_dimensions(&mut self, cols: u16, rows: u16) {
-        self.terminal_dimensions.set(cols, rows);
+    /// * `cell_width` - New cell width in pixels
+    /// * `cell_height` - New cell height in pixels
+    pub fn update_metrics(&mut self, cols: u16, rows: u16, cell_width: i32, cell_height: i32) {
+        self.metrics
+            .set(cols, rows, cell_width, cell_height);
     }
 }
 
@@ -568,8 +571,11 @@ impl Drop for TerminalMouseHandler {
 
 impl Debug for TerminalMouseHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (cols, rows) = self.terminal_dimensions.get();
-        write!(f, "TerminalMouseHandler {{ dimensions: {cols}x{rows} }}")
+        let (cols, rows, cw, ch) = self.metrics.get();
+        write!(
+            f,
+            "TerminalMouseHandler {{ dimensions: {cols}x{rows}, cell_size: {cw}x{ch} }}"
+        )
     }
 }
 

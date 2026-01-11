@@ -149,12 +149,22 @@ impl Terminal {
             .borrow_mut()
             .resize(self.renderer.gl(), (width, height))?;
 
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let (cols, rows) = self.grid.borrow_mut().terminal_size();
-            mouse_input.update_dimensions(cols, rows);
-        }
+        self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    ///
+    /// Called after operations that may change cell size (atlas replacement) or
+    /// terminal dimensions (resize).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_input) = &mut self.mouse_handler {
+            let grid = self.grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Returns the terminal dimensions in cells.
@@ -217,6 +227,8 @@ impl Terminal {
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
 
+        self.update_mouse_handler_metrics();
+
         Ok(())
     }
 
@@ -250,6 +262,8 @@ impl Terminal {
         self.grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
 
         Ok(())
     }

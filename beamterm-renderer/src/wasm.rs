@@ -667,13 +667,19 @@ impl BeamtermRenderer {
             .resize(gl, (width, height))
             .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
 
-        // Update mouse handler dimensions if present
-        if let Some(mouse_handler) = &mut self.mouse_handler {
-            let (cols, rows) = self.terminal_grid.borrow().terminal_size();
-            mouse_handler.update_dimensions(cols, rows);
-        }
+        self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_handler) = &mut self.mouse_handler {
+            let grid = self.terminal_grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Replace the current font atlas with a new static atlas.
@@ -711,6 +717,8 @@ impl BeamtermRenderer {
         self.terminal_grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
 
         console::log_1(&"Replaced atlas with static atlas".into());
         Ok(())
@@ -753,6 +761,8 @@ impl BeamtermRenderer {
         self.terminal_grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
 
         console::log_1(
             &format!(
