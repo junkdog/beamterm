@@ -149,12 +149,22 @@ impl Terminal {
             .borrow_mut()
             .resize(self.renderer.gl(), (width, height))?;
 
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let (cols, rows) = self.grid.borrow_mut().terminal_size();
-            mouse_input.update_dimensions(cols, rows);
-        }
+        self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    ///
+    /// Called after operations that may change cell size (atlas replacement) or
+    /// terminal dimensions (resize).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_input) = &mut self.mouse_handler {
+            let grid = self.grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Returns the terminal dimensions in cells.
@@ -190,6 +200,72 @@ impl Terminal {
     /// Returns a reference to the terminal grid.
     pub fn grid(&self) -> Rc<RefCell<TerminalGrid>> {
         self.grid.clone()
+    }
+
+    /// Replaces the current font atlas with a new static atlas.
+    ///
+    /// All existing cell content is preserved and translated to the new atlas.
+    /// The grid will be resized if the new atlas has different cell dimensions.
+    ///
+    /// # Parameters
+    /// * `atlas_data` - Binary atlas data loaded from a `.atlas` file
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, FontAtlasData};
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Load and apply a new static atlas
+    /// let atlas_data = FontAtlasData::from_binary(&atlas_bytes).unwrap();
+    /// terminal.replace_with_static_atlas(atlas_data).unwrap();
+    /// ```
+    pub fn replace_with_static_atlas(&mut self, atlas_data: FontAtlasData) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let atlas = StaticFontAtlas::load(gl, atlas_data)?;
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Replaces the current font atlas with a new dynamic atlas.
+    ///
+    /// The dynamic atlas rasterizes glyphs on-demand using the browser's Canvas API,
+    /// enabling runtime font selection. All existing cell content is preserved and
+    /// translated to the new atlas.
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order (e.g., `&["JetBrains Mono", "Hack"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::Terminal;
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Switch to a different font at runtime
+    /// terminal.replace_with_dynamic_atlas(&["Fira Code", "Hack"], 15.0).unwrap();
+    /// ```
+    pub fn replace_with_dynamic_atlas(
+        &mut self,
+        font_family: &[&str],
+        font_size: f32,
+    ) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
+        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
     }
 
     /// Returns the textual content of the specified cell selection.

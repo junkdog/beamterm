@@ -131,6 +131,30 @@ impl TerminalBuffers {
 
         gl.bind_vertex_array(None);
     }
+
+    /// Updates the vertex buffer with new cell dimensions.
+    fn update_vertex_buffer(&self, gl: &WebGl2RenderingContext, cell_size: (i32, i32)) {
+        let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
+
+        #[rustfmt::skip]
+        let vertices: [f32; 16] = [
+            //x    y    u    v
+              w, 0.0, 1.0, 0.0, // top-right
+            0.0,   h, 0.0, 1.0, // bottom-left
+              w,   h, 1.0, 1.0, // bottom-right
+            0.0, 0.0, 0.0, 0.0  // top-left
+        ];
+
+        gl.bind_vertex_array(Some(&self.vao));
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.vertices));
+
+        unsafe {
+            let view = js_sys::Float32Array::view(&vertices);
+            gl.buffer_sub_data_with_i32_and_array_buffer_view(GL::ARRAY_BUFFER, 0, &view);
+        }
+
+        gl.bind_vertex_array(None);
+    }
 }
 
 impl TerminalGrid {
@@ -168,6 +192,83 @@ impl TerminalGrid {
             .atlas
             .get_glyph_id(fallback, FontStyle::Normal as u16)
             .unwrap_or(' ' as u16);
+    }
+
+    /// Replaces the current font atlas with a new one, translating all existing
+    /// glyph IDs to the new atlas.
+    ///
+    /// This method handles the transition between atlases by:
+    /// 1. Looking up the symbol for each existing glyph ID in the old atlas
+    /// 2. Resolving the corresponding glyph slot in the new atlas
+    /// 3. Updating double-width glyphs (emoji, wide chars) across both cells
+    /// 4. Resizing the grid if cell dimensions changed
+    ///
+    /// # Parameters
+    /// * `gl` - WebGL2 rendering context
+    /// * `atlas` - The new font atlas to use
+    pub(crate) fn replace_atlas(&mut self, gl: &WebGl2RenderingContext, atlas: FontAtlas) {
+        let glyph_mask = self.atlas.base_lookup_mask() as u16;
+        let style_mask = !glyph_mask;
+
+        // update fallback glyph to new atlas, before translating existing cells
+        self.fallback_glyph = self
+            .atlas
+            .get_symbol(self.fallback_glyph & glyph_mask)
+            .and_then(|symbol| {
+                let style_bits = self.fallback_glyph & style_mask;
+                atlas.resolve_glyph_slot(symbol.as_str(), style_bits)
+            })
+            .map(|slot| slot.slot_id())
+            .unwrap_or(atlas.space_glyph_id());
+
+        // translate existing glyph ids to new atlas
+        let mut skip_next = false;
+        for idx in 0..self.cells.len() {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
+
+            let old_glyph_id = self.cells[idx].glyph_id();
+            let style_bits = old_glyph_id & style_mask;
+
+            let slot = self
+                .atlas
+                .get_symbol(old_glyph_id & glyph_mask)
+                .and_then(|symbol| atlas.resolve_glyph_slot(symbol.as_str(), style_bits));
+
+            match slot {
+                Some(GlyphSlot::Normal(id)) => {
+                    self.cells[idx].set_glyph_id(id);
+                },
+                Some(GlyphSlot::Wide(id)) | Some(GlyphSlot::Emoji(id)) => {
+                    self.cells[idx].set_glyph_id(id);
+                    // update right-half in next cell if within bounds
+                    if let Some(next_cell) = self.cells.get_mut(idx + 1) {
+                        next_cell.set_glyph_id(id + 1);
+                        skip_next = true;
+                    }
+                },
+                None => {
+                    self.cells[idx].set_glyph_id(self.fallback_glyph);
+                },
+            }
+        }
+
+        // clear any active selection, just to keep it simple
+        self.selection.clear();
+
+        // replace atlas and resize grid accordingly
+        let old_atlas = std::mem::replace(&mut self.atlas, atlas);
+        old_atlas.delete(gl);
+        self.cells_pending_flush = true;
+
+        // update vertex buffer with new cell dimensions
+        self.gpu
+            .buffers
+            .update_vertex_buffer(gl, self.atlas.cell_size());
+
+        self.resize(gl, self.canvas_size_px);
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
@@ -596,15 +697,13 @@ fn setup_buffers(
 ) -> Result<TerminalBuffers, Error> {
     let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
 
-    // let overlap = 0.5;
-    let overlap = 0.0; // no overlap for now, can be adjusted later
     #[rustfmt::skip]
     let vertices = [
-        //    x            y       u    v
-        w + overlap,    -overlap, 1.0, 0.0, // top-right
-           -overlap, h + overlap, 0.0, 1.0, // bottom-left
-        w + overlap, h + overlap, 1.0, 1.0, // bottom-right
-           -overlap,    -overlap, 0.0, 0.0  // top-left
+        //x    y    u    v
+          w, 0.0, 1.0, 0.0, // top-right
+        0.0,   h, 0.0, 1.0, // bottom-left
+          w,   h, 1.0, 1.0, // bottom-right
+        0.0, 0.0, 0.0, 0.0  // top-left
     ];
     let indices = [0, 1, 2, 0, 3, 1];
 
@@ -996,6 +1095,12 @@ impl CellDynamic {
     #[inline]
     fn glyph_id(&self) -> u16 {
         u16::from_le_bytes([self.data[0], self.data[1]])
+    }
+
+    fn set_glyph_id(&mut self, glyph_id: u16) {
+        let bytes = glyph_id.to_le_bytes();
+        self.data[0] = bytes[0];
+        self.data[1] = bytes[1];
     }
 }
 

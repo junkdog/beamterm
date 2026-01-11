@@ -32,12 +32,21 @@ struct SelectionTrackerInner {
     query: Option<CellQuery>,
 }
 
-/// Tracks terminal dimensions for coordinate calculations.
+/// Tracks terminal metrics for coordinate calculations.
 ///
-/// Maintains the current terminal size in cells and provides shared access
-/// for components that need to convert between pixel and cell coordinates.
-pub(crate) struct TerminalDimensions {
-    size: Rc<RefCell<(u16, u16)>>,
+/// Maintains both terminal dimensions (cols, rows) and cell size (width, height)
+/// in a single shared structure. Used by mouse handlers to convert between
+/// pixel and cell coordinates.
+pub(crate) struct TerminalMetrics {
+    inner: Rc<RefCell<TerminalMetricsInner>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct TerminalMetricsInner {
+    pub cols: u16,
+    pub rows: u16,
+    pub cell_width: i32,
+    pub cell_height: i32,
 }
 
 impl SelectionTracker {
@@ -109,32 +118,42 @@ impl SelectionTracker {
     }
 }
 
-impl TerminalDimensions {
-    /// Creates a new terminal dimensions tracker.
+impl TerminalMetrics {
+    /// Creates a new terminal metrics tracker.
     ///
     /// # Arguments
     /// * `cols` - Number of columns in the terminal
     /// * `rows` - Number of rows in the terminal
-    pub fn new(cols: u16, rows: u16) -> Self {
-        Self { size: Rc::new(RefCell::new((cols, rows))) }
+    /// * `cell_width` - Cell width in pixels
+    /// * `cell_height` - Cell height in pixels
+    pub fn new(cols: u16, rows: u16, cell_width: i32, cell_height: i32) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(TerminalMetricsInner {
+                cols,
+                rows,
+                cell_width,
+                cell_height,
+            })),
+        }
     }
 
-    /// Updates the terminal dimensions.
+    /// Updates the terminal metrics.
     ///
-    /// Should be called whenever the terminal is resized.
-    pub fn set(&self, cols: u16, rows: u16) {
-        *self.size.borrow_mut() = (cols, rows);
+    /// Should be called whenever the terminal is resized or the font atlas changes.
+    pub fn set(&self, cols: u16, rows: u16, cell_width: i32, cell_height: i32) {
+        *self.inner.borrow_mut() = TerminalMetricsInner { cols, rows, cell_width, cell_height };
     }
 
-    /// Returns the current terminal dimensions as (columns, rows).
-    pub fn get(&self) -> (u16, u16) {
-        *self.size.borrow()
+    /// Returns all metrics: (cols, rows, cell_width, cell_height).
+    pub fn get(&self) -> (u16, u16, i32, i32) {
+        let inner = self.inner.borrow();
+        (inner.cols, inner.rows, inner.cell_width, inner.cell_height)
     }
 
-    /// Returns a cloned reference to the internal size storage.
+    /// Returns a cloned reference to the internal metrics storage.
     ///
-    /// Used for sharing dimensions across closures and event handlers.
-    pub fn clone_ref(&self) -> Rc<RefCell<(u16, u16)>> {
-        self.size.clone()
+    /// Used for sharing metrics across closures and event handlers.
+    pub fn clone_ref(&self) -> Rc<RefCell<TerminalMetricsInner>> {
+        self.inner.clone()
     }
 }

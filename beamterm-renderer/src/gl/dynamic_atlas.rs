@@ -339,6 +339,10 @@ impl Atlas for DynamicFontAtlas {
     fn base_lookup_mask(&self) -> u32 {
         atlas::DYNAMIC_ATLAS_LOOKUP_MASK
     }
+
+    fn delete(&self, gl: &WebGl2RenderingContext) {
+        self.texture.delete(gl);
+    }
 }
 
 impl std::fmt::Debug for DynamicFontAtlas {

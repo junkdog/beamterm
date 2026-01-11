@@ -448,7 +448,6 @@ impl BeamtermRenderer {
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(&"BeamtermRenderer initialized with static atlas".into());
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -500,14 +499,6 @@ impl BeamtermRenderer {
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(
-            &format!(
-                "BeamtermRenderer initialized with dynamic atlas (font: {}, size: {}px)",
-                font_families.join(", "),
-                font_size
-            )
-            .into(),
-        );
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -667,11 +658,101 @@ impl BeamtermRenderer {
             .resize(gl, (width, height))
             .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
 
-        // Update mouse handler dimensions if present
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    fn update_mouse_handler_metrics(&mut self) {
         if let Some(mouse_handler) = &mut self.mouse_handler {
-            let (cols, rows) = self.terminal_grid.borrow().terminal_size();
-            mouse_handler.update_dimensions(cols, rows);
+            let grid = self.terminal_grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
         }
+    }
+
+    /// Replace the current font atlas with a new static atlas.
+    ///
+    /// This method enables runtime font switching by loading a new `.atlas` file.
+    /// All existing cell content is preserved and translated to the new atlas.
+    ///
+    /// # Arguments
+    /// * `atlas_data` - Binary atlas data (from .atlas file), or null for default
+    ///
+    /// # Example
+    /// ```javascript
+    /// const atlasData = await fetch('new-font.atlas').then(r => r.arrayBuffer());
+    /// renderer.replaceWithStaticAtlas(new Uint8Array(atlasData));
+    /// ```
+    #[wasm_bindgen(js_name = "replaceWithStaticAtlas")]
+    pub fn replace_with_static_atlas(
+        &mut self,
+        atlas_data: Option<js_sys::Uint8Array>,
+    ) -> Result<(), JsValue> {
+        let gl = self.renderer.gl();
+
+        let atlas_config = match atlas_data {
+            Some(data) => {
+                let bytes = data.to_vec();
+                FontAtlasData::from_binary(&bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e:?}")))?
+            },
+            None => FontAtlasData::default(),
+        };
+
+        let atlas = StaticFontAtlas::load(gl, atlas_config)
+            .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Replace the current font atlas with a new dynamic atlas.
+    ///
+    /// This method enables runtime font switching by creating a new dynamic atlas
+    /// with the specified font family and size. All existing cell content is
+    /// preserved and translated to the new atlas.
+    ///
+    /// # Arguments
+    /// * `font_family` - Array of font family names (e.g., `["Hack", "JetBrains Mono"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```javascript
+    /// renderer.replaceWithDynamicAtlas(["Fira Code", "monospace"], 18.0);
+    /// ```
+    #[wasm_bindgen(js_name = "replaceWithDynamicAtlas")]
+    pub fn replace_with_dynamic_atlas(
+        &mut self,
+        font_family: js_sys::Array,
+        font_size: f32,
+    ) -> Result<(), JsValue> {
+        let font_families: Vec<CompactString> = font_family
+            .iter()
+            .filter_map(|v| v.as_string())
+            .map(|s| s.to_compact_string())
+            .collect();
+
+        if font_families.is_empty() {
+            return Err(JsValue::from_str("font_family array cannot be empty"));
+        }
+
+        let gl = self.renderer.gl();
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
 
         Ok(())
     }
