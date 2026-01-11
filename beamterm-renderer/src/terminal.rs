@@ -192,6 +192,64 @@ impl Terminal {
         self.grid.clone()
     }
 
+    /// Replaces the current font atlas with a new static atlas.
+    ///
+    /// All existing cell content is preserved and translated to the new atlas.
+    /// The grid will be resized if the new atlas has different cell dimensions.
+    ///
+    /// # Parameters
+    /// * `atlas_data` - Binary atlas data loaded from a `.atlas` file
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, FontAtlasData};
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Load and apply a new static atlas
+    /// let atlas_data = FontAtlasData::from_binary(&atlas_bytes).unwrap();
+    /// terminal.replace_with_static_atlas(atlas_data).unwrap();
+    /// ```
+    pub fn replace_with_static_atlas(&mut self, atlas_data: FontAtlasData) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let atlas = StaticFontAtlas::load(gl, atlas_data)?;
+        self.grid.borrow_mut().replace_atlas(gl, atlas.into());
+
+        Ok(())
+    }
+
+    /// Replaces the current font atlas with a new dynamic atlas.
+    ///
+    /// The dynamic atlas rasterizes glyphs on-demand using the browser's Canvas API,
+    /// enabling runtime font selection. All existing cell content is preserved and
+    /// translated to the new atlas.
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order (e.g., `&["JetBrains Mono", "Hack"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::Terminal;
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Switch to a different font at runtime
+    /// terminal.replace_with_dynamic_atlas(&["Fira Code", "Hack"], 15.0).unwrap();
+    /// ```
+    pub fn replace_with_dynamic_atlas(
+        &mut self,
+        font_family: &[&str],
+        font_size: f32,
+    ) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
+        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
+        self.grid.borrow_mut().replace_atlas(gl, atlas.into());
+
+        Ok(())
+    }
+
     /// Returns the textual content of the specified cell selection.
     pub fn get_text(&self, selection: CellQuery) -> CompactString {
         self.grid.borrow().get_text(selection)

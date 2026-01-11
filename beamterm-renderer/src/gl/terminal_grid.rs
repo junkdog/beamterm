@@ -559,7 +559,6 @@ impl TerminalGrid {
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         // re-create buffers with new data
-        // todo: drop old buffers properly
         self.gpu.buffers.instance_cell = create_dynamic_instance_buffer(gl, &self.cells)?;
         self.gpu.buffers.instance_pos = create_static_instance_buffer(gl, &cell_pos)?;
 
