@@ -255,6 +255,9 @@ impl TerminalGrid {
             }
         }
 
+        // clear any active selection, just to keep it simple
+        self.selection.clear();
+
         // replace atlas and resize grid accordingly
         let old_atlas = std::mem::replace(&mut self.atlas, atlas);
         old_atlas.delete(gl);
