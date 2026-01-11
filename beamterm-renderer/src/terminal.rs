@@ -6,10 +6,12 @@ use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid,
-    gl::{CellQuery, ContextLossHandler, SelectionMode},
+    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
+    TerminalGrid,
+    gl::{CellQuery, ContextLossHandler},
     mouse::{
-        DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
+        DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
+        TerminalMouseHandler,
     },
 };
 
@@ -551,17 +553,47 @@ impl TerminalBuilder {
         self
     }
 
+    /// Enables mouse-based text selection with automatic clipboard copying.
+    ///
+    /// When enabled, users can click and drag to select text in the terminal.
+    /// Selected text is automatically copied to the clipboard on mouse release.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, SelectionMode};
+    /// use beamterm_renderer::mouse::{MouseSelectOptions, ModifierKeys};
+    ///
+    /// let terminal = Terminal::builder("#canvas")
+    ///     .mouse_selection_handler(
+    ///         MouseSelectOptions::new()
+    ///             .selection_mode(SelectionMode::Linear)
+    ///             .require_modifier_keys(ModifierKeys::SHIFT)
+    ///             .trim_trailing_whitespace(true)
+    ///     )
+    ///     .build()?;
+    /// ```
+    pub fn mouse_selection_handler(mut self, configuration: MouseSelectOptions) -> Self {
+        self.input_handler = Some(InputHandler::CopyOnSelect(configuration));
+        self
+    }
+
     /// Sets a default selection handler for mouse input events. Left
-    /// button selects text, `Ctrl/Cmd + C` copies the selected text to
-    /// the clipboard.
+    /// button selects text, it copies the selected text to the clipboard
+    /// on mouse release.
+    #[deprecated(
+        since = "0.13.0",
+        note = "Use `mouse_selection_handler` with `MouseSelectOptions` instead"
+    )]
     pub fn default_mouse_input_handler(
         mut self,
         selection_mode: SelectionMode,
         trim_trailing_whitespace: bool,
     ) -> Self {
-        self.input_handler =
-            Some(InputHandler::Internal { selection_mode, trim_trailing_whitespace });
-        self
+        let options = MouseSelectOptions::new()
+            .selection_mode(selection_mode)
+            .trim_trailing_whitespace(trim_trailing_whitespace);
+
+        self.mouse_selection_handler(options)
     }
 
     /// Builds the terminal with the configured options.
@@ -608,12 +640,8 @@ impl TerminalBuilder {
                 mouse_handler: None,
                 context_loss_handler,
             }),
-            Some(InputHandler::Internal { selection_mode, trim_trailing_whitespace }) => {
-                let handler = DefaultSelectionHandler::new(
-                    grid.clone(),
-                    selection_mode,
-                    trim_trailing_whitespace,
-                );
+            Some(InputHandler::CopyOnSelect(select)) => {
+                let handler = DefaultSelectionHandler::new(grid.clone(), select);
 
                 let mut mouse_input = TerminalMouseHandler::new(
                     renderer.canvas(),
@@ -650,10 +678,7 @@ impl TerminalBuilder {
 
 enum InputHandler {
     Mouse(MouseEventCallback),
-    Internal {
-        selection_mode: SelectionMode,
-        trim_trailing_whitespace: bool,
-    },
+    CopyOnSelect(MouseSelectOptions),
 }
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).

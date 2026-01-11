@@ -131,6 +131,7 @@ name = "beamterm-renderer"
 version = "0.12.0"
 dependencies = [
  "beamterm-data",
+ "bitflags",
  "compact_str",
  "console_error_panic_hook",
  "emojis",
@@ -150,9 +151,9 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "2.9.1"
+version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
+checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
 name = "bumpalo"
