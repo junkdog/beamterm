@@ -17,10 +17,16 @@
 //!
 //! ```rust,no_run
 //! use beamterm_renderer::{Terminal, SelectionMode};
+//! use beamterm_renderer::mouse::{MouseSelectOptions, ModifierKeys};
 //!
-//! // Enable default selection handler
+//! // Enable selection with Shift+Click
 //! let terminal = Terminal::builder("#canvas")
-//!     .default_mouse_input_handler(SelectionMode::Linear, true)
+//!     .mouse_selection_handler(
+//!         MouseSelectOptions::new()
+//!             .selection_mode(SelectionMode::Linear)
+//!             .require_modifier_keys(ModifierKeys::SHIFT)
+//!             .trim_trailing_whitespace(true)
+//!     )
 //!     .build().unwrap();
 //!
 //! // Or provide custom mouse handling
@@ -37,6 +43,7 @@ use std::{
     rc::Rc,
 };
 
+use bitflags::bitflags;
 use compact_str::CompactString;
 use wasm_bindgen::{JsCast, closure::Closure};
 use wasm_bindgen_futures::spawn_local;
@@ -92,12 +99,8 @@ pub struct TerminalMouseEvent {
     pub row: u16,
     /// Mouse button pressed (0 = left, 1 = middle, 2 = right).
     button: i16,
-    /// Whether Ctrl key was pressed during the event.
-    ctrl_key: bool,
-    /// Whether Shift key was pressed during the event.
-    shift_key: bool,
-    /// Whether Alt key was pressed during the event.
-    alt_key: bool,
+    /// All modifier that were pressed during the event.
+    modifier_keys: ModifierKeys,
 }
 
 impl TerminalMouseEvent {
@@ -106,19 +109,27 @@ impl TerminalMouseEvent {
         self.button
     }
 
-    /// Creates a new mouse event with the given parameters.
-    pub fn ctrl_key(&self) -> bool {
-        self.ctrl_key
-    }
-
     /// Returns whether the Ctrl key was pressed during the event.
-    pub fn shift_key(&self) -> bool {
-        self.shift_key
+    pub fn ctrl_key(&self) -> bool {
+        self.modifier_keys.contains(ModifierKeys::CONTROL)
     }
 
     /// Returns whether the Shift key was pressed during the event.
+    pub fn shift_key(&self) -> bool {
+        self.modifier_keys.contains(ModifierKeys::SHIFT)
+    }
+
+    /// Returns whether the Alt key was pressed during the event.
     pub fn alt_key(&self) -> bool {
-        self.alt_key
+        self.modifier_keys.contains(ModifierKeys::ALT)
+    }
+
+    /// Returns whether the pressed modifiers exactly match the specified set.
+    ///
+    /// Returns `true` only if the modifier keys pressed during the event
+    /// are exactly equal to `mods`—no more, no less.
+    pub fn has_exact_modifiers(&self, mods: ModifierKeys) -> bool {
+        self.modifier_keys == mods
     }
 }
 
@@ -132,6 +143,79 @@ pub enum MouseEventType {
     MouseUp = 1,
     /// Mouse moved while over the terminal.
     MouseMove = 2,
+}
+
+/// Configuration options for mouse-based text selection.
+///
+/// Use the builder pattern to configure selection behavior:
+///
+/// ```rust,no_run
+/// use beamterm_renderer::mouse::{MouseSelectOptions, ModifierKeys};
+/// use beamterm_renderer::SelectionMode;
+///
+/// let options = MouseSelectOptions::new()
+///     .selection_mode(SelectionMode::Block)
+///     .require_modifier_keys(ModifierKeys::SHIFT)
+///     .trim_trailing_whitespace(true);
+/// ```
+#[derive(Clone, Debug, Copy, Default)]
+pub struct MouseSelectOptions {
+    selection_mode: SelectionMode,
+    require_modifier_keys: ModifierKeys,
+    trim_trailing_whitespace: bool,
+}
+
+impl MouseSelectOptions {
+    /// Creates a new `MouseSelectOptions` with default settings.
+    ///
+    /// Defaults:
+    /// - Selection mode: `Block`
+    /// - Required modifier keys: none
+    /// - Trim trailing whitespace: `false`
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the selection mode (Linear or Block).
+    ///
+    /// - `Linear`: Selects text following the natural reading order
+    /// - `Block`: Selects a rectangular region of cells
+    pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
+        self.selection_mode = mode;
+        self
+    }
+
+    /// Sets modifier keys that must be held for selection to activate.
+    ///
+    /// When set, mouse selection only begins if the specified modifier
+    /// keys are pressed during the initial click. Use `ModifierKeys::empty()`
+    /// to allow selection without any modifiers (the default).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::mouse::{MouseSelectOptions, ModifierKeys};
+    ///
+    /// // Require Shift+Click to start selection
+    /// let options = MouseSelectOptions::new()
+    ///     .require_modifier_keys(ModifierKeys::SHIFT);
+    ///
+    /// // Require Ctrl+Shift+Click
+    /// let options = MouseSelectOptions::new()
+    ///     .require_modifier_keys(ModifierKeys::CONTROL | ModifierKeys::SHIFT);
+    /// ```
+    pub fn require_modifier_keys(mut self, require_modifier_keys: ModifierKeys) -> Self {
+        self.require_modifier_keys = require_modifier_keys;
+        self
+    }
+
+    /// Sets whether to trim trailing whitespace from selected text.
+    ///
+    /// When enabled, trailing spaces at the end of each line are removed
+    /// from the copied text.
+    pub fn trim_trailing_whitespace(mut self, trim: bool) -> Self {
+        self.trim_trailing_whitespace = trim;
+        self
+    }
 }
 
 impl TerminalMouseHandler {
@@ -297,9 +381,7 @@ pub(crate) struct DefaultSelectionHandler {
     /// Terminal grid reference for text extraction.
     grid: Rc<RefCell<TerminalGrid>>,
     /// Selection mode (Linear or Block).
-    query_mode: SelectionMode,
-    /// Whether to trim trailing whitespace from selections.
-    trim_trailing_whitespace: bool,
+    options: MouseSelectOptions,
 }
 
 impl DefaultSelectionHandler {
@@ -309,16 +391,11 @@ impl DefaultSelectionHandler {
     /// * `grid` - Terminal grid for text extraction
     /// * `query_mode` - Selection mode (Linear follows text flow, Block is rectangular)
     /// * `trim_trailing_whitespace` - Whether to remove trailing spaces from selected text
-    pub(crate) fn new(
-        grid: Rc<RefCell<TerminalGrid>>,
-        query_mode: SelectionMode,
-        trim_trailing_whitespace: bool,
-    ) -> Self {
+    pub(crate) fn new(grid: Rc<RefCell<TerminalGrid>>, options: MouseSelectOptions) -> Self {
         Self {
             grid,
             selection_state: Rc::new(RefCell::new(SelectionState::Idle)),
-            query_mode,
-            trim_trailing_whitespace,
+            options,
         }
     }
 
@@ -338,8 +415,9 @@ impl DefaultSelectionHandler {
     /// Repeated single-cell clicks cancel selection rather than selecting one cell.
     pub fn create_event_handler(&self, active_selection: SelectionTracker) -> MouseEventCallback {
         let selection_state = self.selection_state.clone();
-        let query_mode = self.query_mode;
-        let trim_trailing = self.trim_trailing_whitespace;
+        let query_mode = self.options.selection_mode;
+        let trim_trailing = self.options.trim_trailing_whitespace;
+        let require_modifier_keys = self.options.require_modifier_keys;
 
         Box::new(move |event: TerminalMouseEvent, grid: &TerminalGrid| {
             let mut state = selection_state.borrow_mut();
@@ -347,6 +425,11 @@ impl DefaultSelectionHandler {
             // update mouse selection state based on the event type.
             match event.event_type {
                 MouseEventType::MouseDown if event.button == 0 => {
+                    // if modifier keys are required, ensure they are pressed
+                    if !event.has_exact_modifiers(require_modifier_keys) {
+                        return;
+                    }
+
                     // note: if there's an existing selection in progress, it
                     // means that the cursor left the terminal (canvas) area
                     // while a previous selection was ongoing. if so, we do
@@ -526,14 +609,26 @@ fn create_mouse_event_closure(
 ) -> Closure<dyn FnMut(web_sys::MouseEvent)> {
     Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
         if let Some((col, row)) = pixel_to_cell(&event) {
+            let modifiers = {
+                let mut mods = ModifierKeys::empty();
+                if event.ctrl_key() {
+                    mods |= ModifierKeys::CONTROL;
+                }
+                if event.shift_key() {
+                    mods |= ModifierKeys::SHIFT;
+                }
+                if event.alt_key() {
+                    mods |= ModifierKeys::ALT;
+                }
+                mods
+            };
+
             let terminal_event = TerminalMouseEvent {
                 event_type,
                 col,
                 row,
                 button: event.button(),
-                ctrl_key: event.ctrl_key(),
-                shift_key: event.shift_key(),
-                alt_key: event.alt_key(),
+                modifier_keys: modifiers,
             };
             let grid_ref = grid.borrow();
             event_handler.borrow_mut()(terminal_event, &grid_ref);
@@ -584,8 +679,31 @@ impl Debug for DefaultSelectionHandler {
         let (cols, rows) = self.grid.borrow().terminal_size();
         write!(
             f,
-            "DefaultSelectionHandler {{ mode: {:?}, trim_whitespace: {}, grid: {}x{} }}",
-            self.query_mode, self.trim_trailing_whitespace, cols, rows
+            "DefaultSelectionHandler {{ options: {:?}, grid: {}x{} }}",
+            self.options, cols, rows
         )
+    }
+}
+
+bitflags! {
+    /// Keyboard modifier keys that can be held during mouse events.
+    ///
+    /// Flags can be combined using bitwise OR:
+    ///
+    /// ```rust,no_run
+    /// use beamterm_renderer::mouse::ModifierKeys;
+    ///
+    /// let ctrl_shift = ModifierKeys::CONTROL | ModifierKeys::SHIFT;
+    /// ```
+    #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+    pub struct ModifierKeys : u8 {
+        /// The Control key (Ctrl on Windows/Linux).
+        const CONTROL = 0b0000_0001;
+        /// The Shift key.
+        const SHIFT   = 0b0000_0010;
+        /// The Alt key (Option on macOS).
+        const ALT     = 0b0000_0100;
+        /// The Meta key (Command on macOS, Windows key on Windows).
+        const META    = 0b0000_1000;
     }
 }
