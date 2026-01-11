@@ -12,7 +12,7 @@ use crate::{
         CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
-    mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
+    mouse::{DefaultSelectionHandler, MouseSelectOptions, TerminalMouseEvent, TerminalMouseHandler},
     terminal::is_double_width,
 };
 
@@ -516,8 +516,10 @@ impl BeamtermRenderer {
         }
 
         let selection_tracker = self.terminal_grid.borrow().selection_tracker();
-        let handler =
-            DefaultSelectionHandler::new(self.terminal_grid.clone(), mode.into(), trim_whitespace);
+        let options = MouseSelectOptions::new()
+            .selection_mode(mode.into())
+            .trim_trailing_whitespace(trim_whitespace);
+        let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
 
         let mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
