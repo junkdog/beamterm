@@ -61,6 +61,7 @@ features = [
     'console',
     'CanvasRenderingContext2d',
     'Clipboard',
+    'CssStyleDeclaration',
     'Document',
     'Element',
     'HtmlCanvasElement',
