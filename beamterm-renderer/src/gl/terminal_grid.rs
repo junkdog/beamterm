@@ -131,6 +131,30 @@ impl TerminalBuffers {
 
         gl.bind_vertex_array(None);
     }
+
+    /// Updates the vertex buffer with new cell dimensions.
+    fn update_vertex_buffer(&self, gl: &WebGl2RenderingContext, cell_size: (i32, i32)) {
+        let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
+
+        #[rustfmt::skip]
+        let vertices: [f32; 16] = [
+            //x    y    u    v
+              w, 0.0, 1.0, 0.0, // top-right
+            0.0,   h, 0.0, 1.0, // bottom-left
+              w,   h, 1.0, 1.0, // bottom-right
+            0.0, 0.0, 0.0, 0.0  // top-left
+        ];
+
+        gl.bind_vertex_array(Some(&self.vao));
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.vertices));
+
+        unsafe {
+            let view = js_sys::Float32Array::view(&vertices);
+            gl.buffer_sub_data_with_i32_and_array_buffer_view(GL::ARRAY_BUFFER, 0, &view);
+        }
+
+        gl.bind_vertex_array(None);
+    }
 }
 
 impl TerminalGrid {
@@ -235,6 +259,11 @@ impl TerminalGrid {
         let old_atlas = std::mem::replace(&mut self.atlas, atlas);
         old_atlas.delete(gl);
         self.cells_pending_flush = true;
+
+        // update vertex buffer with new cell dimensions
+        self.gpu
+            .buffers
+            .update_vertex_buffer(gl, self.atlas.cell_size());
 
         self.resize(gl, self.canvas_size_px);
     }
@@ -665,15 +694,13 @@ fn setup_buffers(
 ) -> Result<TerminalBuffers, Error> {
     let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
 
-    // let overlap = 0.5;
-    let overlap = 0.0; // no overlap for now, can be adjusted later
     #[rustfmt::skip]
     let vertices = [
-        //    x            y       u    v
-        w + overlap,    -overlap, 1.0, 0.0, // top-right
-           -overlap, h + overlap, 0.0, 1.0, // bottom-left
-        w + overlap, h + overlap, 1.0, 1.0, // bottom-right
-           -overlap,    -overlap, 0.0, 0.0  // top-left
+        //x    y    u    v
+          w, 0.0, 1.0, 0.0, // top-right
+        0.0,   h, 0.0, 1.0, // bottom-left
+          w,   h, 1.0, 1.0, // bottom-right
+        0.0, 0.0, 0.0, 0.0  // top-left
     ];
     let indices = [0, 1, 2, 0, 3, 1];
 

@@ -213,7 +213,9 @@ impl Terminal {
     pub fn replace_with_static_atlas(&mut self, atlas_data: FontAtlasData) -> Result<(), Error> {
         let gl = self.renderer.gl();
         let atlas = StaticFontAtlas::load(gl, atlas_data)?;
-        self.grid.borrow_mut().replace_atlas(gl, atlas.into());
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
 
         Ok(())
     }
@@ -245,7 +247,9 @@ impl Terminal {
         let gl = self.renderer.gl();
         let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
         let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
-        self.grid.borrow_mut().replace_atlas(gl, atlas.into());
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
 
         Ok(())
     }
