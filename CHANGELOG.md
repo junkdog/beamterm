@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - *(atlas)* Runtime font atlas replacement (#73)
+- *(mouse)* Modifier key requirements for text selection (#74)
 
 ### 🐛 Bug Fixes
 
