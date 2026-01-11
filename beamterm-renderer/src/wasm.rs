@@ -13,7 +13,8 @@ use crate::{
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
     mouse::{
-        DefaultSelectionHandler, MouseSelectOptions, TerminalMouseEvent, TerminalMouseHandler,
+        DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
+        TerminalMouseEvent, TerminalMouseHandler,
     },
     terminal::is_double_width,
 };
@@ -99,6 +100,59 @@ pub struct MouseEvent {
     pub shift_key: bool,
     /// Whether Alt key was pressed
     pub alt_key: bool,
+    /// Whether Meta key was pressed (Command on macOS, Windows key on Windows)
+    pub meta_key: bool,
+}
+
+/// Modifier key flags for mouse selection.
+///
+/// Use bitwise OR to combine multiple modifiers:
+/// ```javascript
+/// const modifiers = ModifierKeys.SHIFT | ModifierKeys.CONTROL;
+/// renderer.enableSelectionWithOptions(SelectionMode.Block, true, modifiers);
+/// ```
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ModifierKeys(u8);
+
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+impl ModifierKeys {
+    /// No modifier keys required
+    #[wasm_bindgen(getter)]
+    pub fn NONE() -> ModifierKeys {
+        ModifierKeys(0)
+    }
+
+    /// Control key (Ctrl)
+    #[wasm_bindgen(getter)]
+    pub fn CONTROL() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::CONTROL.bits())
+    }
+
+    /// Shift key
+    #[wasm_bindgen(getter)]
+    pub fn SHIFT() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::SHIFT.bits())
+    }
+
+    /// Alt key (Option on macOS)
+    #[wasm_bindgen(getter)]
+    pub fn ALT() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::ALT.bits())
+    }
+
+    /// Meta key (Command on macOS, Windows key on Windows)
+    #[wasm_bindgen(getter)]
+    pub fn META() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::META.bits())
+    }
+
+    /// Combines two modifier key sets using bitwise OR
+    #[wasm_bindgen(js_name = "or")]
+    pub fn or(&self, other: &ModifierKeys) -> ModifierKeys {
+        ModifierKeys(self.0 | other.0)
+    }
 }
 
 /// Query for selecting cells in the terminal
@@ -512,6 +566,51 @@ impl BeamtermRenderer {
         mode: SelectionMode,
         trim_whitespace: bool,
     ) -> Result<(), JsValue> {
+        self.enable_selection_internal(mode, trim_whitespace, ModifierKeys::default())
+    }
+
+    /// Enable mouse selection with full configuration options.
+    ///
+    /// This method allows specifying modifier keys that must be held for selection
+    /// to activate, in addition to the selection mode and whitespace trimming.
+    ///
+    /// # Arguments
+    /// * `mode` - Selection mode (Block or Linear)
+    /// * `trim_whitespace` - Whether to trim trailing whitespace from selected text
+    /// * `require_modifiers` - Modifier keys that must be held to start selection
+    ///
+    /// # Example
+    /// ```javascript
+    /// // Require Shift+Click to start selection
+    /// renderer.enableSelectionWithOptions(
+    ///     SelectionMode.Linear,
+    ///     true,
+    ///     ModifierKeys.SHIFT
+    /// );
+    ///
+    /// // Require Ctrl+Shift+Click
+    /// renderer.enableSelectionWithOptions(
+    ///     SelectionMode.Block,
+    ///     false,
+    ///     ModifierKeys.CONTROL.or(ModifierKeys.SHIFT)
+    /// );
+    /// ```
+    #[wasm_bindgen(js_name = "enableSelectionWithOptions")]
+    pub fn enable_selection_with_options(
+        &mut self,
+        mode: SelectionMode,
+        trim_whitespace: bool,
+        require_modifiers: &ModifierKeys,
+    ) -> Result<(), JsValue> {
+        self.enable_selection_internal(mode, trim_whitespace, *require_modifiers)
+    }
+
+    fn enable_selection_internal(
+        &mut self,
+        mode: SelectionMode,
+        trim_whitespace: bool,
+        require_modifiers: ModifierKeys,
+    ) -> Result<(), JsValue> {
         // clean up existing mouse handler if present
         if let Some(old_handler) = self.mouse_handler.take() {
             old_handler.cleanup();
@@ -520,7 +619,8 @@ impl BeamtermRenderer {
         let selection_tracker = self.terminal_grid.borrow().selection_tracker();
         let options = MouseSelectOptions::new()
             .selection_mode(mode.into())
-            .trim_trailing_whitespace(trim_whitespace);
+            .trim_trailing_whitespace(trim_whitespace)
+            .require_modifier_keys(require_modifiers.into());
         let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
 
         let mouse_handler = TerminalMouseHandler::new(
@@ -799,7 +899,14 @@ impl From<TerminalMouseEvent> for MouseEvent {
             ctrl_key: event.ctrl_key(),
             shift_key: event.shift_key(),
             alt_key: event.alt_key(),
+            meta_key: event.meta_key(),
         }
+    }
+}
+
+impl From<ModifierKeys> for RustModifierKeys {
+    fn from(keys: ModifierKeys) -> Self {
+        RustModifierKeys::from_bits_truncate(keys.0)
     }
 }
 

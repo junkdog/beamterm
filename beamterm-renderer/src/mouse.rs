@@ -124,6 +124,13 @@ impl TerminalMouseEvent {
         self.modifier_keys.contains(ModifierKeys::ALT)
     }
 
+    /// Returns whether the Meta key was pressed during the event.
+    ///
+    /// This is the Command key on macOS or the Windows key on Windows.
+    pub fn meta_key(&self) -> bool {
+        self.modifier_keys.contains(ModifierKeys::META)
+    }
+
     /// Returns whether the pressed modifiers exactly match the specified set.
     ///
     /// Returns `true` only if the modifier keys pressed during the event
@@ -619,6 +626,9 @@ fn create_mouse_event_closure(
                 }
                 if event.alt_key() {
                     mods |= ModifierKeys::ALT;
+                }
+                if event.meta_key() {
+                    mods |= ModifierKeys::META;
                 }
                 mods
             };
