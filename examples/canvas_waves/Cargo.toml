@@ -8,7 +8,7 @@ publish = false
 ratzilla = { git = "https://github.com/junkdog/ratzilla", branch = "beamterm-latest" }
 #ratzilla = { path = "../../../ratzilla" }
 console_error_panic_hook = "0.1.7"
-tachyonfx = { version = "0.21.0", default-features = false, features = ["wasm"] }
+tachyonfx = { version = "0.22.0", default-features = false, features = ["wasm"] }
 web-time = "1.1.0"
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
