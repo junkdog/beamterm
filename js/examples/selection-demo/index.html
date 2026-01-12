@@ -84,6 +84,27 @@
             border-radius: 4px;
         }
 
+        .modifier-checkboxes {
+            display: flex;
+            gap: 15px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            min-width: auto;
+            font-weight: normal;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #7aa2f7;
+            cursor: pointer;
+        }
+
         .status {
             margin-bottom: 15px;
             padding: 10px;
@@ -160,6 +181,23 @@
                 <button id="enableSelection">Enable Selection</button>
                 <button id="disableSelection" disabled>Disable Selection</button>
             </div>
+            <div class="control-group">
+                <label>Required Modifiers:</label>
+                <div class="modifier-checkboxes">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="modifierCtrl"> Ctrl
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="modifierShift"> Shift
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="modifierAlt"> Alt
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="modifierMeta"> Meta
+                    </label>
+                </div>
+            </div>
         </div>
 
         <div class="status" id="status">Loading Beamterm...</div>
@@ -171,6 +209,7 @@
             <ul>
                 <li><strong>Enable Selection:</strong> Click the "Enable Selection" button above</li>
                 <li><strong>Mouse Selection:</strong> Click and drag to select text</li>
+                <li><strong>Modifier Keys:</strong> Check modifier boxes to require key combinations for selection (e.g., Shift+Click)</li>
                 <li><strong>Auto Copy:</strong> Selected text is automatically copied to clipboard</li>
                 <li><strong>Linear Mode:</strong> Selects text following natural flow (like in terminals)</li>
                 <li><strong>Block Mode:</strong> Selects rectangular areas (like in editors)</li>

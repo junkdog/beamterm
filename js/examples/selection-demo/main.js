@@ -1,10 +1,11 @@
 // Beamterm Selection Demo
-import { 
-    main as init, 
-    style, 
-    cell, 
-    BeamtermRenderer, 
-    SelectionMode 
+import {
+    main as init,
+    style,
+    cell,
+    BeamtermRenderer,
+    SelectionMode,
+    ModifierKeys
 } from '@beamterm/renderer';
 
 class SelectionDemo {
@@ -12,20 +13,26 @@ class SelectionDemo {
         this.renderer = null;
         this.size = null;
         this.selectionEnabled = false;
-        
+
         // Get UI elements
         this.statusEl = document.getElementById('status');
         this.selectionModeEl = document.getElementById('selectionMode');
         this.enableBtn = document.getElementById('enableSelection');
         this.disableBtn = document.getElementById('disableSelection');
-        
+
+        // Modifier key checkboxes
+        this.modifierCtrl = document.getElementById('modifierCtrl');
+        this.modifierShift = document.getElementById('modifierShift');
+        this.modifierAlt = document.getElementById('modifierAlt');
+        this.modifierMeta = document.getElementById('modifierMeta');
+
         this.setupEventListeners();
     }
 
     setupEventListeners() {
         this.enableBtn.addEventListener('click', () => this.enableSelection());
         this.disableBtn.addEventListener('click', () => this.disableSelection());
-        
+
         // Re-enable selection when mode changes
         this.selectionModeEl.addEventListener('change', () => {
             if (this.selectionEnabled) {
@@ -33,6 +40,43 @@ class SelectionDemo {
                 this.enableSelection();
             }
         });
+
+        // Re-enable selection when modifier key requirements change
+        const modifierCheckboxes = [this.modifierCtrl, this.modifierShift, this.modifierAlt, this.modifierMeta];
+        modifierCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                if (this.selectionEnabled) {
+                    console.log('🔄 Modifier keys changed, re-enabling with new modifiers');
+                    this.enableSelection();
+                }
+            });
+        });
+    }
+
+    getRequiredModifiers() {
+        let modifiers = ModifierKeys.NONE;
+        if (this.modifierCtrl.checked) {
+            modifiers = modifiers.or(ModifierKeys.CONTROL);
+        }
+        if (this.modifierShift.checked) {
+            modifiers = modifiers.or(ModifierKeys.SHIFT);
+        }
+        if (this.modifierAlt.checked) {
+            modifiers = modifiers.or(ModifierKeys.ALT);
+        }
+        if (this.modifierMeta.checked) {
+            modifiers = modifiers.or(ModifierKeys.META);
+        }
+        return modifiers;
+    }
+
+    getModifierDescription() {
+        const mods = [];
+        if (this.modifierCtrl.checked) mods.push('Ctrl');
+        if (this.modifierShift.checked) mods.push('Shift');
+        if (this.modifierAlt.checked) mods.push('Alt');
+        if (this.modifierMeta.checked) mods.push('Meta');
+        return mods.length > 0 ? mods.join('+') + '+Click' : 'Click';
     }
 
     updateStatus(message, isError = false) {
@@ -96,22 +140,24 @@ class SelectionDemo {
         if (!this.renderer) return;
 
         try {
-            const mode = this.selectionModeEl.value === 'linear' ? 
+            const mode = this.selectionModeEl.value === 'linear' ?
                 SelectionMode.Linear : SelectionMode.Block;
-            
-            console.log('🚀 Enabling selection with mode:', this.selectionModeEl.value, '(enum value:', mode + ')');
-            
-            // Enable built-in selection with auto-copy
-            this.renderer.enableSelection(mode, true);
-            
+            const modifiers = this.getRequiredModifiers();
+            const modifierDesc = this.getModifierDescription();
+
+            console.log('🚀 Enabling selection with mode:', this.selectionModeEl.value, 'modifiers:', modifierDesc);
+
+            // Enable built-in selection with auto-copy and modifier key requirements
+            this.renderer.enableSelectionWithOptions(mode, true, modifiers);
+
             this.selectionEnabled = true;
             this.enableBtn.disabled = true;
             this.disableBtn.disabled = false;
-            
+
             const modeStr = this.selectionModeEl.value;
-            this.updateStatus(`Selection enabled (${modeStr} mode) - Click and drag to select text`);
-            
-            console.log('✅ Selection enabled with mode:', modeStr);
+            this.updateStatus(`Selection enabled (${modeStr} mode) - ${modifierDesc} and drag to select text`);
+
+            console.log('✅ Selection enabled with mode:', modeStr, 'modifiers:', modifierDesc);
         } catch (error) {
             console.error('❌ Failed to enable selection:', error);
             this.updateStatus(`Failed to enable selection: ${error.message}`, true);
@@ -156,6 +202,10 @@ class SelectionDemo {
             "• Linear mode - follows text flow like normal terminals",
             "• Block mode - selects rectangular areas like editors",
             "",
+            "Try modifier key requirements:",
+            "• Check Shift to require Shift+Click for selection",
+            "• Combine modifiers like Ctrl+Shift for custom workflows",
+            "",
             "Sample content for testing:",
             "┌────────────────────────────────────────────┐",
             "│  Column 1    │  Column 2    │  Column 3    │",
@@ -184,7 +234,7 @@ class SelectionDemo {
             let lineStyle = style().fg(0xc0caf5);
             
             // Color code different types of content
-            if (line.startsWith("🖱️") || line.startsWith("Try both") || line.startsWith("Sample content")) {
+            if (line.startsWith("🖱️") || line.startsWith("Try ") || line.startsWith("Sample content")) {
                 lineStyle = style().bold().fg(0x7aa2f7);
             } else if (line.startsWith("•") || line.startsWith("┌") || line.startsWith("│") || line.startsWith("├") || line.startsWith("└")) {
                 lineStyle = style().fg(0x9ece6a);
