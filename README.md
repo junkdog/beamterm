@@ -396,12 +396,6 @@ rustup target add wasm32-unknown-unknown
 
 # Install tools
 cargo install wasm-pack trunk
-
-# Development server
-trunk serve
-
-# Production build
-trunk build --release
 ```
 
 ## Design Decisions
