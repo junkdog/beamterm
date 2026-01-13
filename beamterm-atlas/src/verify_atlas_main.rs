@@ -5,6 +5,7 @@ use std::{fmt::Write, fs, path::PathBuf};
 use beamterm_data::{FontAtlasData, Glyph};
 use clap::Parser;
 use colored::Colorize;
+use unicode_width::UnicodeWidthChar;
 
 #[derive(Parser)]
 #[command(name = "verify-atlas")]
@@ -22,9 +23,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== Font Atlas Grid Viewer ===");
     println!(
-        "Texture: {}x{}x{} (32x1 cells per slice)",
+        "Texture: {}x{}x{} (1x32 vertical cells per layer)",
         atlas.texture_dimensions.0, atlas.texture_dimensions.1, atlas.texture_dimensions.2
     );
+    println!("Cell size: {}x{}", atlas.cell_size.0, atlas.cell_size.1);
 
     // Calculate total number of slices
     let max_slice = atlas
@@ -35,25 +37,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .id as usize
         / 32;
 
-    // Display each slice (32 cells wide, split into 2 rows of 16 for readability)
-    for slice in 0..=max_slice {
-        println!("\n=== Slice {} ===", slice);
-        render_slice(&atlas, slice)?;
+    // Display each layer (32 cells vertical, displayed in rows of 8 for readability)
+    for layer in 0..=max_slice {
+        println!("\n=== Layer {} ===", layer);
+        render_layer(&atlas, layer)?;
     }
 
     Ok(())
 }
 
-fn find_glyph_symbol(atlas: &FontAtlasData, slice: u16, pos: u16) -> Option<&Glyph> {
-    let glyph_id = (slice << 5) | pos; // 32 glyphs per slice (shift by 5 = multiply by 32)
+fn find_glyph_symbol(atlas: &FontAtlasData, layer: u16, pos: u16) -> Option<&Glyph> {
+    let glyph_id = (layer << 5) | pos; // 32 glyphs per layer (shift by 5 = multiply by 32)
     atlas.glyphs.iter().find(|g| g.id == glyph_id)
 }
 
-fn render_slice(atlas: &FontAtlasData, slice: usize) -> Result<(), Box<dyn std::error::Error>> {
-    let cells_per_row = 16;
+fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let cells_per_row = 16; // Display 16 cells per row
     let rows = 32 / cells_per_row; // 2 rows of 16 cells
     let display_width = atlas.cell_size.0 as usize * cells_per_row;
-    let display_height = atlas.cell_size.1 as usize;
+    let cell_height = atlas.cell_size.1 as usize;
 
     // Display each row of 16 cells
     for row in 0..rows {
@@ -68,12 +70,7 @@ fn render_slice(atlas: &FontAtlasData, slice: usize) -> Result<(), Box<dyn std::
         for x in 0..display_width {
             if x % atlas.cell_size.0 as usize == 0 {
                 let col = x / atlas.cell_size.0 as usize;
-                write!(
-                    &mut output,
-                    "{}",
-                    format!("{:X}", col).blue() // Use hex for 0-F
-                )
-                .ok();
+                write!(&mut output, "{}", format!("{:X}", col).blue()).ok(); // Hex for 0-F
             } else {
                 write!(&mut output, " ").ok();
             }
@@ -81,25 +78,14 @@ fn render_slice(atlas: &FontAtlasData, slice: usize) -> Result<(), Box<dyn std::
         writeln!(&mut output).ok();
 
         // Process pixels in pairs for half-block rendering
-        for y in (0..display_height).step_by(2) {
+        for y in (0..cell_height).step_by(2) {
             // Row marker
-            if y % atlas.cell_size.1 as usize == 0 {
-                write!(
-                    &mut output,
-                    "{:2} ",
-                    (y / atlas.cell_size.1 as usize)
-                        .to_string()
-                        .blue()
-                )
-                .ok();
-            } else {
-                write!(&mut output, "   ").ok();
-            }
+            write!(&mut output, "   ").ok();
 
-            // Render 16 cells from this row
+            // Render 8 cells from this display row
             for cell_offset in 0..cells_per_row {
                 let cell_pos = start_cell + cell_offset;
-                render_cell(atlas, slice, cell_pos, y, &mut output);
+                render_cell(atlas, layer, cell_pos, y, &mut output);
             }
 
             writeln!(&mut output).ok();
@@ -113,23 +99,25 @@ fn render_slice(atlas: &FontAtlasData, slice: usize) -> Result<(), Box<dyn std::
 
 fn render_cell(
     atlas: &FontAtlasData,
-    slice: usize,
+    layer: usize,
     cell_pos: usize,
     y: usize,
     output: &mut String,
 ) {
-    let slice_height = atlas.texture_dimensions.1 as usize;
-    let slice_width = atlas.texture_dimensions.0 as usize;
-    let slice_offset = slice * slice_width * slice_height;
+    let layer_height = atlas.texture_dimensions.1 as usize;
+    let layer_width = atlas.texture_dimensions.0 as usize;
+    let layer_offset = layer * layer_width * layer_height;
     let cell_width = atlas.cell_size.0 as usize;
+    let cell_height = atlas.cell_size.1 as usize;
 
-    // Calculate x offset for this cell in the texture
-    let cell_x_offset = cell_pos * cell_width;
+    // Vertical layout: calculate y offset for this cell in the texture
+    let cell_y_offset = cell_pos * cell_height;
 
     for x in 0..cell_width {
-        let texture_x = cell_x_offset + x;
-        let idx_top = slice_offset + y * slice_width + texture_x;
-        let idx_bottom = slice_offset + (y + 1) * slice_width + texture_x;
+        let texture_y_top = cell_y_offset + y;
+        let texture_y_bottom = cell_y_offset + y + 1;
+        let idx_top = layer_offset + texture_y_top * layer_width + x;
+        let idx_bottom = layer_offset + texture_y_bottom * layer_width + x;
 
         let pixel_top = if 4 * idx_top < atlas.texture_data.len() {
             (atlas.texture_data[idx_top * 4] as u32) << 24
@@ -170,11 +158,20 @@ fn render_cell(
             (false, false) => {
                 // Show glyph symbol at cell boundary
                 if x == 0 && y == 0 {
-                    if let Some(glyph) = find_glyph_symbol(atlas, slice as u16, cell_pos as u16) {
+                    if let Some(glyph) = find_glyph_symbol(atlas, layer as u16, cell_pos as u16) {
                         let ch = glyph.symbol.chars().next().unwrap_or(' ');
                         write!(output, "{}", ch.to_string().truecolor(0xfe, 0x80, 0x19)).ok();
                     } else {
                         write!(output, "{}", "+".bright_black()).ok();
+                    }
+                } else if x == 1 && y == 0 {
+                    // Check if glyph symbol was double-width; if so, skip this column
+                    let is_double_width = find_glyph_symbol(atlas, layer as u16, cell_pos as u16)
+                        .and_then(|g| g.symbol.chars().next())
+                        .and_then(|ch| ch.width())
+                        .is_some_and(|w| w > 1);
+                    if !is_double_width {
+                        write!(output, "-").ok();
                     }
                 } else if x == 0 {
                     write!(output, "|").ok();

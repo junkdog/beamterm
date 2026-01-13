@@ -254,4 +254,8 @@ impl Atlas for StaticFontAtlas {
     fn base_lookup_mask(&self) -> u32 {
         atlas::STATIC_ATLAS_LOOKUP_MASK
     }
+
+    fn delete(&self, gl: &WebGl2RenderingContext) {
+        self.texture.delete(gl);
+    }
 }

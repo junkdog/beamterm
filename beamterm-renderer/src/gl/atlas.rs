@@ -88,6 +88,12 @@ pub(crate) trait Atlas {
     ///   - Emoji are tracked via `GlyphSlot::Emoji` variant rather than a flag bit
     ///   - Simpler addressing since glyphs are assigned sequentially at runtime
     fn base_lookup_mask(&self) -> u32;
+
+    /// Deletes the GPU texture resources associated with this atlas.
+    ///
+    /// This method must be called before dropping the atlas to properly clean up
+    /// WebGL resources. Failing to call this will leak GPU memory.
+    fn delete(&self, gl: &web_sys::WebGl2RenderingContext);
 }
 
 pub(crate) struct FontAtlas {
@@ -170,6 +176,16 @@ impl FontAtlas {
     pub(super) fn base_lookup_mask(&self) -> u32 {
         self.inner.base_lookup_mask()
     }
+
+    pub(super) fn space_glyph_id(&self) -> u16 {
+        self.get_glyph_id(" ", 0x0)
+            .expect("space glyph exists in every font atlas")
+    }
+
+    /// Deletes the GPU texture resources associated with this atlas.
+    pub(crate) fn delete(&self, gl: &web_sys::WebGl2RenderingContext) {
+        self.inner.delete(gl)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -183,6 +199,15 @@ impl GlyphSlot {
     pub fn slot_id(&self) -> SlotId {
         match *self {
             GlyphSlot::Normal(id) | GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => id,
+        }
+    }
+
+    pub fn with_styling(self, style_bits: u16) -> Self {
+        use GlyphSlot::*;
+        match self {
+            Normal(id) => Normal(id | style_bits),
+            Wide(id) => Wide(id | style_bits),
+            Emoji(id) => Emoji(id | style_bits),
         }
     }
 

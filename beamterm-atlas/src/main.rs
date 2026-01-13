@@ -14,7 +14,7 @@ use clap::Parser;
 use color_eyre::eyre::{Context, Result};
 
 use crate::{
-    atlas_generator::AtlasFontGenerator,
+    atlas_generator::{AtlasFontGenerator, FallbackGlyphStats},
     cli::Cli,
     font_discovery::FontDiscovery,
     logging::{LoggingConfig, init_logging},
@@ -79,6 +79,7 @@ fn main() -> Result<()> {
         cli.line_height,
         underline,
         strikethrough,
+        cli.debug_space_pattern,
     )?;
 
     let ranges = if cli.ranges.is_empty() {
@@ -88,7 +89,7 @@ fn main() -> Result<()> {
     };
 
     let additional_symbols = cli.read_symbols_file()?;
-    let bitmap_font = generator.generate(&ranges, &additional_symbols);
+    let (bitmap_font, fallback_stats) = generator.generate(&ranges, &additional_symbols);
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -127,12 +128,193 @@ fn main() -> Result<()> {
             .unwrap_or(0)
     );
 
+    // Report fallback glyphs if any
+    report_fallback_glyphs(&fallback_stats);
+
     // Check for missing glyphs if requested
     if cli.check_missing {
         report_missing_glyphs(&mut generator, &ranges, &additional_symbols);
     }
 
     Ok(())
+}
+
+fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
+    if stats.fallback_glyphs.is_empty() {
+        return;
+    }
+
+    println!(
+        "\n⚠️  {} glyphs used fallback fonts (out of {} total):",
+        stats.fallback_glyphs.len(),
+        stats.total_glyphs
+    );
+
+    // Group by fallback font name
+    let mut by_font: std::collections::HashMap<&str, Vec<_>> = std::collections::HashMap::new();
+    for glyph in &stats.fallback_glyphs {
+        by_font
+            .entry(&glyph.fallback_font_name)
+            .or_default()
+            .push(glyph);
+    }
+
+    for (font_name, glyphs) in by_font {
+        println!("  From '{}':", font_name);
+
+        // Group by style within each font
+        for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic]
+        {
+            let style_glyphs: Vec<_> = glyphs
+                .iter()
+                .filter(|g| g.style == style)
+                .collect();
+
+            if !style_glyphs.is_empty() {
+                println!("    {:?} ({}):", style, style_glyphs.len());
+
+                // Print up to 74 glyphs per line
+                for chunk in style_glyphs.chunks(74) {
+                    let symbols: String = chunk
+                        .iter()
+                        .map(|g| {
+                            let ch = g.symbol.chars().next().unwrap_or('\0');
+                            if ch.is_control() || ch.is_whitespace() { '·' } else { ch }
+                        })
+                        .collect();
+                    println!("      {}", symbols);
+                }
+            }
+        }
+    }
+
+    // Report font dimensions in a table
+    if let Some(primary) = stats.primary_font_dimensions {
+        // Find max font name length for alignment
+        let max_name_len = stats
+            .fallback_font_dimensions
+            .iter()
+            .map(|(name, _)| name.len())
+            .max()
+            .unwrap_or(0)
+            .max("Primary".len());
+
+        // Count glyphs per font+style
+        let count_glyphs = |font: &str, style: FontStyle| -> usize {
+            stats
+                .fallback_glyphs
+                .iter()
+                .filter(|g| g.fallback_font_name == font && g.style == style)
+                .count()
+        };
+
+        println!("\n  Font dimensions and glyph metrics (█):");
+        println!(
+            "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Font",
+            "Size",
+            "Δw",
+            "Δh",
+            "Norm",
+            "Bold",
+            "Ital",
+            "B+I",
+            width = max_name_len
+        );
+        println!(
+            "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            width = max_name_len
+        );
+        println!(
+            "    {:<width$}  {:>2}x{:<2}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Primary",
+            primary.width,
+            primary.height,
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
+            width = max_name_len
+        );
+
+        let mut total_normal = 0usize;
+        let mut total_bold = 0usize;
+        let mut total_italic = 0usize;
+        let mut total_bold_italic = 0usize;
+
+        for (font_name, dims) in &stats.fallback_font_dimensions {
+            let width_diff = dims.width - primary.width;
+            let height_diff = dims.height - primary.height;
+
+            let fmt_diff = |diff: i32| -> String {
+                match diff.cmp(&0) {
+                    std::cmp::Ordering::Greater => format!("+{}", diff),
+                    std::cmp::Ordering::Less => format!("{}", diff),
+                    std::cmp::Ordering::Equal => "0".to_string(),
+                }
+            };
+
+            let normal = count_glyphs(font_name, FontStyle::Normal);
+            let bold = count_glyphs(font_name, FontStyle::Bold);
+            let italic = count_glyphs(font_name, FontStyle::Italic);
+            let bold_italic = count_glyphs(font_name, FontStyle::BoldItalic);
+
+            total_normal += normal;
+            total_bold += bold;
+            total_italic += italic;
+            total_bold_italic += bold_italic;
+
+            println!(
+                "    {:<width$}  {:>2}x{:<2}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+                font_name,
+                dims.width,
+                dims.height,
+                fmt_diff(width_diff),
+                fmt_diff(height_diff),
+                normal,
+                bold,
+                italic,
+                bold_italic,
+                width = max_name_len
+            );
+        }
+
+        // Print totals row
+        println!(
+            "    {:-<width$}  {:->5}  {:->4}  {:->4}  {:->5}  {:->5}  {:->5}  {:->5}",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            width = max_name_len
+        );
+        println!(
+            "    {:<width$}  {:>5}  {:>4}  {:>4}  {:>5}  {:>5}  {:>5}  {:>5}",
+            "Total",
+            "",
+            "",
+            "",
+            total_normal,
+            total_bold,
+            total_italic,
+            total_bold_italic,
+            width = max_name_len
+        );
+    }
 }
 
 fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result<String> {

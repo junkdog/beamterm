@@ -1,5 +1,6 @@
 use std::{ops::RangeInclusive, path::PathBuf};
 
+use beamterm_data::DebugSpacePattern;
 use clap::Parser;
 use color_eyre::{Report, eyre::eyre};
 
@@ -69,6 +70,22 @@ pub struct Cli {
     /// Check for missing glyphs and show detailed coverage report
     #[arg(long)]
     pub check_missing: bool,
+
+    /// Replace space glyph with a checkered pattern to validate pixel-perfect rendering.
+    /// Use "1" for 1px checkers or "2" for 2x2 pixel checkers.
+    #[arg(long, value_name = "SIZE", value_parser = parse_debug_space_pattern)]
+    pub debug_space_pattern: Option<DebugSpacePattern>,
+}
+
+fn parse_debug_space_pattern(s: &str) -> Result<DebugSpacePattern, String> {
+    match s {
+        "1" | "1px" => Ok(DebugSpacePattern::OnePixel),
+        "2" | "2x2" => Ok(DebugSpacePattern::TwoByTwo),
+        _ => Err(format!(
+            "Invalid pattern '{}'. Use '1' (or '1px') for 1px checkers, '2' (or '2x2') for 2x2 checkers",
+            s
+        )),
+    }
 }
 
 impl Cli {
@@ -269,6 +286,7 @@ mod tests {
             strikethrough_thickness: 5.0,
             list_fonts: false,
             check_missing: false,
+            debug_space_pattern: None,
         };
 
         assert!(cli.validate().is_ok());
@@ -290,6 +308,7 @@ mod tests {
             strikethrough_thickness: 5.0,
             list_fonts: false,
             check_missing: false,
+            debug_space_pattern: None,
         };
 
         assert!(cli.validate().is_err());
@@ -311,6 +330,7 @@ mod tests {
             strikethrough_thickness: 5.0,
             list_fonts: false,
             check_missing: false,
+            debug_space_pattern: None,
         };
 
         assert!(cli.validate().is_err());

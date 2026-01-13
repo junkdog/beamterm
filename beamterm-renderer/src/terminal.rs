@@ -1,15 +1,17 @@
 use std::{cell::RefCell, rc::Rc};
 
-use beamterm_data::FontAtlasData;
+use beamterm_data::{DebugSpacePattern, FontAtlasData};
 use compact_str::{CompactString, ToCompactString};
 use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid,
-    gl::{CellQuery, ContextLossHandler, SelectionMode},
+    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
+    TerminalGrid,
+    gl::{CellQuery, ContextLossHandler},
     mouse::{
-        DefaultSelectionHandler, MouseEventCallback, TerminalMouseEvent, TerminalMouseHandler,
+        DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
+        TerminalMouseHandler,
     },
 };
 
@@ -149,12 +151,22 @@ impl Terminal {
             .borrow_mut()
             .resize(self.renderer.gl(), (width, height))?;
 
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let (cols, rows) = self.grid.borrow_mut().terminal_size();
-            mouse_input.update_dimensions(cols, rows);
-        }
+        self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    ///
+    /// Called after operations that may change cell size (atlas replacement) or
+    /// terminal dimensions (resize).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_input) = &mut self.mouse_handler {
+            let grid = self.grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Sets the pixel ratio of the renderer.
@@ -198,6 +210,72 @@ impl Terminal {
     /// Returns a reference to the terminal grid.
     pub fn grid(&self) -> Rc<RefCell<TerminalGrid>> {
         self.grid.clone()
+    }
+
+    /// Replaces the current font atlas with a new static atlas.
+    ///
+    /// All existing cell content is preserved and translated to the new atlas.
+    /// The grid will be resized if the new atlas has different cell dimensions.
+    ///
+    /// # Parameters
+    /// * `atlas_data` - Binary atlas data loaded from a `.atlas` file
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, FontAtlasData};
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Load and apply a new static atlas
+    /// let atlas_data = FontAtlasData::from_binary(&atlas_bytes).unwrap();
+    /// terminal.replace_with_static_atlas(atlas_data).unwrap();
+    /// ```
+    pub fn replace_with_static_atlas(&mut self, atlas_data: FontAtlasData) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let atlas = StaticFontAtlas::load(gl, atlas_data)?;
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Replaces the current font atlas with a new dynamic atlas.
+    ///
+    /// The dynamic atlas rasterizes glyphs on-demand using the browser's Canvas API,
+    /// enabling runtime font selection. All existing cell content is preserved and
+    /// translated to the new atlas.
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order (e.g., `&["JetBrains Mono", "Hack"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::Terminal;
+    ///
+    /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
+    ///
+    /// // Switch to a different font at runtime
+    /// terminal.replace_with_dynamic_atlas(&["Fira Code", "Hack"], 15.0).unwrap();
+    /// ```
+    pub fn replace_with_dynamic_atlas(
+        &mut self,
+        font_family: &[&str],
+        font_size: f32,
+    ) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+        let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
+        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
+        self.grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
     }
 
     /// Returns the textual content of the specified cell selection.
@@ -364,7 +442,15 @@ pub struct TerminalBuilder {
 #[derive(Debug)]
 enum AtlasKind {
     Static(Option<FontAtlasData>),
-    Dynamic { font_size: f32, font_family: Vec<CompactString> },
+    Dynamic {
+        font_size: f32,
+        font_family: Vec<CompactString>,
+    },
+    DebugDynamic {
+        font_size: f32,
+        font_family: Vec<CompactString>,
+        debug_space_pattern: DebugSpacePattern,
+    },
 }
 
 impl TerminalBuilder {
@@ -417,6 +503,29 @@ impl TerminalBuilder {
         self
     }
 
+    /// Configures the terminal to use a dynamic font atlas with debug space pattern.
+    ///
+    /// This is the same as [`dynamic_font_atlas`](Self::dynamic_font_atlas), but replaces
+    /// the space glyph with a checkered pattern for validating pixel-perfect rendering.
+    ///
+    /// # Parameters
+    /// * `font_family` - Font family names in priority order
+    /// * `font_size` - Font size in pixels
+    /// * `pattern` - The checkered pattern to use (1px or 2x2 pixels)
+    pub fn debug_dynamic_font_atlas(
+        mut self,
+        font_family: &[&str],
+        font_size: f32,
+        pattern: DebugSpacePattern,
+    ) -> Self {
+        self.atlas_kind = AtlasKind::DebugDynamic {
+            font_family: font_family.iter().map(|&s| s.into()).collect(),
+            font_size,
+            debug_space_pattern: pattern,
+        };
+        self
+    }
+
     /// Sets the fallback glyph for missing characters.
     ///
     /// When a character is not found in the font atlas, this glyph will be
@@ -454,17 +563,47 @@ impl TerminalBuilder {
         self
     }
 
+    /// Enables mouse-based text selection with automatic clipboard copying.
+    ///
+    /// When enabled, users can click and drag to select text in the terminal.
+    /// Selected text is automatically copied to the clipboard on mouse release.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use beamterm_renderer::{Terminal, SelectionMode};
+    /// use beamterm_renderer::mouse::{MouseSelectOptions, ModifierKeys};
+    ///
+    /// let terminal = Terminal::builder("#canvas")
+    ///     .mouse_selection_handler(
+    ///         MouseSelectOptions::new()
+    ///             .selection_mode(SelectionMode::Linear)
+    ///             .require_modifier_keys(ModifierKeys::SHIFT)
+    ///             .trim_trailing_whitespace(true)
+    ///     )
+    ///     .build()?;
+    /// ```
+    pub fn mouse_selection_handler(mut self, configuration: MouseSelectOptions) -> Self {
+        self.input_handler = Some(InputHandler::CopyOnSelect(configuration));
+        self
+    }
+
     /// Sets a default selection handler for mouse input events. Left
-    /// button selects text, `Ctrl/Cmd + C` copies the selected text to
-    /// the clipboard.
+    /// button selects text, it copies the selected text to the clipboard
+    /// on mouse release.
+    #[deprecated(
+        since = "0.13.0",
+        note = "Use `mouse_selection_handler` with `MouseSelectOptions` instead"
+    )]
     pub fn default_mouse_input_handler(
         mut self,
         selection_mode: SelectionMode,
         trim_trailing_whitespace: bool,
     ) -> Self {
-        self.input_handler =
-            Some(InputHandler::Internal { selection_mode, trim_trailing_whitespace });
-        self
+        let options = MouseSelectOptions::new()
+            .selection_mode(selection_mode)
+            .trim_trailing_whitespace(trim_trailing_whitespace);
+
+        self.mouse_selection_handler(options)
     }
 
     /// Sets the pixel ratio of the canvas.
@@ -494,7 +633,11 @@ impl TerminalBuilder {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
             AtlasKind::Dynamic { font_family, font_size } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size)?.into()
+                DynamicFontAtlas::new(gl, &font_family, font_size, None)?.into()
+            },
+            AtlasKind::DebugDynamic { font_family, font_size, debug_space_pattern } => {
+                DynamicFontAtlas::new(gl, &font_family, font_size, Some(debug_space_pattern))?
+                    .into()
             },
         };
 
@@ -518,12 +661,8 @@ impl TerminalBuilder {
                 mouse_handler: None,
                 context_loss_handler,
             }),
-            Some(InputHandler::Internal { selection_mode, trim_trailing_whitespace }) => {
-                let handler = DefaultSelectionHandler::new(
-                    grid.clone(),
-                    selection_mode,
-                    trim_trailing_whitespace,
-                );
+            Some(InputHandler::CopyOnSelect(select)) => {
+                let handler = DefaultSelectionHandler::new(grid.clone(), select);
 
                 let mut mouse_input = TerminalMouseHandler::new(
                     renderer.canvas(),
@@ -560,10 +699,7 @@ impl TerminalBuilder {
 
 enum InputHandler {
     Mouse(MouseEventCallback),
-    Internal {
-        selection_mode: SelectionMode,
-        trim_trailing_whitespace: bool,
-    },
+    CopyOnSelect(MouseSelectOptions),
 }
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).

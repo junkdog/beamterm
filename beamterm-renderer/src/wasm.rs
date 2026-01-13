@@ -12,7 +12,10 @@ use crate::{
         CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
-    mouse::{DefaultSelectionHandler, TerminalMouseEvent, TerminalMouseHandler},
+    mouse::{
+        DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
+        TerminalMouseEvent, TerminalMouseHandler,
+    },
     terminal::is_double_width,
 };
 
@@ -97,6 +100,59 @@ pub struct MouseEvent {
     pub shift_key: bool,
     /// Whether Alt key was pressed
     pub alt_key: bool,
+    /// Whether Meta key was pressed (Command on macOS, Windows key on Windows)
+    pub meta_key: bool,
+}
+
+/// Modifier key flags for mouse selection.
+///
+/// Use bitwise OR to combine multiple modifiers:
+/// ```javascript
+/// const modifiers = ModifierKeys.SHIFT | ModifierKeys.CONTROL;
+/// renderer.enableSelectionWithOptions(SelectionMode.Block, true, modifiers);
+/// ```
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ModifierKeys(u8);
+
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+impl ModifierKeys {
+    /// No modifier keys required
+    #[wasm_bindgen(getter)]
+    pub fn NONE() -> ModifierKeys {
+        ModifierKeys(0)
+    }
+
+    /// Control key (Ctrl)
+    #[wasm_bindgen(getter)]
+    pub fn CONTROL() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::CONTROL.bits())
+    }
+
+    /// Shift key
+    #[wasm_bindgen(getter)]
+    pub fn SHIFT() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::SHIFT.bits())
+    }
+
+    /// Alt key (Option on macOS)
+    #[wasm_bindgen(getter)]
+    pub fn ALT() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::ALT.bits())
+    }
+
+    /// Meta key (Command on macOS, Windows key on Windows)
+    #[wasm_bindgen(getter)]
+    pub fn META() -> ModifierKeys {
+        ModifierKeys(RustModifierKeys::META.bits())
+    }
+
+    /// Combines two modifier key sets using bitwise OR
+    #[wasm_bindgen(js_name = "or")]
+    pub fn or(&self, other: &ModifierKeys) -> ModifierKeys {
+        ModifierKeys(self.0 | other.0)
+    }
 }
 
 /// Query for selecting cells in the terminal
@@ -448,7 +504,6 @@ impl BeamtermRenderer {
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(&"BeamtermRenderer initialized with static atlas".into());
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -493,21 +548,13 @@ impl BeamtermRenderer {
         }
 
         let gl = renderer.gl();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size)
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
         let canvas_size = renderer.canvas_size();
         let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
             .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
-        console::log_1(
-            &format!(
-                "BeamtermRenderer initialized with dynamic atlas (font: {}, size: {}px)",
-                font_families.join(", "),
-                font_size
-            )
-            .into(),
-        );
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
     }
@@ -519,14 +566,62 @@ impl BeamtermRenderer {
         mode: SelectionMode,
         trim_whitespace: bool,
     ) -> Result<(), JsValue> {
+        self.enable_selection_internal(mode, trim_whitespace, ModifierKeys::default())
+    }
+
+    /// Enable mouse selection with full configuration options.
+    ///
+    /// This method allows specifying modifier keys that must be held for selection
+    /// to activate, in addition to the selection mode and whitespace trimming.
+    ///
+    /// # Arguments
+    /// * `mode` - Selection mode (Block or Linear)
+    /// * `trim_whitespace` - Whether to trim trailing whitespace from selected text
+    /// * `require_modifiers` - Modifier keys that must be held to start selection
+    ///
+    /// # Example
+    /// ```javascript
+    /// // Require Shift+Click to start selection
+    /// renderer.enableSelectionWithOptions(
+    ///     SelectionMode.Linear,
+    ///     true,
+    ///     ModifierKeys.SHIFT
+    /// );
+    ///
+    /// // Require Ctrl+Shift+Click
+    /// renderer.enableSelectionWithOptions(
+    ///     SelectionMode.Block,
+    ///     false,
+    ///     ModifierKeys.CONTROL.or(ModifierKeys.SHIFT)
+    /// );
+    /// ```
+    #[wasm_bindgen(js_name = "enableSelectionWithOptions")]
+    pub fn enable_selection_with_options(
+        &mut self,
+        mode: SelectionMode,
+        trim_whitespace: bool,
+        require_modifiers: &ModifierKeys,
+    ) -> Result<(), JsValue> {
+        self.enable_selection_internal(mode, trim_whitespace, *require_modifiers)
+    }
+
+    fn enable_selection_internal(
+        &mut self,
+        mode: SelectionMode,
+        trim_whitespace: bool,
+        require_modifiers: ModifierKeys,
+    ) -> Result<(), JsValue> {
         // clean up existing mouse handler if present
         if let Some(old_handler) = self.mouse_handler.take() {
             old_handler.cleanup();
         }
 
         let selection_tracker = self.terminal_grid.borrow().selection_tracker();
-        let handler =
-            DefaultSelectionHandler::new(self.terminal_grid.clone(), mode.into(), trim_whitespace);
+        let options = MouseSelectOptions::new()
+            .selection_mode(mode.into())
+            .trim_trailing_whitespace(trim_whitespace)
+            .require_modifier_keys(require_modifiers.into());
+        let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
 
         let mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
@@ -667,11 +762,101 @@ impl BeamtermRenderer {
             .resize(gl, (width, height))
             .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
 
-        // Update mouse handler dimensions if present
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    fn update_mouse_handler_metrics(&mut self) {
         if let Some(mouse_handler) = &mut self.mouse_handler {
-            let (cols, rows) = self.terminal_grid.borrow().terminal_size();
-            mouse_handler.update_dimensions(cols, rows);
+            let grid = self.terminal_grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
         }
+    }
+
+    /// Replace the current font atlas with a new static atlas.
+    ///
+    /// This method enables runtime font switching by loading a new `.atlas` file.
+    /// All existing cell content is preserved and translated to the new atlas.
+    ///
+    /// # Arguments
+    /// * `atlas_data` - Binary atlas data (from .atlas file), or null for default
+    ///
+    /// # Example
+    /// ```javascript
+    /// const atlasData = await fetch('new-font.atlas').then(r => r.arrayBuffer());
+    /// renderer.replaceWithStaticAtlas(new Uint8Array(atlasData));
+    /// ```
+    #[wasm_bindgen(js_name = "replaceWithStaticAtlas")]
+    pub fn replace_with_static_atlas(
+        &mut self,
+        atlas_data: Option<js_sys::Uint8Array>,
+    ) -> Result<(), JsValue> {
+        let gl = self.renderer.gl();
+
+        let atlas_config = match atlas_data {
+            Some(data) => {
+                let bytes = data.to_vec();
+                FontAtlasData::from_binary(&bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e:?}")))?
+            },
+            None => FontAtlasData::default(),
+        };
+
+        let atlas = StaticFontAtlas::load(gl, atlas_config)
+            .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
+
+        Ok(())
+    }
+
+    /// Replace the current font atlas with a new dynamic atlas.
+    ///
+    /// This method enables runtime font switching by creating a new dynamic atlas
+    /// with the specified font family and size. All existing cell content is
+    /// preserved and translated to the new atlas.
+    ///
+    /// # Arguments
+    /// * `font_family` - Array of font family names (e.g., `["Hack", "JetBrains Mono"]`)
+    /// * `font_size` - Font size in pixels
+    ///
+    /// # Example
+    /// ```javascript
+    /// renderer.replaceWithDynamicAtlas(["Fira Code", "monospace"], 18.0);
+    /// ```
+    #[wasm_bindgen(js_name = "replaceWithDynamicAtlas")]
+    pub fn replace_with_dynamic_atlas(
+        &mut self,
+        font_family: js_sys::Array,
+        font_size: f32,
+    ) -> Result<(), JsValue> {
+        let font_families: Vec<CompactString> = font_family
+            .iter()
+            .filter_map(|v| v.as_string())
+            .map(|s| s.to_compact_string())
+            .collect();
+
+        if font_families.is_empty() {
+            return Err(JsValue::from_str("font_family array cannot be empty"));
+        }
+
+        let gl = self.renderer.gl();
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .replace_atlas(gl, atlas.into());
+
+        self.update_mouse_handler_metrics();
 
         Ok(())
     }
@@ -720,7 +905,14 @@ impl From<TerminalMouseEvent> for MouseEvent {
             ctrl_key: event.ctrl_key(),
             shift_key: event.shift_key(),
             alt_key: event.alt_key(),
+            meta_key: event.meta_key(),
         }
+    }
+}
+
+impl From<ModifierKeys> for RustModifierKeys {
+    fn from(keys: ModifierKeys) -> Self {
+        RustModifierKeys::from_bits_truncate(keys.0)
     }
 }
 

@@ -49,6 +49,60 @@
         padding: 5px 10px;
       }
 
+      .perf-metric {
+        position: relative;
+        color: #888;
+        font-family: "Fira Code", monospace;
+        font-size: 14px;
+        padding: 5px 10px;
+        cursor: help;
+      }
+
+      .perf-metric .label {
+        color: #6a9;
+      }
+
+      .perf-metric .value {
+        color: #aaa;
+        min-width: 60px;
+        display: inline-block;
+        text-align: right;
+      }
+
+      .perf-metric .tooltip {
+        visibility: hidden;
+        opacity: 0;
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #2a2a2a;
+        color: #ccc;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 1000;
+        transition: opacity 0.2s;
+        border: 1px solid #444;
+        margin-top: 5px;
+      }
+
+      .perf-metric .tooltip::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-bottom-color: #444;
+      }
+
+      .perf-metric:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
+      }
+
       pre {
         font-family: "Fira Code", monospace;
         font-size: 16px;
@@ -85,6 +139,16 @@
       <a href="?atlas_size=10">Hack 10pt</a>
       <a href="?atlas_size=15">Hack 15pt</a>
       <span id="terminal-size"></span>
+      <span class="perf-metric" id="perf-sync">
+        <span class="label">sync:</span>
+        <span class="value">--</span>
+        <span class="tooltip">Ratatui's cell data synchronization with beamterm</span>
+      </span>
+      <span class="perf-metric" id="perf-render">
+        <span class="label">render:</span>
+        <span class="value">--</span>
+        <span class="tooltip">Flushes the GPU buffers and executes the WebGL draw call</span>
+      </span>
     </nav>
     <div id="container"></div>
     <script>
@@ -115,6 +179,47 @@
 
       // Display terminal size after initialization
       setTimeout(updateTerminalSize, 500);
+
+      // Performance metrics display - uses rolling window average
+      const perfState = {
+        sync: { lastIndex: 0 },
+        render: { lastIndex: 0 }
+      };
+
+      function getMetricStats(name, state) {
+        const entries = performance.getEntriesByName(name);
+        if (entries.length === 0) return null;
+
+        // Only process new entries since last check
+        const newEntries = entries.slice(state.lastIndex);
+        state.lastIndex = entries.length;
+
+        if (newEntries.length === 0) return null;
+
+        const sum = newEntries.reduce((acc, e) => acc + e.duration, 0);
+        return { avg: sum / newEntries.length, count: newEntries.length };
+      }
+
+      function formatDuration(ms) {
+        if (ms === null) return '--';
+        if (ms < 0.001) return '< 1µs';
+        if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`;
+        return `${ms.toFixed(2)}ms`;
+      }
+
+      function updatePerfMetrics() {
+        const syncStats = getMetricStats('sync-terminal-buffer', perfState.sync);
+        const renderStats = getMetricStats('webgl-render', perfState.render);
+
+        const syncEl = document.querySelector('#perf-sync .value');
+        const renderEl = document.querySelector('#perf-render .value');
+
+        syncEl.textContent = syncStats ? formatDuration(syncStats.avg) : syncEl.textContent;
+        renderEl.textContent = renderStats ? formatDuration(renderStats.avg) : renderEl.textContent;
+      }
+
+      // Update performance metrics every 3 seconds
+      setInterval(updatePerfMetrics, 3000);
     </script>
   </body>
 </html>

@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(atlas)* Runtime font atlas replacement (#73)
+- *(mouse)* Modifier key requirements for text selection (#74)
+
+### 🐛 Bug Fixes
+
+- *(dynamic-atlas)* Use atlas glyph ID for space instead of ASCII code
+
+## [beamterm-v0.12.0] - 2026-01-08
+
+### 🚀 Features
+
+- *(atlas)* Detect and report fallback font usage during atlas generation
+- *(selection)* Auto-clear mouse selection when content changes (#68)
+- *(examples)* Add performance metrics display to canvas_waves
+- *(static-atlas)* Add `--debug-space-pattern` option for pixel-perfect validation
+- *(dynamic-atlas)* Add `Terminal::builder().debug_dynamic_font_atlas()` to validate pixel-perfect rendering
+
+### 💼 Other
+
+- *(deps)* Bump clap from 4.5.53 to 4.5.54 (#65)
+- *(deps)* Bump cosmic-text from 0.14.2 to 0.16.0 (#64)
+
+### 🐛 Bug Fixes
+
+- *(verify-atlas)* Update for vertical layout and double-width glyphs
+- *(dynamic-atlas)* Clip glyph rasterization to prevent pixel bleed
+- *(dynamic-atlas)* Account for underline/strikethrough flags
+- *(dynamic-atlas)* Handle ASCII characters in `get_symbol()` (#70)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.12.0
+
 ## [beamterm-v0.11.0] - 2026-01-05
 
 ### 🚀 Features
@@ -12,6 +49,10 @@ All notable changes to this project will be documented in this file.
 
 - *(deps-dev)* Bump the minor-and-patch group across 1 directory with 2 updates (#62)
 - *(deps)* Bump serde_json from 1.0.146 to 1.0.148 (#61)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.11.0
 
 ## [beamterm-v0.10.0] - 2025-12-25
 

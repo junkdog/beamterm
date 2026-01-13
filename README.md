@@ -32,7 +32,7 @@ beamterm targets sub-millisecond render times across a wide range of hardware:
 | Memory Usage                    | ~8.9MB           | ~8.9MB                   |
 | Update Bandwidth (full refresh) | ~8 MB/s @ 60 FPS | ~22 MB/s @ 60 FPS        |
 
-[![waves](images/ratzilla_canvas_waves_426x106_s.png)](images/ratzilla_canvas_waves_426x106.png)
+[![waves](images/ratzilla_canvas_waves_426x106_s.png)](https://junkdog.github.io/beamterm/canvas_waves/?atlas_size=10)
 
 The screenshot shows [Ratzilla's][rz] "canvas waves" demo running in a 426×106 terminal (45,156 cells),
 maintaining sub-millisecond render times on 2019-era hardware (i9-9900K / RTX 2070).
@@ -396,12 +396,6 @@ rustup target add wasm32-unknown-unknown
 
 # Install tools
 cargo install wasm-pack trunk
-
-# Development server
-trunk serve
-
-# Production build
-trunk build --release
 ```
 
 ## Design Decisions

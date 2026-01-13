@@ -21,7 +21,8 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-beamterm-data = { path = "../beamterm-data", version = "0.11.0" }
+bitflags.workspace = true
+beamterm-data = { path = "../beamterm-data", version = "0.12.0" }
 compact_str = { workspace = true }
 console_error_panic_hook = { workspace = true }
 thiserror = { workspace = true }
@@ -39,6 +40,9 @@ workspace = true
 
 [dependencies.lru]
 version = "0.16"
+
+[dependencies.rustc-hash]
+version = "2.1.1"
 
 [dependencies.serde]
 optional = true

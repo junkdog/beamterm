@@ -123,3 +123,15 @@ impl LineDecoration {
         }
     }
 }
+
+/// Debug pattern for validating pixel-perfect rendering of cell dimensions.
+///
+/// When enabled, replaces the space glyph with a checkered pattern to help
+/// verify that cell boundaries align correctly with pixel boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DebugSpacePattern {
+    /// 1px alternating checkerboard pattern
+    OnePixel,
+    /// 2x2 pixel checkerboard pattern
+    TwoByTwo,
+}
