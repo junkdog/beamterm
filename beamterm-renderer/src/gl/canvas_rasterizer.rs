@@ -127,6 +127,15 @@ impl CanvasRasterizer {
         })
     }
 
+    /// Returns the maximum number of glyphs that fit in a single rasterization batch.
+    ///
+    /// This is determined by the canvas height divided by the padded cell height.
+    /// Callers should use this to avoid requesting more glyphs than can fit on the canvas,
+    /// which would result in clipped/empty glyphs beyond the canvas boundary.
+    pub(crate) fn max_batch_size(&self) -> usize {
+        (OFFSCREEN_CANVAS_HEIGHT / self.cell_metrics.padded_height).max(1) as usize
+    }
+
     /// Rasterizes all glyphs and returns them as a vector.
     ///
     /// Each glyph is paired with its font style. Emoji glyphs always use

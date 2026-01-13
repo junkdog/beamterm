@@ -108,7 +108,7 @@ impl DynamicFontAtlas {
 
     /// Uploads pending glyphs to the texture.
     ///
-    /// Rasterizes and uploads up to 32 glyphs per call.
+    /// Rasterizes and uploads glyphs in batches sized to fit the canvas height.
     /// Double-width glyphs (emoji, CJK) are split into left/right halves
     /// and uploaded to two consecutive slots.
     fn upload_pending_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
@@ -118,7 +118,9 @@ impl DynamicFontAtlas {
             return Ok(());
         }
 
-        let pending = self.glyphs_pending_upload.take(32);
+        let pending = self
+            .glyphs_pending_upload
+            .take(self.rasterizer.max_batch_size());
 
         // build grapheme/style pairs for rasterization
         let graphemes: Vec<(&str, FontStyle)> = pending
@@ -134,9 +136,7 @@ impl DynamicFontAtlas {
     }
 
     fn upload_ascii_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
-        // Batch ASCII uploads to avoid exceeding canvas height (1024px).
-        // With ~30px cell height, we can fit ~32 glyphs per batch.
-        const BATCH_SIZE: usize = 32;
+        let batch_size = self.rasterizer.max_batch_size();
 
         let all_pending: Vec<PendingGlyph> = (0x20u8..=0x7Eu8)
             .map(|b| PendingGlyph {
@@ -146,7 +146,7 @@ impl DynamicFontAtlas {
             })
             .collect();
 
-        for batch in all_pending.chunks(BATCH_SIZE) {
+        for batch in all_pending.chunks(batch_size) {
             let batch_vec: Vec<PendingGlyph> = batch.to_vec();
 
             // build grapheme/style pairs for rasterization
