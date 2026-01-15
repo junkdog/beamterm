@@ -2,8 +2,8 @@
 
 mod wave_effect;
 
-use ratzilla::ratatui::Terminal;
 use ratzilla::backend::webgl2::{FontAtlasData, WebGl2Backend, WebGl2BackendOptions};
+use ratzilla::ratatui::Terminal;
 use ratzilla::WebRenderer;
 use tachyonfx::{EffectRenderer, IntoEffect};
 use wave_effect::WaveInterference;
@@ -27,12 +27,17 @@ fn main() -> std::io::Result<()> {
         _ => FontAtlasData::default(),
     };
 
+    let pixel_ratio = get_query_param("pixel_ratio")
+        .and_then(|p| p.parse::<f32>().ok())
+        .unwrap_or(1.0);
+
     let backend = WebGl2Backend::new_with_options(
         WebGl2BackendOptions::new()
             .font_atlas(font_atlas)
             .measure_performance(true)
             .grid_id("container")
             .enable_console_debug_api()
+            .enable_auto_pixel_ratio(),
     )?;
     let terminal = Terminal::new(backend)?;
 

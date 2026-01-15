@@ -484,7 +484,7 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let renderer = Renderer::create(canvas_id)
+        let renderer = Renderer::create(canvas_id, 1.0)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
 
         let gl = renderer.gl();
@@ -534,7 +534,7 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let renderer = Renderer::create(canvas_id)
+        let renderer = Renderer::create(canvas_id, 1.0)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
 
         let font_families: Vec<CompactString> = font_family
@@ -859,6 +859,12 @@ impl BeamtermRenderer {
         self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    /// Set the pixel ratio for HiDPI displays
+    #[wasm_bindgen(js_name = "setPixelRatio")]
+    pub fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
+        self.renderer.set_pixel_ratio(pixel_ratio);
     }
 }
 
