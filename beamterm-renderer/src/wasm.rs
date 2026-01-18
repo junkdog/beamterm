@@ -4,6 +4,7 @@ use beamterm_data::{FontAtlasData, Glyph};
 use compact_str::{CompactString, ToCompactString};
 use serde_wasm_bindgen::from_value;
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -16,7 +17,6 @@ use crate::{
         DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
         TerminalMouseEvent, TerminalMouseHandler,
     },
-    terminal::is_double_width,
 };
 
 /// JavaScript wrapper for the terminal renderer
@@ -330,9 +330,16 @@ impl Batch {
             return Ok(()); // oob, ignore
         }
 
-        let mut width_offset: u16 = 0;
-        for (i, ch) in text.graphemes(true).enumerate() {
-            let current_col = x + width_offset + i as u16;
+        let mut col_offset: u16 = 0;
+        for ch in text.graphemes(true) {
+            let char_width = if ch.len() == 1 { 1 } else { ch.width() };
+
+            // Skip zero-width characters (they don't occupy terminal cells)
+            if char_width == 0 {
+                continue;
+            }
+
+            let current_col = x + col_offset;
             if current_col >= cols {
                 break;
             }
@@ -342,9 +349,7 @@ impl Batch {
                 .update_cell(current_col, y, cell)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-            if is_double_width(ch) {
-                width_offset += 1;
-            }
+            col_offset += char_width as u16;
         }
 
         Ok(())
