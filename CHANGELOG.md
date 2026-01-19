@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 - *(atlas)* Runtime font atlas replacement (#73)
 - *(mouse)* Modifier key requirements for text selection (#74)
 
+### 💼 Other
+
+- *(deps)* Bump serde_json from 1.0.148 to 1.0.149 (#77)
+- *(deps)* Bump lru from 0.16.2 to 0.16.3 (#76)
+- *(deps)* Bump miniz_oxide from 0.8.9 to 0.9.0 (#75)
+
 ### 🐛 Bug Fixes
 
 - *(dynamic-atlas)* Use atlas glyph ID for space instead of ASCII code
