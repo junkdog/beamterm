@@ -100,13 +100,22 @@ pub(crate) trait Atlas {
     /// Returns the effective pixel ratio that should be used for viewport scaling.
     /// Each atlas implementation decides how to handle the ratio:
     ///
-    /// - **Static atlas**: Returns rounded ratio (avoids scaling artifacts), no internal work
+    /// - **Static atlas**: Returns exact ratio, no internal work needed
     /// - **Dynamic atlas**: Returns exact ratio, reinitializes with scaled font size
     fn update_pixel_ratio(
         &mut self,
         gl: &web_sys::WebGl2RenderingContext,
         pixel_ratio: f32,
     ) -> Result<f32, Error>;
+
+    /// Returns the cell scale factor for layout calculations at the given DPR.
+    ///
+    /// This determines how cells from `cell_size()` should be scaled for layout:
+    ///
+    /// - **Static atlas**: Returns `round(dpr)` - cells scale at integer DPR thresholds
+    ///   to avoid fractional scaling of pre-rasterized glyphs
+    /// - **Dynamic atlas**: Returns `1` - cell_size() already returns logical size
+    fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32;
 }
 
 pub(crate) struct FontAtlas {
@@ -209,6 +218,11 @@ impl FontAtlas {
         pixel_ratio: f32,
     ) -> Result<f32, Error> {
         self.inner.update_pixel_ratio(gl, pixel_ratio)
+    }
+
+    /// Returns the cell scale factor for layout calculations.
+    pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32 {
+        self.inner.cell_scale_for_dpr(pixel_ratio)
     }
 }
 

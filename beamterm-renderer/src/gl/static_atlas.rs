@@ -264,8 +264,12 @@ impl Atlas for StaticFontAtlas {
         _gl: &WebGl2RenderingContext,
         pixel_ratio: f32,
     ) -> Result<f32, Error> {
-        // Round to nearest integer to avoid scaling artifacts with pre-rasterized glyphs.
-        // No internal work needed - viewport scaling handles HiDPI rendering.
-        Ok(pixel_ratio.round().max(1.0))
+        // Static atlas doesn't need to do anything - cell scaling is handled by the grid
+        Ok(pixel_ratio)
+    }
+
+    fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32 {
+        // Round to nearest integer to avoid fractional scaling of pre-rasterized glyphs
+        pixel_ratio.round().max(1.0) as i32
     }
 }

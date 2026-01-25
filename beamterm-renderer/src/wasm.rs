@@ -492,11 +492,11 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        // Setup renderer with correct pixel ratio for HiDPI
+        // Setup renderer with exact pixel ratio for HiDPI
         let mut renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
-        let current_pixel_ratio = device_pixel_ratio();
-        renderer.set_pixel_ratio(current_pixel_ratio.round().max(1.0)); // static atlas uses rounded ratio
+        let current_pixel_ratio = crate::js::device_pixel_ratio();
+        renderer.set_pixel_ratio(current_pixel_ratio);
         let (w, h) = renderer.logical_size();
         renderer.resize(w, h);
 
@@ -513,9 +513,10 @@ impl BeamtermRenderer {
         let atlas = StaticFontAtlas::load(gl, atlas_config)
             .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
 
-        let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let canvas_size = renderer.physical_size();
+        let terminal_grid =
+            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
+                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer {
@@ -552,11 +553,11 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        // setup renderer with correct pixel ratio for HiDPI
+        // Setup renderer with exact pixel ratio for HiDPI
         let mut renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
-        let current_pixel_ratio = device_pixel_ratio();
-        renderer.set_pixel_ratio(current_pixel_ratio); // dynamic atlas uses exact ratio
+        let current_pixel_ratio = crate::js::device_pixel_ratio();
+        renderer.set_pixel_ratio(current_pixel_ratio);
         let (w, h) = renderer.logical_size();
         renderer.resize(w, h);
 
@@ -574,9 +575,10 @@ impl BeamtermRenderer {
         let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, current_pixel_ratio, None)
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
-        let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let canvas_size = renderer.physical_size();
+        let terminal_grid =
+            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
+                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
         Ok(BeamtermRenderer {
@@ -787,38 +789,35 @@ impl BeamtermRenderer {
 
     /// Handles a change in device pixel ratio.
     fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), JsValue> {
+        self.current_pixel_ratio = raw_pixel_ratio;
+
         let gl = self.renderer.gl();
 
-        // Let the atlas decide the effective ratio (rounded for static, exact for dynamic)
-        let effective_ratio = self
-            .terminal_grid
+        // Update atlas (for dynamic atlas, this re-rasterizes glyphs)
+        self.terminal_grid
             .borrow_mut()
             .atlas_mut()
             .update_pixel_ratio(gl, raw_pixel_ratio)
             .map_err(|e| JsValue::from_str(&format!("Failed to update pixel ratio: {e}")))?;
 
-        self.current_pixel_ratio = raw_pixel_ratio;
-        self.renderer.set_pixel_ratio(effective_ratio);
+        // Always use exact DPR for canvas sizing
+        self.renderer.set_pixel_ratio(raw_pixel_ratio);
 
         // Resize to apply the new pixel ratio
         let (w, h) = self.renderer.logical_size();
-
-        console::log_1(&format!("handle_pixel_ratio_change, logical size: {:?}", (w, h)).into());
-
         self.resize(w, h)
     }
 
     /// Resize the terminal to fit new canvas dimensions
     #[wasm_bindgen]
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), JsValue> {
-        console::log_1(&format!("resize: logical size: {:?}", (width, height)).into());
-
         self.renderer.resize(width, height);
 
         let gl = self.renderer.gl();
+        let physical_size = self.renderer.physical_size();
         self.terminal_grid
             .borrow_mut()
-            .resize(gl, (width, height))
+            .resize(gl, physical_size, self.current_pixel_ratio)
             .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
 
         self.update_mouse_handler_metrics();

@@ -186,9 +186,14 @@ impl DynamicFontAtlas {
         pending: Vec<PendingGlyph>,
         rasterized: Vec<RasterizedGlyph>,
     ) -> Result<(), Error> {
+        // Use physical cell size for texture uploads (rasterized glyphs are at physical resolution)
+        let physical_cell_size = (
+            (self.cell_size.0 as f32 * self.pixel_ratio).round() as i32,
+            (self.cell_size.1 as f32 * self.pixel_ratio).round() as i32,
+        );
         let padded_cell_size = (
-            self.cell_size.0 + FontAtlasData::PADDING * 2,
-            self.cell_size.1 + FontAtlasData::PADDING * 2,
+            physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         let cell_w = padded_cell_size.0 as u32;
         let cell_h = padded_cell_size.1 as u32;
@@ -404,6 +409,12 @@ impl Atlas for DynamicFontAtlas {
         self.upload_ascii_glyphs(gl)?;
 
         Ok(pixel_ratio)
+    }
+
+    fn cell_scale_for_dpr(&self, _pixel_ratio: f32) -> i32 {
+        // Dynamic atlas already returns logical cell size (physical / pixel_ratio),
+        // so no additional scaling is needed for layout
+        1
     }
 }
 

@@ -150,10 +150,11 @@ impl Terminal {
     /// Combines [`Renderer::resize`] and [`TerminalGrid::resize`] operations.
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Error> {
         self.renderer.resize(width, height);
+        // Use physical size for grid layout
         let (w, h) = self.renderer.physical_size();
         self.grid
             .borrow_mut()
-            .resize(self.renderer.gl(), (w, h))?;
+            .resize(self.renderer.gl(), (w, h), self.current_pixel_ratio)?;
 
         self.update_mouse_handler_metrics();
 
@@ -312,15 +313,15 @@ impl Terminal {
 
         self.current_pixel_ratio = raw_pixel_ratio;
         let gl = self.renderer.gl();
-        //
-        // // Let the atlas decide the effective ratio (rounded for static, exact for dynamic)
-        let effective_ratio = self
-            .grid
+
+        // Update atlas (sets cell_scale for static, re-rasterizes for dynamic)
+        self.grid
             .borrow_mut()
             .atlas_mut()
             .update_pixel_ratio(gl, raw_pixel_ratio)?;
 
-        self.renderer.set_pixel_ratio(effective_ratio);
+        // Always use exact DPR for canvas sizing
+        self.renderer.set_pixel_ratio(raw_pixel_ratio);
 
         // Resize to apply the new pixel ratio
         let (w, h) = self.renderer.logical_size();
@@ -636,24 +637,16 @@ impl TerminalBuilder {
         let mut renderer =
             Self::create_renderer(self.canvas)?.canvas_padding_color(self.canvas_padding_color);
 
-        // Determine pixel ratio based on atlas type
-        // Static atlas: round to avoid scaling artifacts with pre-rasterized glyphs
-        // Dynamic atlas: use exact ratio (glyphs are re-rasterized at native resolution)
+        // Always use exact DPR for canvas sizing (physical pixels)
+        // Cell scaling is handled separately by each atlas type
         let raw_pixel_ratio = device_pixel_ratio();
-        let is_dynamic = matches!(
-            self.atlas_kind,
-            AtlasKind::Dynamic { .. } | AtlasKind::DebugDynamic { .. }
-        );
-        let effective_pixel_ratio =
-            if is_dynamic { raw_pixel_ratio } else { raw_pixel_ratio.round().max(1.0) };
-
-        renderer.set_pixel_ratio(effective_pixel_ratio);
+        renderer.set_pixel_ratio(raw_pixel_ratio);
         let (w, h) = renderer.logical_size();
         renderer.resize(w, h);
 
         // load font atlas
         let gl = renderer.gl();
-        let atlas: FontAtlas = match self.atlas_kind {
+        let mut atlas: FontAtlas = match self.atlas_kind {
             AtlasKind::Static(atlas_data) => {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
@@ -672,9 +665,12 @@ impl TerminalBuilder {
             },
         };
 
-        // create terminal grid
-        let canvas_size = renderer.canvas_size();
-        let mut grid = TerminalGrid::new(gl, atlas, canvas_size)?;
+        // Initialize atlas with current pixel ratio
+        atlas.update_pixel_ratio(gl, raw_pixel_ratio)?;
+
+        // create terminal grid with physical canvas size
+        let canvas_size = renderer.physical_size();
+        let mut grid = TerminalGrid::new(gl, atlas, canvas_size, raw_pixel_ratio)?;
         if let Some(fallback) = self.fallback_glyph {
             grid.set_fallback_glyph(&fallback)
         };
