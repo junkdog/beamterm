@@ -156,27 +156,6 @@ impl Terminal {
         Ok(())
     }
 
-    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
-    ///
-    /// Called after operations that may change cell size (atlas replacement) or
-    /// terminal dimensions (resize).
-    fn update_mouse_handler_metrics(&mut self) {
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let grid = self.grid.borrow();
-            let (cols, rows) = grid.terminal_size();
-            let (cell_width, cell_height) = grid.cell_size();
-            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
-        }
-    }
-
-    /// Sets the pixel ratio for HiDPI displays.
-    ///
-    /// Call this when `window.devicePixelRatio` changes
-    /// (e.g., moving window between displays with different DPI).
-    pub fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
-        self.renderer.set_pixel_ratio(pixel_ratio);
-    }
-
     /// Returns the terminal dimensions in cells.
     pub fn terminal_size(&self) -> (u16, u16) {
         self.grid.borrow().terminal_size()
@@ -328,6 +307,13 @@ impl Terminal {
         glyphs
     }
 
+    /// Updates the pixel ratio of the renderer and resizes the canvas accordingly.
+    pub(crate) fn update_pixel_ratio(&mut self, pixel_ratio: f32) -> Result<(), Error> {
+        let (w, h) = self.renderer().logical_size();
+        self.renderer.set_pixel_ratio(pixel_ratio);
+        self.resize(w, h)
+    }
+
     /// Checks if the WebGL context has been lost.
     ///
     /// Returns `true` if the context is lost and waiting for restoration.
@@ -368,6 +354,19 @@ impl Terminal {
             .as_ref()
             .map(ContextLossHandler::context_pending_rebuild)
             .unwrap_or(false)
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    ///
+    /// Called after operations that may change cell size (atlas replacement) or
+    /// terminal dimensions (resize).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_input) = &mut self.mouse_handler {
+            let grid = self.grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (cell_width, cell_height) = grid.cell_size();
+            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Exposes this terminal instance to the browser console for debugging.
@@ -436,7 +435,6 @@ pub struct TerminalBuilder {
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
     enable_debug_api: bool,
-    pixel_ratio: f32,
 }
 
 #[derive(Debug)]
@@ -463,7 +461,6 @@ impl TerminalBuilder {
             input_handler: None,
             canvas_padding_color: 0x000000,
             enable_debug_api: false,
-            pixel_ratio: 1.0,
         }
     }
 
@@ -606,25 +603,11 @@ impl TerminalBuilder {
         self.mouse_selection_handler(options)
     }
 
-    /// Sets the pixel ratio of the canvas.
-    ///
-    /// To get native-resolution output in HiDPI displays, set this value to `window.devicePixelRatio`.
-    /// This also allows us to render in higher fps sacrificing the resolution.
-    pub fn pixel_ratio(mut self, pixel_ratio: f32) -> Self {
-        self.pixel_ratio = pixel_ratio;
-        self
-    }
-
     /// Builds the terminal with the configured options.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
-        let renderer = match self.canvas {
-            CanvasSource::Id(id) => Renderer::create(&id, self.pixel_ratio)?,
-            CanvasSource::Element(element) => {
-                Renderer::create_with_canvas(element, self.pixel_ratio)?
-            },
-        };
-        let renderer = renderer.canvas_padding_color(self.canvas_padding_color);
+        let renderer = Self::create_renderer(self.canvas)?
+            .canvas_padding_color(self.canvas_padding_color);
 
         // load font atlas
         let gl = renderer.gl();
@@ -694,6 +677,16 @@ impl TerminalBuilder {
                 terminal.expose_to_console();
             }
         })
+    }
+
+    fn create_renderer(canvas: CanvasSource) -> Result<Renderer, Error> {
+        let renderer = match canvas {
+            CanvasSource::Id(id) => Renderer::create(&id)?,
+            CanvasSource::Element(element) => {
+                Renderer::create_with_canvas(element)?
+            },
+        };
+        Ok(renderer)
     }
 }
 

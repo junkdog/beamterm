@@ -23,7 +23,7 @@ pub struct Renderer {
     canvas: web_sys::HtmlCanvasElement,
     state: GlState,
     canvas_padding_color: (f32, f32, f32),
-    canvas_size: (i32, i32),
+    logical_size_px: (i32, i32),
     pixel_ratio: f32,
 }
 
@@ -36,7 +36,6 @@ impl Renderer {
     ///
     /// # Parameters
     /// * `canvas_id` - CSS selector for the canvas element (e.g., "canvas" or "#my-canvas")
-    /// * `pixel_ratio` - Canvas resolution multiplier for HiDPI displays
     ///
     /// # Returns
     /// * `Ok(Renderer)` - Successfully created renderer
@@ -45,9 +44,9 @@ impl Renderer {
     /// # Errors
     /// * `Error::UnableToRetrieveCanvas` - Canvas element not found
     /// * `Error::FailedToRetrieveWebGl2RenderingContext` - WebGL2 not supported or failed to initialize
-    pub fn create(canvas_id: &str, pixel_ratio: f32) -> Result<Self, Error> {
+    pub fn create(canvas_id: &str) -> Result<Self, Error> {
         let canvas = js::get_canvas_by_id(canvas_id)?;
-        Self::create_with_canvas(canvas, pixel_ratio)
+        Self::create_with_canvas(canvas)
     }
 
     /// Sets the background color for the canvas area outside the terminal grid.
@@ -63,12 +62,6 @@ impl Renderer {
         self
     }
 
-    /// Sets the pixel ratio and resizes the canvas accordingly.
-    pub fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
-        self.pixel_ratio = pixel_ratio;
-        self.resize(self.canvas_size.0, self.canvas_size.1);
-    }
-
     /// Creates a new renderer from an existing HTML canvas element.
     ///
     /// This method takes ownership of an existing canvas element and initializes
@@ -77,12 +70,11 @@ impl Renderer {
     ///
     /// # Parameters
     /// * `canvas` - HTML canvas element to use for rendering
-    /// * `pixel_ratio` - Canvas resolution multiplier for HiDPI displays
     ///
     /// # Returns
     /// * `Ok(Renderer)` - Successfully created renderer
     /// * `Err(Error)` - Failed to create WebGL context or initialize renderer
-    pub fn create_with_canvas(canvas: HtmlCanvasElement, pixel_ratio: f32) -> Result<Self, Error> {
+    pub fn create_with_canvas(canvas: HtmlCanvasElement) -> Result<Self, Error> {
         let (width, height) = (canvas.width() as i32, canvas.height() as i32);
 
         // initialize WebGL context
@@ -94,8 +86,8 @@ impl Renderer {
             canvas,
             state,
             canvas_padding_color: (0.0, 0.0, 0.0),
-            canvas_size: (width, height),
-            pixel_ratio,
+            logical_size_px: (width, height),
+            pixel_ratio: 1.0,
         };
         renderer.resize(width as _, height as _);
         Ok(renderer)
@@ -111,7 +103,7 @@ impl Renderer {
     /// * `width` - New canvas width in pixels
     /// * `height` - New canvas height in pixels
     pub fn resize(&mut self, width: i32, height: i32) {
-        self.canvas_size = (width, height);
+        self.logical_size_px = (width, height);
 
         let physical_width = (width as f32 * self.pixel_ratio).round() as i32;
         let physical_height = (height as f32 * self.pixel_ratio).round() as i32;
@@ -188,7 +180,11 @@ impl Renderer {
     /// # Returns
     /// Tuple containing (width, height) in pixels
     pub fn canvas_size(&self) -> (i32, i32) {
-        self.canvas_size
+        self.logical_size()
+    }
+
+    pub fn logical_size(&self) -> (i32, i32) {
+        self.logical_size_px
     }
 
     /// Checks if the WebGL context has been lost.
@@ -223,6 +219,12 @@ impl Renderer {
         self.state.viewport(&self.gl, 0, 0, width, height);
 
         Ok(())
+    }
+
+    /// Sets the pixel ratio. Must separately call [`Self::resize`] and
+    /// [`crate::TerminalGrid::resize`] to update the renderer's viewport and grid dimensions.
+    pub(crate) fn set_pixel_ratio(&mut self, pixel_ratio: f32) {
+        self.pixel_ratio = pixel_ratio;
     }
 }
 
