@@ -9,6 +9,7 @@ use crate::{
     CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
     TerminalGrid,
     gl::{CellQuery, ContextLossHandler},
+    js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
         TerminalMouseHandler,
@@ -66,6 +67,8 @@ pub struct Terminal {
     grid: Rc<RefCell<TerminalGrid>>,
     mouse_handler: Option<TerminalMouseHandler>,
     context_loss_handler: Option<ContextLossHandler>,
+    /// Current device pixel ratio for HiDPI rendering
+    current_pixel_ratio: f32,
 }
 
 impl Terminal {
@@ -147,26 +150,15 @@ impl Terminal {
     /// Combines [`Renderer::resize`] and [`TerminalGrid::resize`] operations.
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Error> {
         self.renderer.resize(width, height);
+        // Use physical size for grid layout
+        let (w, h) = self.renderer.physical_size();
         self.grid
             .borrow_mut()
-            .resize(self.renderer.gl(), (width, height))?;
+            .resize(self.renderer.gl(), (w, h), self.current_pixel_ratio)?;
 
         self.update_mouse_handler_metrics();
 
         Ok(())
-    }
-
-    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
-    ///
-    /// Called after operations that may change cell size (atlas replacement) or
-    /// terminal dimensions (resize).
-    fn update_mouse_handler_metrics(&mut self) {
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let grid = self.grid.borrow();
-            let (cols, rows) = grid.terminal_size();
-            let (cell_width, cell_height) = grid.cell_size();
-            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
-        }
     }
 
     /// Returns the terminal dimensions in cells.
@@ -260,7 +252,8 @@ impl Terminal {
     ) -> Result<(), Error> {
         let gl = self.renderer.gl();
         let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
-        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
+        let pixel_ratio = device_pixel_ratio();
+        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, pixel_ratio, None)?;
         self.grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
@@ -296,6 +289,12 @@ impl Terminal {
             return Ok(());
         }
 
+        // Check for device pixel ratio changes (HiDPI display switching)
+        let raw_dpr = device_pixel_ratio();
+        if (raw_dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            self.handle_pixel_ratio_change(raw_dpr)?;
+        }
+
         self.grid
             .borrow_mut()
             .flush_cells(self.renderer.gl())?;
@@ -304,6 +303,27 @@ impl Terminal {
         self.renderer.render(&*self.grid.borrow());
         self.renderer.end_frame();
         Ok(())
+    }
+
+    /// Handles a change in device pixel ratio.
+    ///
+    /// Callers should verify the ratio has changed before calling this method.
+    fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), Error> {
+        self.current_pixel_ratio = raw_pixel_ratio;
+        let gl = self.renderer.gl();
+
+        // Update atlas (sets cell_scale for static, re-rasterizes for dynamic)
+        self.grid
+            .borrow_mut()
+            .atlas_mut()
+            .update_pixel_ratio(gl, raw_pixel_ratio)?;
+
+        // Always use exact DPR for canvas sizing
+        self.renderer.set_pixel_ratio(raw_pixel_ratio);
+
+        // Resize to apply the new pixel ratio
+        let (w, h) = self.renderer.logical_size();
+        self.resize(w, h)
     }
 
     /// Returns a sorted list of all glyphs that were requested but not found in the font atlas.
@@ -351,6 +371,18 @@ impl Terminal {
             handler.clear_context_rebuild_needed();
         }
 
+        // re-apply current pixel ratio after context restoration
+        // (display may have changed during context loss)
+        let dpr = device_pixel_ratio();
+        if (dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            self.handle_pixel_ratio_change(dpr)?;
+        } else {
+            // even if DPR unchanged, renderer state was reset - reapply it
+            self.renderer.set_pixel_ratio(dpr);
+            let (w, h) = self.renderer.logical_size();
+            self.renderer.resize(w, h);
+        }
+
         Ok(())
     }
 
@@ -360,6 +392,21 @@ impl Terminal {
             .as_ref()
             .map(ContextLossHandler::context_pending_rebuild)
             .unwrap_or(false)
+    }
+
+    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
+    ///
+    /// Called after operations that may change cell size (atlas replacement) or
+    /// terminal dimensions (resize).
+    fn update_mouse_handler_metrics(&mut self) {
+        if let Some(mouse_input) = &mut self.mouse_handler {
+            let grid = self.grid.borrow();
+            let (cols, rows) = grid.terminal_size();
+            let (phys_width, phys_height) = grid.cell_size();
+            let cell_width = phys_width as f32 / self.current_pixel_ratio;
+            let cell_height = phys_height as f32 / self.current_pixel_ratio;
+            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
+        }
     }
 
     /// Exposes this terminal instance to the browser console for debugging.
@@ -600,30 +647,40 @@ impl TerminalBuilder {
     /// Builds the terminal with the configured options.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
-        let renderer = match self.canvas {
-            CanvasSource::Id(id) => Renderer::create(&id)?,
-            CanvasSource::Element(element) => Renderer::create_with_canvas(element)?,
-        };
-        let renderer = renderer.canvas_padding_color(self.canvas_padding_color);
+        let mut renderer =
+            Self::create_renderer(self.canvas)?.canvas_padding_color(self.canvas_padding_color);
+
+        // Always use exact DPR for canvas sizing (physical pixels)
+        // Cell scaling is handled separately by each atlas type
+        let raw_pixel_ratio = device_pixel_ratio();
+        renderer.set_pixel_ratio(raw_pixel_ratio);
+        let (w, h) = renderer.logical_size();
+        renderer.resize(w, h);
 
         // load font atlas
         let gl = renderer.gl();
-        let atlas: FontAtlas = match self.atlas_kind {
+        let mut atlas: FontAtlas = match self.atlas_kind {
             AtlasKind::Static(atlas_data) => {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
             AtlasKind::Dynamic { font_family, font_size } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size, None)?.into()
+                DynamicFontAtlas::new(gl, &font_family, font_size, raw_pixel_ratio, None)?.into()
             },
             AtlasKind::DebugDynamic { font_family, font_size, debug_space_pattern } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size, Some(debug_space_pattern))?
-                    .into()
+                DynamicFontAtlas::new(
+                    gl,
+                    &font_family,
+                    font_size,
+                    raw_pixel_ratio,
+                    Some(debug_space_pattern),
+                )?
+                .into()
             },
         };
 
-        // create terminal grid
-        let canvas_size = renderer.canvas_size();
-        let mut grid = TerminalGrid::new(gl, atlas, canvas_size)?;
+        // create terminal grid with physical canvas size
+        let canvas_size = renderer.physical_size();
+        let mut grid = TerminalGrid::new(gl, atlas, canvas_size, raw_pixel_ratio)?;
         if let Some(fallback) = self.fallback_glyph {
             grid.set_fallback_glyph(&fallback)
         };
@@ -634,12 +691,25 @@ impl TerminalBuilder {
 
         // initialize mouse handler if needed
         let selection = grid.borrow().selection_tracker();
+
+        // helper to fix mouse metrics: grid.cell_size() returns physical pixels,
+        // but mouse events use CSS pixels. Convert by dividing by DPR.
+        let fix_mouse_metrics = |mouse_input: &mut TerminalMouseHandler| {
+            let g = grid.borrow();
+            let (cols, rows) = g.terminal_size();
+            let (phys_w, phys_h) = g.cell_size();
+            let css_w = phys_w as f32 / raw_pixel_ratio;
+            let css_h = phys_h as f32 / raw_pixel_ratio;
+            mouse_input.update_metrics(cols, rows, css_w, css_h);
+        };
+
         match self.input_handler {
             None => Ok(Terminal {
                 renderer,
                 grid,
                 mouse_handler: None,
                 context_loss_handler,
+                current_pixel_ratio: raw_pixel_ratio,
             }),
             Some(InputHandler::CopyOnSelect(select)) => {
                 let handler = DefaultSelectionHandler::new(grid.clone(), select);
@@ -650,22 +720,26 @@ impl TerminalBuilder {
                     handler.create_event_handler(selection),
                 )?;
                 mouse_input.default_input_handler = Some(handler);
+                fix_mouse_metrics(&mut mouse_input);
 
                 Ok(Terminal {
                     renderer,
                     grid,
                     mouse_handler: Some(mouse_input),
                     context_loss_handler,
+                    current_pixel_ratio: raw_pixel_ratio,
                 })
             },
             Some(InputHandler::Mouse(callback)) => {
-                let mouse_input =
+                let mut mouse_input =
                     TerminalMouseHandler::new(renderer.canvas(), grid.clone(), callback)?;
+                fix_mouse_metrics(&mut mouse_input);
                 Ok(Terminal {
                     renderer,
                     grid,
                     mouse_handler: Some(mouse_input),
                     context_loss_handler,
+                    current_pixel_ratio: raw_pixel_ratio,
                 })
             },
         }
@@ -674,6 +748,14 @@ impl TerminalBuilder {
                 terminal.expose_to_console();
             }
         })
+    }
+
+    fn create_renderer(canvas: CanvasSource) -> Result<Renderer, Error> {
+        let renderer = match canvas {
+            CanvasSource::Id(id) => Renderer::create(&id)?,
+            CanvasSource::Element(element) => Renderer::create_with_canvas(element)?,
+        };
+        Ok(renderer)
     }
 }
 

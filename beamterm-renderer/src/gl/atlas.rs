@@ -94,6 +94,46 @@ pub(crate) trait Atlas {
     /// This method must be called before dropping the atlas to properly clean up
     /// WebGL resources. Failing to call this will leak GPU memory.
     fn delete(&self, gl: &web_sys::WebGl2RenderingContext);
+
+    /// Updates the pixel ratio for HiDPI rendering.
+    ///
+    /// Returns the effective pixel ratio that should be used for viewport scaling.
+    /// Each atlas implementation decides how to handle the ratio:
+    ///
+    /// - **Static atlas**: Returns exact ratio, no internal work needed
+    /// - **Dynamic atlas**: Returns exact ratio, reinitializes with scaled font size
+    fn update_pixel_ratio(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error>;
+
+    /// Returns the cell scale factor for layout calculations at the given DPR.
+    ///
+    /// This determines how cells from `cell_size()` should be scaled for layout:
+    ///
+    /// - **Static atlas**: Returns snapped scale values (0.5, 1.0, 2.0, 3.0, etc.)
+    ///   to avoid arbitrary fractional scaling of pre-rasterized glyphs.
+    ///   DPR <= 0.5 snaps to 0.5, otherwise rounds to nearest integer (minimum 1.0).
+    /// - **Dynamic atlas**: Returns `1.0` - glyphs are re-rasterized at the exact DPR,
+    ///   so `cell_size()` already returns the correctly-scaled physical size
+    ///
+    /// # Contract
+    ///
+    /// - Return value is always >= 0.5
+    /// - The effective cell size for layout is `cell_size() * cell_scale_for_dpr(dpr)`
+    /// - Static atlases use snapped scaling to preserve glyph sharpness
+    /// - Dynamic atlases handle DPR internally via re-rasterization
+    fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32;
+
+    /// Returns the texture cell size in physical pixels (for fragment shader calculations).
+    ///
+    /// This is used for computing padding fractions in the shader, which need to be
+    /// based on the actual texture dimensions rather than logical layout dimensions.
+    ///
+    /// - **Static atlas**: Same as `cell_size()` (texture is at fixed resolution)
+    /// - **Dynamic atlas**: Physical cell size (before dividing by pixel_ratio)
+    fn texture_cell_size(&self) -> (i32, i32);
 }
 
 pub(crate) struct FontAtlas {
@@ -185,6 +225,27 @@ impl FontAtlas {
     /// Deletes the GPU texture resources associated with this atlas.
     pub(crate) fn delete(&self, gl: &web_sys::WebGl2RenderingContext) {
         self.inner.delete(gl)
+    }
+
+    /// Updates the pixel ratio for HiDPI rendering.
+    ///
+    /// Returns the effective pixel ratio to use for viewport scaling.
+    pub(crate) fn update_pixel_ratio(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error> {
+        self.inner.update_pixel_ratio(gl, pixel_ratio)
+    }
+
+    /// Returns the cell scale factor for layout calculations.
+    pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
+        self.inner.cell_scale_for_dpr(pixel_ratio)
+    }
+
+    /// Returns the texture cell size in physical pixels.
+    pub(crate) fn texture_cell_size(&self) -> (i32, i32) {
+        self.inner.texture_cell_size()
     }
 }
 

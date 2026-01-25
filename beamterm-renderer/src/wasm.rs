@@ -13,6 +13,7 @@ use crate::{
         CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
+    js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
         TerminalMouseEvent, TerminalMouseHandler,
@@ -26,6 +27,8 @@ pub struct BeamtermRenderer {
     renderer: Renderer,
     terminal_grid: Rc<RefCell<TerminalGrid>>,
     mouse_handler: Option<TerminalMouseHandler>,
+    /// Current device pixel ratio for HiDPI rendering
+    current_pixel_ratio: f32,
 }
 
 /// JavaScript wrapper for cell data
@@ -489,8 +492,13 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let renderer = Renderer::create(canvas_id)
+        // Setup renderer with exact pixel ratio for HiDPI
+        let mut renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
+        let current_pixel_ratio = crate::js::device_pixel_ratio();
+        renderer.set_pixel_ratio(current_pixel_ratio);
+        let (w, h) = renderer.logical_size();
+        renderer.resize(w, h);
 
         let gl = renderer.gl();
         let atlas_config = match atlas_data {
@@ -505,12 +513,18 @@ impl BeamtermRenderer {
         let atlas = StaticFontAtlas::load(gl, atlas_config)
             .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
 
-        let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let canvas_size = renderer.physical_size();
+        let terminal_grid =
+            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
+                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
-        Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
+        Ok(BeamtermRenderer {
+            renderer,
+            terminal_grid,
+            mouse_handler: None,
+            current_pixel_ratio,
+        })
     }
 
     /// Create a terminal renderer with a dynamic font atlas using browser fonts.
@@ -539,8 +553,13 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let renderer = Renderer::create(canvas_id)
+        // Setup renderer with exact pixel ratio for HiDPI
+        let mut renderer = Renderer::create(canvas_id)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
+        let current_pixel_ratio = crate::js::device_pixel_ratio();
+        renderer.set_pixel_ratio(current_pixel_ratio);
+        let (w, h) = renderer.logical_size();
+        renderer.resize(w, h);
 
         let font_families: Vec<CompactString> = font_family
             .iter()
@@ -553,15 +572,21 @@ impl BeamtermRenderer {
         }
 
         let gl = renderer.gl();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, current_pixel_ratio, None)
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
-        let canvas_size = renderer.canvas_size();
-        let terminal_grid = TerminalGrid::new(gl, atlas.into(), canvas_size)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let canvas_size = renderer.physical_size();
+        let terminal_grid =
+            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
+                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
-        Ok(BeamtermRenderer { renderer, terminal_grid, mouse_handler: None })
+        Ok(BeamtermRenderer {
+            renderer,
+            terminal_grid,
+            mouse_handler: None,
+            current_pixel_ratio,
+        })
     }
 
     /// Enable default mouse selection behavior with built-in copy to clipboard
@@ -628,12 +653,14 @@ impl BeamtermRenderer {
             .require_modifier_keys(require_modifiers.into());
         let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
 
-        let mouse_handler = TerminalMouseHandler::new(
+        let mut mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
             self.terminal_grid.clone(),
             handler.create_event_handler(selection_tracker),
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
+
+        self.update_mouse_metrics(&mut mouse_handler);
 
         self.mouse_handler = Some(mouse_handler);
         Ok(())
@@ -661,12 +688,14 @@ impl BeamtermRenderer {
             }
         };
 
-        let mouse_handler = TerminalMouseHandler::new(
+        let mut mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
             self.terminal_grid.clone(),
             handler_closure,
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
+
+        self.update_mouse_metrics(&mut mouse_handler);
 
         self.mouse_handler = Some(mouse_handler);
         Ok(())
@@ -748,6 +777,12 @@ impl BeamtermRenderer {
     /// Render the terminal to the canvas
     #[wasm_bindgen]
     pub fn render(&mut self) {
+        // Check for device pixel ratio changes (HiDPI display switching)
+        let raw_dpr = device_pixel_ratio();
+        if (raw_dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            let _ = self.handle_pixel_ratio_change(raw_dpr);
+        }
+
         let mut grid = self.terminal_grid.borrow_mut();
         let _ = grid.flush_cells(self.renderer.gl());
 
@@ -756,15 +791,39 @@ impl BeamtermRenderer {
         self.renderer.end_frame();
     }
 
+    /// Handles a change in device pixel ratio.
+    ///
+    /// Callers should verify the ratio has changed before calling this method.
+    fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), JsValue> {
+        self.current_pixel_ratio = raw_pixel_ratio;
+
+        let gl = self.renderer.gl();
+
+        // Update atlas (for dynamic atlas, this re-rasterizes glyphs)
+        self.terminal_grid
+            .borrow_mut()
+            .atlas_mut()
+            .update_pixel_ratio(gl, raw_pixel_ratio)
+            .map_err(|e| JsValue::from_str(&format!("Failed to update pixel ratio: {e}")))?;
+
+        // Always use exact DPR for canvas sizing
+        self.renderer.set_pixel_ratio(raw_pixel_ratio);
+
+        // Resize to apply the new pixel ratio
+        let (w, h) = self.renderer.logical_size();
+        self.resize(w, h)
+    }
+
     /// Resize the terminal to fit new canvas dimensions
     #[wasm_bindgen]
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), JsValue> {
         self.renderer.resize(width, height);
 
         let gl = self.renderer.gl();
+        let physical_size = self.renderer.physical_size();
         self.terminal_grid
             .borrow_mut()
-            .resize(gl, (width, height))
+            .resize(gl, physical_size, self.current_pixel_ratio)
             .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
 
         self.update_mouse_handler_metrics();
@@ -777,7 +836,9 @@ impl BeamtermRenderer {
         if let Some(mouse_handler) = &mut self.mouse_handler {
             let grid = self.terminal_grid.borrow();
             let (cols, rows) = grid.terminal_size();
-            let (cell_width, cell_height) = grid.cell_size();
+            let (phys_width, phys_height) = grid.cell_size();
+            let cell_width = phys_width as f32 / self.current_pixel_ratio;
+            let cell_height = phys_height as f32 / self.current_pixel_ratio;
             mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
         }
     }
@@ -854,7 +915,8 @@ impl BeamtermRenderer {
         }
 
         let gl = self.renderer.gl();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, None)
+        let pixel_ratio = device_pixel_ratio();
+        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, pixel_ratio, None)
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
         self.terminal_grid
@@ -864,6 +926,15 @@ impl BeamtermRenderer {
         self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    fn update_mouse_metrics(&mut self, mouse_handler: &mut TerminalMouseHandler) {
+        let grid = self.terminal_grid.borrow();
+        let (cols, rows) = grid.terminal_size();
+        let (phys_w, phys_h) = grid.cell_size();
+        let css_w = phys_w as f32 / self.current_pixel_ratio;
+        let css_h = phys_h as f32 / self.current_pixel_ratio;
+        mouse_handler.update_metrics(cols, rows, css_w, css_h);
     }
 }
 

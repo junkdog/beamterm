@@ -13,6 +13,7 @@ class SelectionDemo {
         this.renderer = null;
         this.size = null;
         this.selectionEnabled = false;
+        this.hoveredCell = null; // {col, row} when selection is disabled
 
         // Get UI elements
         this.statusEl = document.getElementById('status');
@@ -115,12 +116,14 @@ class SelectionDemo {
     }
 
     setupMouseEventLogging() {
-        // Set up a mouse handler that just logs events when selection is disabled
+        // Set up a mouse handler that tracks hover and logs events when selection is disabled
         this.renderer.setMouseHandler((mouseEvent) => {
             const eventTypeStr = this.getEventTypeString(mouseEvent.event_type);
             console.log(`🖱️ Mouse ${eventTypeStr} at (${mouseEvent.col}, ${mouseEvent.row}) button=${mouseEvent.button}`);
-            
+
             if (!this.selectionEnabled) {
+                // Track hovered cell for highlighting
+                this.hoveredCell = { col: mouseEvent.col, row: mouseEvent.row };
                 this.updateStatus(`Mouse ${eventTypeStr} at (${mouseEvent.col}, ${mouseEvent.row}) - Enable selection to select text`);
             }
         });
@@ -151,6 +154,7 @@ class SelectionDemo {
             this.renderer.enableSelectionWithOptions(mode, true, modifiers);
 
             this.selectionEnabled = true;
+            this.hoveredCell = null; // Clear hover highlight when selection is enabled
             this.enableBtn.disabled = true;
             this.disableBtn.disabled = false;
 
@@ -181,9 +185,7 @@ class SelectionDemo {
         console.log('✅ Selection disabled');
     }
 
-    renderSampleContent() {
-        const batch = this.renderer.batch();
-        
+    drawContent(batch) {
         // Clear terminal
         batch.clear(0x000000);
 
@@ -232,7 +234,7 @@ class SelectionDemo {
             }
 
             let lineStyle = style().fg(0xc0caf5);
-            
+
             // Color code different types of content
             if (line.startsWith("🖱️") || line.startsWith("Try ") || line.startsWith("Sample content")) {
                 lineStyle = style().bold().fg(0x7aa2f7);
@@ -254,15 +256,21 @@ class SelectionDemo {
         // Status line at bottom
         y = this.size.height - 2;
         batch.text(2, y, "Status: Ready - Enable selection to start testing", style().bold().fg(0x565f89));
+    }
 
+    renderSampleContent() {
+        const batch = this.renderer.batch();
+        this.drawContent(batch);
         this.renderer.render();
     }
 
     startAnimation() {
         let frame = 0;
         const animate = () => {
-            // Simple status animation
             const batch = this.renderer.batch();
+
+            // Re-draw content each frame to restore previously highlighted cells
+            this.drawContent(batch);
 
             // Spinner for status indication
             const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -274,6 +282,13 @@ class SelectionDemo {
             const statusColor = hasSelection ? 0x9ece6a : (this.selectionEnabled ? 0x7aa2f7 : 0x565f89);
 
             batch.cell(this.size.width - 3, 1, cell(statusChar, style().fg(statusColor)));
+
+            // Highlight hovered cell when selection is disabled
+            if (!this.selectionEnabled && this.hoveredCell) {
+                const { col, row } = this.hoveredCell;
+                // Draw a highlighted cell with a visible background
+                batch.cell(col, row, cell(' ', style().bg(0x7aa2f7)));
+            }
 
             batch.flush();
             this.renderer.render();

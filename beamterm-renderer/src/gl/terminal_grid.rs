@@ -30,8 +30,10 @@ pub struct TerminalGrid {
     cells: Vec<CellDynamic>,
     /// Terminal size in cells
     terminal_size: (u16, u16),
-    /// Size of the canvas in pixels
+    /// Size of the canvas in pixels (physical)
     canvas_size_px: (i32, i32),
+    /// Current device pixel ratio
+    pixel_ratio: f32,
     /// Font atlas for rendering text.
     atlas: FontAtlas,
     /// Fallback glyph for missing symbols.
@@ -162,8 +164,14 @@ impl TerminalGrid {
         gl: &WebGl2RenderingContext,
         atlas: FontAtlas,
         screen_size: (i32, i32),
+        pixel_ratio: f32,
     ) -> Result<Self, Error> {
-        let cell_size = atlas.cell_size();
+        let cell_scale = atlas.cell_scale_for_dpr(pixel_ratio);
+        let base_cell_size = atlas.cell_size();
+        let cell_size = (
+            (base_cell_size.0 as f32 * cell_scale).round() as i32,
+            (base_cell_size.1 as f32 * cell_scale).round() as i32,
+        );
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
 
         let space_glyph = atlas.space_glyph_id();
@@ -174,6 +182,7 @@ impl TerminalGrid {
             gpu: GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?,
             terminal_size: (cols as u16, rows as u16),
             canvas_size_px: screen_size,
+            pixel_ratio,
             cells: cell_data,
             atlas,
             fallback_glyph: space_glyph,
@@ -184,6 +193,16 @@ impl TerminalGrid {
         grid.upload_ubo_data(gl);
 
         Ok(grid)
+    }
+
+    /// Returns the effective cell size for layout (base cell size * cell scale).
+    fn effective_cell_size(&self) -> (i32, i32) {
+        let cell_scale = self.atlas.cell_scale_for_dpr(self.pixel_ratio);
+        let base = self.atlas.cell_size();
+        (
+            (base.0 as f32 * cell_scale).round() as i32,
+            (base.1 as f32 * cell_scale).round() as i32,
+        )
     }
 
     /// Sets the fallback glyph for missing characters.
@@ -266,9 +285,9 @@ impl TerminalGrid {
         // update vertex buffer with new cell dimensions
         self.gpu
             .buffers
-            .update_vertex_buffer(gl, self.atlas.cell_size());
+            .update_vertex_buffer(gl, self.effective_cell_size());
 
-        self.resize(gl, self.canvas_size_px);
+        let _ = self.resize(gl, self.canvas_size_px, self.pixel_ratio);
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
@@ -276,14 +295,19 @@ impl TerminalGrid {
         &self.atlas
     }
 
+    /// Returns a mutable reference to the font atlas.
+    pub(crate) fn atlas_mut(&mut self) -> &mut FontAtlas {
+        &mut self.atlas
+    }
+
     /// Returns the canvas size in pixels.
     pub(crate) fn canvas_size(&self) -> (i32, i32) {
         self.canvas_size_px
     }
 
-    /// Returns the unpadded cell dimensions in pixels.
+    /// Returns the effective cell dimensions in pixels (base size * cell scale).
     pub fn cell_size(&self) -> (i32, i32) {
-        self.atlas.cell_size()
+        self.effective_cell_size()
     }
 
     /// Returns the size of the terminal grid in cells.
@@ -356,7 +380,7 @@ impl TerminalGrid {
     /// # Parameters
     /// * `gl` - WebGL2 rendering context
     fn upload_ubo_data(&self, gl: &WebGl2RenderingContext) {
-        let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.cell_size());
+        let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.effective_cell_size());
         self.gpu.ubo_vertex.upload_data(gl, &vertex_ubo);
 
         let fragment_ubo = CellFragmentUbo::new(&self.atlas);
@@ -563,13 +587,21 @@ impl TerminalGrid {
         &mut self,
         gl: &WebGl2RenderingContext,
         canvas_size: (i32, i32),
+        pixel_ratio: f32,
     ) -> Result<(), Error> {
         self.canvas_size_px = canvas_size;
+        self.pixel_ratio = pixel_ratio;
 
-        // update the UBO with new screen size
+        let cell_size = self.effective_cell_size();
+
+        // Update vertex buffer with new cell dimensions
+        self.gpu
+            .buffers
+            .update_vertex_buffer(gl, cell_size);
+
+        // Update the UBO with new screen size
         self.upload_ubo_data(gl);
 
-        let cell_size = self.atlas.cell_size();
         let cols = canvas_size.0 / cell_size.0;
         let rows = canvas_size.1 / cell_size.1;
         if self.terminal_size == (cols as u16, rows as u16) {
@@ -619,7 +651,7 @@ impl TerminalGrid {
     /// The font atlas texture must be recreated separately via
     /// [`StaticFontAtlas::recreate_texture`] before calling this method.
     pub fn recreate_resources(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-        let cell_size = self.atlas.cell_size();
+        let cell_size = self.effective_cell_size();
         let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
         let cell_pos = CellStatic::create_grid(cols, rows);
 
@@ -1140,14 +1172,15 @@ impl CellFragmentUbo {
     pub const BINDING_POINT: u32 = 1;
 
     fn new(atlas: &FontAtlas) -> Self {
-        let cell_size = atlas.cell_size();
+        // Use texture cell size for padding calculation (physical pixels in texture)
+        let texture_cell_size = atlas.texture_cell_size();
         let underline = atlas.underline();
         let strikethrough = atlas.strikethrough();
 
         Self {
             padding_frac: [
-                FontAtlasData::PADDING as f32 / cell_size.0 as f32,
-                FontAtlasData::PADDING as f32 / cell_size.1 as f32,
+                FontAtlasData::PADDING as f32 / texture_cell_size.0 as f32,
+                FontAtlasData::PADDING as f32 / texture_cell_size.1 as f32,
             ],
             underline_pos: underline.position,
             underline_thickness: underline.thickness,

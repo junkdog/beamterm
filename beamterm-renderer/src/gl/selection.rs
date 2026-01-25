@@ -45,8 +45,8 @@ pub(crate) struct TerminalMetrics {
 pub(crate) struct TerminalMetricsInner {
     pub cols: u16,
     pub rows: u16,
-    pub cell_width: i32,
-    pub cell_height: i32,
+    pub cell_width: f32,
+    pub cell_height: f32,
 }
 
 impl SelectionTracker {
@@ -124,9 +124,9 @@ impl TerminalMetrics {
     /// # Arguments
     /// * `cols` - Number of columns in the terminal
     /// * `rows` - Number of rows in the terminal
-    /// * `cell_width` - Cell width in pixels
-    /// * `cell_height` - Cell height in pixels
-    pub fn new(cols: u16, rows: u16, cell_width: i32, cell_height: i32) -> Self {
+    /// * `cell_width` - Cell width in CSS pixels (can be fractional)
+    /// * `cell_height` - Cell height in CSS pixels (can be fractional)
+    pub fn new(cols: u16, rows: u16, cell_width: f32, cell_height: f32) -> Self {
         Self {
             inner: Rc::new(RefCell::new(TerminalMetricsInner {
                 cols,
@@ -140,12 +140,12 @@ impl TerminalMetrics {
     /// Updates the terminal metrics.
     ///
     /// Should be called whenever the terminal is resized or the font atlas changes.
-    pub fn set(&self, cols: u16, rows: u16, cell_width: i32, cell_height: i32) {
+    pub fn set(&self, cols: u16, rows: u16, cell_width: f32, cell_height: f32) {
         *self.inner.borrow_mut() = TerminalMetricsInner { cols, rows, cell_width, cell_height };
     }
 
     /// Returns all metrics: (cols, rows, cell_width, cell_height).
-    pub fn get(&self) -> (u16, u16, i32, i32) {
+    pub fn get(&self) -> (u16, u16, f32, f32) {
         let inner = self.inner.borrow();
         (inner.cols, inner.rows, inner.cell_width, inner.cell_height)
     }
