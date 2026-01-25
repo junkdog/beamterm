@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - *(atlas)* Runtime font atlas replacement (#73)
 - *(mouse)* Modifier key requirements for text selection (#74)
+- *(renderer)* Automatic device pixel ratio scaling for HiDPI displays (#83)
 
 ### 💼 Other
 
