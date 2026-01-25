@@ -168,7 +168,10 @@ impl TerminalGrid {
     ) -> Result<Self, Error> {
         let cell_scale = atlas.cell_scale_for_dpr(pixel_ratio);
         let base_cell_size = atlas.cell_size();
-        let cell_size = (base_cell_size.0 * cell_scale, base_cell_size.1 * cell_scale);
+        let cell_size = (
+            (base_cell_size.0 as f32 * cell_scale).round() as i32,
+            (base_cell_size.1 as f32 * cell_scale).round() as i32,
+        );
         let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
 
         let space_glyph = atlas.space_glyph_id();
@@ -196,7 +199,10 @@ impl TerminalGrid {
     fn effective_cell_size(&self) -> (i32, i32) {
         let cell_scale = self.atlas.cell_scale_for_dpr(self.pixel_ratio);
         let base = self.atlas.cell_size();
-        (base.0 * cell_scale, base.1 * cell_scale)
+        (
+            (base.0 as f32 * cell_scale).round() as i32,
+            (base.1 as f32 * cell_scale).round() as i32,
+        )
     }
 
     /// Sets the fallback glyph for missing characters.

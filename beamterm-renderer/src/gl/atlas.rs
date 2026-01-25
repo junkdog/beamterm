@@ -112,18 +112,19 @@ pub(crate) trait Atlas {
     ///
     /// This determines how cells from `cell_size()` should be scaled for layout:
     ///
-    /// - **Static atlas**: Returns `round(dpr).max(1)` - cells scale at integer DPR
-    ///   thresholds (1x, 2x, 3x) to avoid fractional scaling of pre-rasterized glyphs
-    /// - **Dynamic atlas**: Returns `1` - glyphs are re-rasterized at the exact DPR,
+    /// - **Static atlas**: Returns snapped scale values (0.5, 1.0, 2.0, 3.0, etc.)
+    ///   to avoid arbitrary fractional scaling of pre-rasterized glyphs.
+    ///   DPR < 0.75 snaps to 0.5, otherwise rounds to nearest integer.
+    /// - **Dynamic atlas**: Returns `1.0` - glyphs are re-rasterized at the exact DPR,
     ///   so `cell_size()` already returns the correctly-scaled physical size
     ///
     /// # Contract
     ///
-    /// - Return value is always >= 1
+    /// - Return value is always >= 0.5
     /// - The effective cell size for layout is `cell_size() * cell_scale_for_dpr(dpr)`
-    /// - Static atlases use integer scaling to preserve glyph sharpness
+    /// - Static atlases use snapped scaling to preserve glyph sharpness
     /// - Dynamic atlases handle DPR internally via re-rasterization
-    fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32;
+    fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32;
 
     /// Returns the texture cell size in physical pixels (for fragment shader calculations).
     ///
@@ -238,7 +239,7 @@ impl FontAtlas {
     }
 
     /// Returns the cell scale factor for layout calculations.
-    pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32 {
+    pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
         self.inner.cell_scale_for_dpr(pixel_ratio)
     }
 

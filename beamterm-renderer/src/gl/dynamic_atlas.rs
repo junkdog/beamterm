@@ -391,9 +391,9 @@ impl Atlas for DynamicFontAtlas {
         Ok(pixel_ratio)
     }
 
-    fn cell_scale_for_dpr(&self, _pixel_ratio: f32) -> i32 {
+    fn cell_scale_for_dpr(&self, _pixel_ratio: f32) -> f32 {
         // Dynamic atlas cell_size() returns physical size, so no additional scaling needed
-        1
+        1.0
     }
 
     fn texture_cell_size(&self) -> (i32, i32) {
