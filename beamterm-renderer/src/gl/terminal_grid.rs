@@ -276,6 +276,11 @@ impl TerminalGrid {
         &self.atlas
     }
 
+    /// Returns a mutable reference to the font atlas.
+    pub(crate) fn atlas_mut(&mut self) -> &mut FontAtlas {
+        &mut self.atlas
+    }
+
     /// Returns the canvas size in pixels.
     pub(crate) fn canvas_size(&self) -> (i32, i32) {
         self.canvas_size_px

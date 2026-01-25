@@ -258,4 +258,14 @@ impl Atlas for StaticFontAtlas {
     fn delete(&self, gl: &WebGl2RenderingContext) {
         self.texture.delete(gl);
     }
+
+    fn update_pixel_ratio(
+        &mut self,
+        _gl: &WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error> {
+        // Round to nearest integer to avoid scaling artifacts with pre-rasterized glyphs.
+        // No internal work needed - viewport scaling handles HiDPI rendering.
+        Ok(pixel_ratio.round().max(1.0))
+    }
 }

@@ -94,6 +94,19 @@ pub(crate) trait Atlas {
     /// This method must be called before dropping the atlas to properly clean up
     /// WebGL resources. Failing to call this will leak GPU memory.
     fn delete(&self, gl: &web_sys::WebGl2RenderingContext);
+
+    /// Updates the pixel ratio for HiDPI rendering.
+    ///
+    /// Returns the effective pixel ratio that should be used for viewport scaling.
+    /// Each atlas implementation decides how to handle the ratio:
+    ///
+    /// - **Static atlas**: Returns rounded ratio (avoids scaling artifacts), no internal work
+    /// - **Dynamic atlas**: Returns exact ratio, reinitializes with scaled font size
+    fn update_pixel_ratio(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error>;
 }
 
 pub(crate) struct FontAtlas {
@@ -185,6 +198,17 @@ impl FontAtlas {
     /// Deletes the GPU texture resources associated with this atlas.
     pub(crate) fn delete(&self, gl: &web_sys::WebGl2RenderingContext) {
         self.inner.delete(gl)
+    }
+
+    /// Updates the pixel ratio for HiDPI rendering.
+    ///
+    /// Returns the effective pixel ratio to use for viewport scaling.
+    pub(crate) fn update_pixel_ratio(
+        &mut self,
+        gl: &web_sys::WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error> {
+        self.inner.update_pixel_ratio(gl, pixel_ratio)
     }
 }
 

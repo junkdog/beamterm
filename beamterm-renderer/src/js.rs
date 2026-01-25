@@ -29,3 +29,10 @@ pub(crate) fn get_webgl2_context(
         .dyn_into::<web_sys::WebGl2RenderingContext>()
         .map_err(|_| Error::webgl_context_failed())
 }
+
+/// Returns the current device pixel ratio, or 1.0 if unavailable.
+pub(crate) fn device_pixel_ratio() -> f32 {
+    web_sys::window()
+        .map(|w| w.device_pixel_ratio() as f32)
+        .unwrap_or(1.0)
+}

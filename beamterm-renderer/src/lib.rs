@@ -9,7 +9,6 @@ pub(crate) mod js;
 pub mod wasm;
 
 pub mod mouse;
-mod pixel_scale;
 
 pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect};
 pub use beamterm_data::FontStyle;

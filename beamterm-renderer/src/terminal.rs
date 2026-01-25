@@ -9,6 +9,7 @@ use crate::{
     CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
     TerminalGrid,
     gl::{CellQuery, ContextLossHandler},
+    js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
         TerminalMouseHandler,
@@ -66,6 +67,8 @@ pub struct Terminal {
     grid: Rc<RefCell<TerminalGrid>>,
     mouse_handler: Option<TerminalMouseHandler>,
     context_loss_handler: Option<ContextLossHandler>,
+    /// Current device pixel ratio for HiDPI rendering
+    current_pixel_ratio: f32,
 }
 
 impl Terminal {
@@ -247,7 +250,8 @@ impl Terminal {
     ) -> Result<(), Error> {
         let gl = self.renderer.gl();
         let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
-        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, None)?;
+        let pixel_ratio = device_pixel_ratio();
+        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, pixel_ratio, None)?;
         self.grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
@@ -283,6 +287,12 @@ impl Terminal {
             return Ok(());
         }
 
+        // Check for device pixel ratio changes (HiDPI display switching)
+        let raw_dpr = device_pixel_ratio();
+        if (raw_dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            self.handle_pixel_ratio_change(raw_dpr)?;
+        }
+
         self.grid
             .borrow_mut()
             .flush_cells(self.renderer.gl())?;
@@ -291,6 +301,25 @@ impl Terminal {
         self.renderer.render(&*self.grid.borrow());
         self.renderer.end_frame();
         Ok(())
+    }
+
+    /// Handles a change in device pixel ratio.
+    fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), Error> {
+        let gl = self.renderer.gl();
+
+        // Let the atlas decide the effective ratio (rounded for static, exact for dynamic)
+        let effective_ratio = self
+            .grid
+            .borrow_mut()
+            .atlas_mut()
+            .update_pixel_ratio(gl, raw_pixel_ratio)?;
+
+        self.current_pixel_ratio = raw_pixel_ratio;
+        self.renderer.set_pixel_ratio(effective_ratio);
+
+        // Resize to apply the new pixel ratio
+        let (w, h) = self.renderer.logical_size();
+        self.resize(w, h)
     }
 
     /// Returns a sorted list of all glyphs that were requested but not found in the font atlas.
@@ -606,8 +635,23 @@ impl TerminalBuilder {
     /// Builds the terminal with the configured options.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
-        let renderer = Self::create_renderer(self.canvas)?
-            .canvas_padding_color(self.canvas_padding_color);
+        let mut renderer =
+            Self::create_renderer(self.canvas)?.canvas_padding_color(self.canvas_padding_color);
+
+        // Determine pixel ratio based on atlas type
+        // Static atlas: round to avoid scaling artifacts with pre-rasterized glyphs
+        // Dynamic atlas: use exact ratio (glyphs are re-rasterized at native resolution)
+        let raw_pixel_ratio = device_pixel_ratio();
+        let is_dynamic = matches!(
+            self.atlas_kind,
+            AtlasKind::Dynamic { .. } | AtlasKind::DebugDynamic { .. }
+        );
+        let effective_pixel_ratio =
+            if is_dynamic { raw_pixel_ratio } else { raw_pixel_ratio.round().max(1.0) };
+
+        renderer.set_pixel_ratio(effective_pixel_ratio);
+        let (w, h) = renderer.logical_size();
+        renderer.resize(w, h);
 
         // load font atlas
         let gl = renderer.gl();
@@ -616,11 +660,17 @@ impl TerminalBuilder {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
             AtlasKind::Dynamic { font_family, font_size } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size, None)?.into()
+                DynamicFontAtlas::new(gl, &font_family, font_size, raw_pixel_ratio, None)?.into()
             },
             AtlasKind::DebugDynamic { font_family, font_size, debug_space_pattern } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size, Some(debug_space_pattern))?
-                    .into()
+                DynamicFontAtlas::new(
+                    gl,
+                    &font_family,
+                    font_size,
+                    raw_pixel_ratio,
+                    Some(debug_space_pattern),
+                )?
+                .into()
             },
         };
 
@@ -643,6 +693,7 @@ impl TerminalBuilder {
                 grid,
                 mouse_handler: None,
                 context_loss_handler,
+                current_pixel_ratio: raw_pixel_ratio,
             }),
             Some(InputHandler::CopyOnSelect(select)) => {
                 let handler = DefaultSelectionHandler::new(grid.clone(), select);
@@ -659,6 +710,7 @@ impl TerminalBuilder {
                     grid,
                     mouse_handler: Some(mouse_input),
                     context_loss_handler,
+                    current_pixel_ratio: raw_pixel_ratio,
                 })
             },
             Some(InputHandler::Mouse(callback)) => {
@@ -669,6 +721,7 @@ impl TerminalBuilder {
                     grid,
                     mouse_handler: Some(mouse_input),
                     context_loss_handler,
+                    current_pixel_ratio: raw_pixel_ratio,
                 })
             },
         }
@@ -682,9 +735,7 @@ impl TerminalBuilder {
     fn create_renderer(canvas: CanvasSource) -> Result<Renderer, Error> {
         let renderer = match canvas {
             CanvasSource::Id(id) => Renderer::create(&id)?,
-            CanvasSource::Element(element) => {
-                Renderer::create_with_canvas(element)?
-            },
+            CanvasSource::Element(element) => Renderer::create_with_canvas(element)?,
         };
         Ok(renderer)
     }

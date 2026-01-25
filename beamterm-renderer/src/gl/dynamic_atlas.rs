@@ -60,6 +60,10 @@ pub(crate) struct DynamicFontAtlas {
     strikethrough: LineDecoration,
     /// Debug pattern for space glyph (for pixel-perfect validation)
     debug_space_pattern: Option<DebugSpacePattern>,
+    /// Base font size before pixel ratio scaling (user-specified)
+    base_font_size: f32,
+    /// Current pixel ratio for HiDPI rendering
+    pixel_ratio: f32,
 }
 
 impl DynamicFontAtlas {
@@ -68,24 +72,35 @@ impl DynamicFontAtlas {
     /// # Arguments
     /// * `gl` - WebGL2 rendering context
     /// * `font_family` - CSS font-family string (e.g., "'JetBrains Mono', monospace")
-    /// * `font_size` - Font size in pixels
+    /// * `font_size` - Base font size in logical pixels (before pixel ratio scaling)
+    /// * `pixel_ratio` - Device pixel ratio for HiDPI rendering
     /// * `debug_space_pattern` - Optional checkered pattern for space glyph (for pixel-perfect validation)
     pub(crate) fn new(
         gl: &web_sys::WebGl2RenderingContext,
         font_family: &[CompactString],
         font_size: f32,
+        pixel_ratio: f32,
         debug_space_pattern: Option<DebugSpacePattern>,
     ) -> Result<Self, Error> {
-        let font_family = font_family
+        let font_family_css = font_family
             .iter()
             .map(|s| format_compact!("'{s}'"))
             .join_compact(", ");
 
-        let rasterizer = CanvasRasterizer::new(&font_family, font_size)?;
-        let cell_size = Self::measure_cell_size(&rasterizer)?;
+        // Scale font size by pixel ratio for crisp HiDPI rendering
+        let effective_font_size = font_size * pixel_ratio;
+        let rasterizer = CanvasRasterizer::new(&font_family_css, effective_font_size)?;
+        let physical_cell_size = Self::measure_cell_size(&rasterizer)?;
+
+        // Cell size in logical pixels (divide by pixel ratio)
+        let cell_size = (
+            (physical_cell_size.0 as f32 / pixel_ratio).round() as i32,
+            (physical_cell_size.1 as f32 / pixel_ratio).round() as i32,
+        );
+
         let padded_cell_size = (
-            cell_size.0 + FontAtlasData::PADDING * 2,
-            cell_size.1 + FontAtlasData::PADDING * 2,
+            physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         let texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
@@ -100,6 +115,8 @@ impl DynamicFontAtlas {
             underline: LineDecoration::new(0.9, 0.05), // near bottom, thin
             strikethrough: LineDecoration::new(0.5, 0.05), // middle, thin
             debug_space_pattern,
+            base_font_size: font_size,
+            pixel_ratio,
         };
         atlas.upload_ascii_glyphs(gl)?;
 
@@ -285,9 +302,14 @@ impl Atlas for DynamicFontAtlas {
     fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         self.texture.delete(gl);
 
+        // cell_size is logical pixels; compute physical size for texture
+        let physical_cell_size = (
+            (self.cell_size.0 as f32 * self.pixel_ratio).round() as i32,
+            (self.cell_size.1 as f32 * self.pixel_ratio).round() as i32,
+        );
         let padded_cell_size = (
-            self.cell_size.0 + FontAtlasData::PADDING * 2,
-            self.cell_size.1 + FontAtlasData::PADDING * 2,
+            physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
@@ -342,6 +364,46 @@ impl Atlas for DynamicFontAtlas {
 
     fn delete(&self, gl: &WebGl2RenderingContext) {
         self.texture.delete(gl);
+    }
+
+    fn update_pixel_ratio(
+        &mut self,
+        gl: &WebGl2RenderingContext,
+        pixel_ratio: f32,
+    ) -> Result<f32, Error> {
+        // Skip if ratio hasn't changed
+        if (self.pixel_ratio - pixel_ratio).abs() < f32::EPSILON {
+            return Ok(pixel_ratio);
+        }
+
+        self.pixel_ratio = pixel_ratio;
+
+        // Recreate rasterizer with new effective font size
+        let effective_font_size = self.base_font_size * pixel_ratio;
+        self.rasterizer =
+            CanvasRasterizer::new(self.rasterizer.font_family(), effective_font_size)?;
+
+        // Recalculate cell size from new rasterizer
+        let physical_cell_size = Self::measure_cell_size(&self.rasterizer)?;
+        self.cell_size = (
+            (physical_cell_size.0 as f32 / pixel_ratio).round() as i32,
+            (physical_cell_size.1 as f32 / pixel_ratio).round() as i32,
+        );
+
+        // Recreate texture with new dimensions
+        self.texture.delete(gl);
+        let padded_cell_size = (
+            physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            physical_cell_size.1 + FontAtlasData::PADDING * 2,
+        );
+        self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
+
+        // Clear cache and re-upload ASCII glyphs
+        self.cache.borrow_mut().clear();
+        self.symbol_lookup.borrow_mut().clear();
+        self.upload_ascii_glyphs(gl)?;
+
+        Ok(pixel_ratio)
     }
 }
 

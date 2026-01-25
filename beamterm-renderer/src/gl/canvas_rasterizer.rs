@@ -248,6 +248,11 @@ impl CanvasRasterizer {
         Ok(results)
     }
 
+    /// Returns the font family string used by this rasterizer.
+    pub(super) fn font_family(&self) -> &str {
+        &self.font_family
+    }
+
     /// Measures cell size by rendering "█" and scanning actual pixel bounds.
     /// This is more accurate than text metrics which can have rounding issues.
     fn measure_cell_metrics(
