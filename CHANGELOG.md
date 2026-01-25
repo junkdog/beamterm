@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.13.0] - 2026-01-25
 
 ### 🚀 Features
 
