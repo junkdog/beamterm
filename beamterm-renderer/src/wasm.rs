@@ -789,6 +789,11 @@ impl BeamtermRenderer {
 
     /// Handles a change in device pixel ratio.
     fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), JsValue> {
+        // Early return if ratio hasn't meaningfully changed
+        if (raw_pixel_ratio - self.current_pixel_ratio).abs() < f32::EPSILON {
+            return Ok(());
+        }
+
         self.current_pixel_ratio = raw_pixel_ratio;
 
         let gl = self.renderer.gl();

@@ -373,6 +373,18 @@ impl Terminal {
             handler.clear_context_rebuild_needed();
         }
 
+        // re-apply current pixel ratio after context restoration
+        // (display may have changed during context loss)
+        let dpr = device_pixel_ratio();
+        if (dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            self.handle_pixel_ratio_change(dpr)?;
+        } else {
+            // even if DPR unchanged, renderer state was reset - reapply it
+            self.renderer.set_pixel_ratio(dpr);
+            let (w, h) = self.renderer.logical_size();
+            self.renderer.resize(w, h);
+        }
+
         Ok(())
     }
 
@@ -664,9 +676,6 @@ impl TerminalBuilder {
                 .into()
             },
         };
-
-        // Initialize atlas with current pixel ratio
-        atlas.update_pixel_ratio(gl, raw_pixel_ratio)?;
 
         // create terminal grid with physical canvas size
         let canvas_size = renderer.physical_size();
