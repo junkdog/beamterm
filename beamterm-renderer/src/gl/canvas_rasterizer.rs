@@ -42,7 +42,10 @@ use crate::{error::Error, terminal::is_double_width};
 const PADDING: u32 = FontAtlasData::PADDING as u32;
 
 const OFFSCREEN_CANVAS_WIDTH: u32 = 256;
-const OFFSCREEN_CANVAS_HEIGHT: u32 = 1024;
+
+/// Number of glyphs per rasterization batch.
+/// Canvas height is scaled to fit this many glyphs.
+const GLYPH_BATCH_SIZE: usize = 32;
 
 /// Cell metrics for positioning glyphs correctly.
 #[derive(Debug, Clone, Copy)]
@@ -98,7 +101,8 @@ impl CanvasRasterizer {
     ///
     /// A configured rasterizer context, or an error if canvas creation fails.
     pub(crate) fn new(font_family: &str, font_size: f32) -> Result<Self, Error> {
-        let canvas = OffscreenCanvas::new(OFFSCREEN_CANVAS_WIDTH, OFFSCREEN_CANVAS_HEIGHT)
+        // Create canvas with minimal height for initial measurement
+        let canvas = OffscreenCanvas::new(OFFSCREEN_CANVAS_WIDTH, 128)
             .map_err(|e| Error::rasterizer_canvas_creation_failed(js_error_string(&e)))?;
 
         let ctx = canvas
@@ -108,15 +112,22 @@ impl CanvasRasterizer {
             .dyn_into::<OffscreenCanvasRenderingContext2d>()
             .map_err(|_| Error::rasterizer_context_failed())?;
 
+        let font_string = build_font_string(font_family, font_size, FontStyle::Normal);
+
         ctx.set_text_baseline("top");
         ctx.set_text_align("left");
-        ctx.set_font(&build_font_string(
-            font_family,
-            font_size,
-            FontStyle::Normal,
-        ));
+        ctx.set_font(&font_string);
 
         let cell_metrics = Self::measure_cell_metrics(&ctx)?;
+
+        // Resize canvas to fit GLYPH_BATCH_SIZE glyphs
+        let required_height = GLYPH_BATCH_SIZE as u32 * cell_metrics.padded_height;
+        canvas.set_height(required_height);
+
+        // Re-initialize context after resize (canvas resize clears context state)
+        ctx.set_text_baseline("top");
+        ctx.set_text_align("left");
+        ctx.set_font(&font_string);
 
         Ok(Self {
             canvas,
@@ -125,6 +136,13 @@ impl CanvasRasterizer {
             font_size,
             cell_metrics,
         })
+    }
+
+    /// Returns the maximum number of glyphs that fit in a single rasterization batch.
+    ///
+    /// The canvas is sized to fit exactly this many glyphs.
+    pub(crate) fn max_batch_size(&self) -> usize {
+        GLYPH_BATCH_SIZE
     }
 
     /// Rasterizes all glyphs and returns them as a vector.
