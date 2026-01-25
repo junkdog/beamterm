@@ -150,9 +150,10 @@ impl Terminal {
     /// Combines [`Renderer::resize`] and [`TerminalGrid::resize`] operations.
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Error> {
         self.renderer.resize(width, height);
+        let (w, h) = self.renderer.physical_size();
         self.grid
             .borrow_mut()
-            .resize(self.renderer.gl(), (width, height))?;
+            .resize(self.renderer.gl(), (w, h))?;
 
         self.update_mouse_handler_metrics();
 
@@ -305,16 +306,20 @@ impl Terminal {
 
     /// Handles a change in device pixel ratio.
     fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), Error> {
-        let gl = self.renderer.gl();
+        if (raw_pixel_ratio - self.current_pixel_ratio).abs() < f32::EPSILON {
+            return Ok(());
+        }
 
-        // Let the atlas decide the effective ratio (rounded for static, exact for dynamic)
+        self.current_pixel_ratio = raw_pixel_ratio;
+        let gl = self.renderer.gl();
+        //
+        // // Let the atlas decide the effective ratio (rounded for static, exact for dynamic)
         let effective_ratio = self
             .grid
             .borrow_mut()
             .atlas_mut()
             .update_pixel_ratio(gl, raw_pixel_ratio)?;
 
-        self.current_pixel_ratio = raw_pixel_ratio;
         self.renderer.set_pixel_ratio(effective_ratio);
 
         // Resize to apply the new pixel ratio
@@ -334,13 +339,6 @@ impl Terminal {
             .collect();
         glyphs.sort();
         glyphs
-    }
-
-    /// Updates the pixel ratio of the renderer and resizes the canvas accordingly.
-    pub(crate) fn update_pixel_ratio(&mut self, pixel_ratio: f32) -> Result<(), Error> {
-        let (w, h) = self.renderer().logical_size();
-        self.renderer.set_pixel_ratio(pixel_ratio);
-        self.resize(w, h)
     }
 
     /// Checks if the WebGL context has been lost.

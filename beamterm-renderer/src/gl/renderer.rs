@@ -104,12 +104,11 @@ impl Renderer {
     /// * `height` - New canvas height in pixels
     pub fn resize(&mut self, width: i32, height: i32) {
         self.logical_size_px = (width, height);
+        let (w, h) = self.physical_size();
 
-        let physical_width = (width as f32 * self.pixel_ratio).round() as i32;
-        let physical_height = (height as f32 * self.pixel_ratio).round() as i32;
 
-        self.canvas.set_width(physical_width as _);
-        self.canvas.set_height(physical_height as _);
+        self.canvas.set_width(w as u32);
+        self.canvas.set_height(h as u32);
         self.canvas
             .style()
             .set_property("width", &format!("{width}px"));
@@ -117,7 +116,7 @@ impl Renderer {
             .style()
             .set_property("height", &format!("{height}px"));
         self.state
-            .viewport(&self.gl, 0, 0, physical_width, physical_height);
+            .viewport(&self.gl, 0, 0, w, h);
     }
 
     /// Clears the framebuffer with the specified color.
@@ -183,8 +182,21 @@ impl Renderer {
         self.logical_size()
     }
 
+    /// Returns the logical size of the canvas in pixels. The logical size
+    /// corresponds to the size used for layout and rendering calculations,
     pub fn logical_size(&self) -> (i32, i32) {
         self.logical_size_px
+    }
+
+    /// Returns the physical size of the canvas in pixels, taking into account the device
+    /// pixel ratio.
+    pub fn physical_size(&self) -> (i32, i32) {
+        let (w, h) = self.logical_size_px;
+        (
+            (w as f32 * self.pixel_ratio).round() as i32,
+            (h as f32 * self.pixel_ratio).round() as i32
+        )
+
     }
 
     /// Checks if the WebGL context has been lost.

@@ -802,12 +802,17 @@ impl BeamtermRenderer {
 
         // Resize to apply the new pixel ratio
         let (w, h) = self.renderer.logical_size();
+
+        console::log_1(&format!("handle_pixel_ratio_change, logical size: {:?}", (w, h)).into());
+
         self.resize(w, h)
     }
 
     /// Resize the terminal to fit new canvas dimensions
     #[wasm_bindgen]
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), JsValue> {
+        console::log_1(&format!("resize: logical size: {:?}", (width, height)).into());
+
         self.renderer.resize(width, height);
 
         let gl = self.renderer.gl();
