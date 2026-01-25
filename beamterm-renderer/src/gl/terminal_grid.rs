@@ -595,7 +595,9 @@ impl TerminalGrid {
         let cell_size = self.effective_cell_size();
 
         // Update vertex buffer with new cell dimensions
-        self.gpu.buffers.update_vertex_buffer(gl, cell_size);
+        self.gpu
+            .buffers
+            .update_vertex_buffer(gl, cell_size);
 
         // Update the UBO with new screen size
         self.upload_ubo_data(gl);

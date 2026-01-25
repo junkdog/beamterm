@@ -106,7 +106,6 @@ impl Renderer {
         self.logical_size_px = (width, height);
         let (w, h) = self.physical_size();
 
-
         self.canvas.set_width(w as u32);
         self.canvas.set_height(h as u32);
         self.canvas
@@ -115,8 +114,7 @@ impl Renderer {
         self.canvas
             .style()
             .set_property("height", &format!("{height}px"));
-        self.state
-            .viewport(&self.gl, 0, 0, w, h);
+        self.state.viewport(&self.gl, 0, 0, w, h);
     }
 
     /// Clears the framebuffer with the specified color.
@@ -194,9 +192,8 @@ impl Renderer {
         let (w, h) = self.logical_size_px;
         (
             (w as f32 * self.pixel_ratio).round() as i32,
-            (h as f32 * self.pixel_ratio).round() as i32
+            (h as f32 * self.pixel_ratio).round() as i32,
         )
-
     }
 
     /// Checks if the WebGL context has been lost.

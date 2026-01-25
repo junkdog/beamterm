@@ -270,11 +270,7 @@ impl Atlas for StaticFontAtlas {
 
     fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
         // snap to specific scale values to avoid arbitrary fractional scaling
-        if pixel_ratio <= 0.5 {
-            0.5
-        } else {
-            pixel_ratio.round().max(1.0)
-        }
+        if pixel_ratio <= 0.5 { 0.5 } else { pixel_ratio.round().max(1.0) }
     }
 
     fn texture_cell_size(&self) -> (i32, i32) {
