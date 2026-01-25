@@ -24,6 +24,10 @@ All notable changes to this project will be documented in this file.
 - *(wasm)* Handle zero-width characters in batch.text() (#79)
 - *(dynamic-atlas)* Use dynamic batch size to prevent glyph clipping at large font sizes (#78)
 
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.13.0
+
 ## [beamterm-v0.12.0] - 2026-01-08
 
 ### 🚀 Features

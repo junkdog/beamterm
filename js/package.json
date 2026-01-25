@@ -1,6 +1,6 @@
 {
   "name": "@beamterm/renderer",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "High-performance WebGL2 terminal renderer with sub-millisecond render times",
   "author": "Adrian Papari",
   "license": "MIT",
@@ -39,7 +39,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/junkdog/beamterm.git",
+    "url": "git+https://github.com/junkdog/beamterm.git",
     "directory": "js"
   },
   "bugs": {
