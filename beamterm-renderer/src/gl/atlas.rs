@@ -114,7 +114,7 @@ pub(crate) trait Atlas {
     ///
     /// - **Static atlas**: Returns snapped scale values (0.5, 1.0, 2.0, 3.0, etc.)
     ///   to avoid arbitrary fractional scaling of pre-rasterized glyphs.
-    ///   DPR < 0.75 snaps to 0.5, otherwise rounds to nearest integer.
+    ///   DPR <= 0.5 snaps to 0.5, otherwise rounds to nearest integer (minimum 1.0).
     /// - **Dynamic atlas**: Returns `1.0` - glyphs are re-rasterized at the exact DPR,
     ///   so `cell_size()` already returns the correctly-scaled physical size
     ///

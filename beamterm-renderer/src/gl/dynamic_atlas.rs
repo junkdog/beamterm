@@ -383,9 +383,10 @@ impl Atlas for DynamicFontAtlas {
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
-        // Clear cache and re-upload ASCII glyphs
+        // Clear cache, lookups, and missing glyph tracker, then re-upload ASCII glyphs
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
+        self.glyph_tracker.clear();
         self.upload_ascii_glyphs(gl)?;
 
         Ok(pixel_ratio)
