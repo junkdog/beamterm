@@ -653,12 +653,14 @@ impl BeamtermRenderer {
             .require_modifier_keys(require_modifiers.into());
         let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
 
-        let mouse_handler = TerminalMouseHandler::new(
+        let mut mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
             self.terminal_grid.clone(),
             handler.create_event_handler(selection_tracker),
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
+
+        self.update_mouse_metrics(&mut mouse_handler);
 
         self.mouse_handler = Some(mouse_handler);
         Ok(())
@@ -686,12 +688,14 @@ impl BeamtermRenderer {
             }
         };
 
-        let mouse_handler = TerminalMouseHandler::new(
+        let mut mouse_handler = TerminalMouseHandler::new(
             self.renderer.canvas(),
             self.terminal_grid.clone(),
             handler_closure,
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
+
+        self.update_mouse_metrics(&mut mouse_handler);
 
         self.mouse_handler = Some(mouse_handler);
         Ok(())
@@ -835,7 +839,9 @@ impl BeamtermRenderer {
         if let Some(mouse_handler) = &mut self.mouse_handler {
             let grid = self.terminal_grid.borrow();
             let (cols, rows) = grid.terminal_size();
-            let (cell_width, cell_height) = grid.cell_size();
+            let (phys_width, phys_height) = grid.cell_size();
+            let cell_width = phys_width as f32 / self.current_pixel_ratio;
+            let cell_height = phys_height as f32 / self.current_pixel_ratio;
             mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
         }
     }
@@ -923,6 +929,15 @@ impl BeamtermRenderer {
         self.update_mouse_handler_metrics();
 
         Ok(())
+    }
+
+    fn update_mouse_metrics(&mut self, mouse_handler: &mut TerminalMouseHandler) {
+        let grid = self.terminal_grid.borrow();
+        let (cols, rows) = grid.terminal_size();
+        let (phys_w, phys_h) = grid.cell_size();
+        let css_w = phys_w as f32 / self.current_pixel_ratio;
+        let css_h = phys_h as f32 / self.current_pixel_ratio;
+        mouse_handler.update_metrics(cols, rows, css_w, css_h);
     }
 }
 

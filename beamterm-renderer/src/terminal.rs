@@ -404,7 +404,9 @@ impl Terminal {
         if let Some(mouse_input) = &mut self.mouse_handler {
             let grid = self.grid.borrow();
             let (cols, rows) = grid.terminal_size();
-            let (cell_width, cell_height) = grid.cell_size();
+            let (phys_width, phys_height) = grid.cell_size();
+            let cell_width = phys_width as f32 / self.current_pixel_ratio;
+            let cell_height = phys_height as f32 / self.current_pixel_ratio;
             mouse_input.update_metrics(cols, rows, cell_width, cell_height);
         }
     }
@@ -690,6 +692,18 @@ impl TerminalBuilder {
 
         // initialize mouse handler if needed
         let selection = grid.borrow().selection_tracker();
+
+        // helper to fix mouse metrics: grid.cell_size() returns physical pixels,
+        // but mouse events use CSS pixels. Convert by dividing by DPR.
+        let fix_mouse_metrics = |mouse_input: &mut TerminalMouseHandler| {
+            let g = grid.borrow();
+            let (cols, rows) = g.terminal_size();
+            let (phys_w, phys_h) = g.cell_size();
+            let css_w = phys_w as f32 / raw_pixel_ratio;
+            let css_h = phys_h as f32 / raw_pixel_ratio;
+            mouse_input.update_metrics(cols, rows, css_w, css_h);
+        };
+
         match self.input_handler {
             None => Ok(Terminal {
                 renderer,
@@ -707,6 +721,7 @@ impl TerminalBuilder {
                     handler.create_event_handler(selection),
                 )?;
                 mouse_input.default_input_handler = Some(handler);
+                fix_mouse_metrics(&mut mouse_input);
 
                 Ok(Terminal {
                     renderer,
@@ -717,8 +732,9 @@ impl TerminalBuilder {
                 })
             },
             Some(InputHandler::Mouse(callback)) => {
-                let mouse_input =
+                let mut mouse_input =
                     TerminalMouseHandler::new(renderer.canvas(), grid.clone(), callback)?;
+                fix_mouse_metrics(&mut mouse_input);
                 Ok(Terminal {
                     renderer,
                     grid,

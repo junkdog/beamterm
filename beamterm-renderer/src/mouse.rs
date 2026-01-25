@@ -282,9 +282,11 @@ impl TerminalMouseHandler {
         let shared_handler = Rc::new(RefCell::new(event_handler));
 
         // Get grid metrics for coordinate conversion
+        // Note: cell_size() returns physical pixels; the caller should update
+        // metrics with CSS pixel values via update_metrics() after construction.
         let (cell_width, cell_height) = grid.borrow().cell_size();
         let (cols, rows) = grid.borrow().terminal_size();
-        let metrics = TerminalMetrics::new(cols, rows, cell_width, cell_height);
+        let metrics = TerminalMetrics::new(cols, rows, cell_width as f32, cell_height as f32);
 
         // Create pixel-to-cell coordinate converter
         let metrics_ref = metrics.clone_ref();
@@ -293,8 +295,8 @@ impl TerminalMouseHandler {
             let y = event.offset_y() as f32;
 
             let m = metrics_ref.borrow();
-            let col = (x / m.cell_width as f32).floor() as u16;
-            let row = (y / m.cell_height as f32).floor() as u16;
+            let col = (x / m.cell_width).floor() as u16;
+            let row = (y / m.cell_height).floor() as u16;
 
             if col < m.cols && row < m.rows { Some((col, row)) } else { None }
         };
@@ -363,9 +365,9 @@ impl TerminalMouseHandler {
     /// # Arguments
     /// * `cols` - New column count
     /// * `rows` - New row count
-    /// * `cell_width` - New cell width in pixels
-    /// * `cell_height` - New cell height in pixels
-    pub fn update_metrics(&mut self, cols: u16, rows: u16, cell_width: i32, cell_height: i32) {
+    /// * `cell_width` - New cell width in CSS pixels (can be fractional)
+    /// * `cell_height` - New cell height in CSS pixels (can be fractional)
+    pub fn update_metrics(&mut self, cols: u16, rows: u16, cell_width: f32, cell_height: f32) {
         self.metrics
             .set(cols, rows, cell_width, cell_height);
     }
