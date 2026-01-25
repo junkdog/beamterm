@@ -213,7 +213,7 @@ impl Terminal {
     /// * `atlas_data` - Binary atlas data loaded from a `.atlas` file
     ///
     /// # Example
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use beamterm_renderer::{Terminal, FontAtlasData};
     ///
     /// let mut terminal = Terminal::builder("#canvas").build().unwrap();
@@ -570,7 +570,8 @@ impl TerminalBuilder {
     ///             .require_modifier_keys(ModifierKeys::SHIFT)
     ///             .trim_trailing_whitespace(true)
     ///     )
-    ///     .build()?;
+    ///     .build()
+    ///     .unwrap();
     /// ```
     pub fn mouse_selection_handler(mut self, configuration: MouseSelectOptions) -> Self {
         self.input_handler = Some(InputHandler::CopyOnSelect(configuration));
@@ -683,7 +684,7 @@ enum InputHandler {
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).
 pub(crate) fn is_double_width(grapheme: &str) -> bool {
-    grapheme.len() > 1 && grapheme.width() == 2
+    grapheme.len() > 1 && (emojis::get(grapheme).is_some() || grapheme.width() == 2)
 }
 
 /// Debug API exposed to browser console for terminal inspection.
@@ -813,5 +814,36 @@ impl From<web_sys::HtmlCanvasElement> for CanvasSource {
 impl<'a> From<&'a web_sys::HtmlCanvasElement> for CanvasSource {
     fn from(value: &'a web_sys::HtmlCanvasElement) -> Self {
         value.clone().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_double_width() {
+        // emoji
+        assert!(is_double_width("😀"));
+        assert!(is_double_width("👨‍👩‍👧")); // ZWJ sequence
+
+        [
+            "⌚", "⌛", "⏩", "⏳", "⏸", "⏺", "▪", "▫", "▶", "◀", "◻", "◾", "☔", "☕", "♈",
+            "♓", "♿", "⚓", "⚡", "⚪", "⚫", "⚽", "⚾", "⛄", "⛅", "⛎", "⛔", "⛪", "⛲",
+            "⛳", "⛵", "⛺", "⛽", "⤴", "⤵", "⬅", "⬇", "⬛", "⬜", "⭐", "⭕", "〰", "〽", "㊗",
+            "㊙", "⛈",
+        ]
+        .iter()
+        .for_each(|s| {
+            assert!(is_double_width(s), "Failed for emoji: {}", s);
+        });
+
+        // CJK
+        assert!(is_double_width("中"));
+        assert!(is_double_width("日"));
+
+        // single-width
+        assert!(!is_double_width("A"));
+        assert!(!is_double_width("→"));
     }
 }

@@ -329,21 +329,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_double_width() {
-        // emoji
-        assert!(is_double_width("😀"));
-        assert!(is_double_width("👨‍👩‍👧")); // ZWJ sequence
-
-        // CJK
-        assert!(is_double_width("中"));
-        assert!(is_double_width("日"));
-
-        // single-width
-        assert!(!is_double_width("A"));
-        assert!(!is_double_width("→"));
-    }
-
-    #[test]
     fn test_build_font_string() {
         assert_eq!(
             build_font_string("'Hack'", 16.0, FontStyle::Normal),
