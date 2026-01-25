@@ -272,4 +272,9 @@ impl Atlas for StaticFontAtlas {
         // Round to nearest integer to avoid fractional scaling of pre-rasterized glyphs
         pixel_ratio.round().max(1.0) as i32
     }
+
+    fn texture_cell_size(&self) -> (i32, i32) {
+        // Static atlas texture size equals cell_size (fixed resolution)
+        self.cell_size()
+    }
 }

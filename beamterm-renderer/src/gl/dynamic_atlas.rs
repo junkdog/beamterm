@@ -50,8 +50,8 @@ pub(crate) struct DynamicFontAtlas {
     symbol_lookup: RefCell<HashMap<u16, CompactString>>,
     /// Tracks glyphs pending rasterization/upload
     glyphs_pending_upload: PendingUploads,
-    /// The size of each character cell in pixels (without padding)
-    cell_size: (i32, i32),
+    /// The size of each character cell in physical pixels (without padding)
+    physical_cell_size: (i32, i32),
     /// Tracks glyphs that were requested but couldn't be rasterized
     glyph_tracker: GlyphTracker,
     /// Underline configuration
@@ -92,12 +92,6 @@ impl DynamicFontAtlas {
         let rasterizer = CanvasRasterizer::new(&font_family_css, effective_font_size)?;
         let physical_cell_size = Self::measure_cell_size(&rasterizer)?;
 
-        // Cell size in logical pixels (divide by pixel ratio)
-        let cell_size = (
-            (physical_cell_size.0 as f32 / pixel_ratio).round() as i32,
-            (physical_cell_size.1 as f32 / pixel_ratio).round() as i32,
-        );
-
         let padded_cell_size = (
             physical_cell_size.0 + FontAtlasData::PADDING * 2,
             physical_cell_size.1 + FontAtlasData::PADDING * 2,
@@ -110,7 +104,7 @@ impl DynamicFontAtlas {
             cache: RefCell::new(GlyphCache::new()),
             symbol_lookup: RefCell::new(HashMap::new()),
             glyphs_pending_upload: PendingUploads::new(),
-            cell_size,
+            physical_cell_size,
             glyph_tracker: GlyphTracker::new(),
             underline: LineDecoration::new(0.9, 0.05), // near bottom, thin
             strikethrough: LineDecoration::new(0.5, 0.05), // middle, thin
@@ -186,14 +180,9 @@ impl DynamicFontAtlas {
         pending: Vec<PendingGlyph>,
         rasterized: Vec<RasterizedGlyph>,
     ) -> Result<(), Error> {
-        // Use physical cell size for texture uploads (rasterized glyphs are at physical resolution)
-        let physical_cell_size = (
-            (self.cell_size.0 as f32 * self.pixel_ratio).round() as i32,
-            (self.cell_size.1 as f32 * self.pixel_ratio).round() as i32,
-        );
         let padded_cell_size = (
-            physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            physical_cell_size.1 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         let cell_w = padded_cell_size.0 as u32;
         let cell_h = padded_cell_size.1 as u32;
@@ -259,7 +248,7 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn cell_size(&self) -> (i32, i32) {
-        self.cell_size
+        self.physical_cell_size
     }
 
     fn bind(&self, gl: &WebGl2RenderingContext, texture_unit: u32) {
@@ -307,14 +296,9 @@ impl Atlas for DynamicFontAtlas {
     fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         self.texture.delete(gl);
 
-        // cell_size is logical pixels; compute physical size for texture
-        let physical_cell_size = (
-            (self.cell_size.0 as f32 * self.pixel_ratio).round() as i32,
-            (self.cell_size.1 as f32 * self.pixel_ratio).round() as i32,
-        );
         let padded_cell_size = (
-            physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            physical_cell_size.1 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
@@ -389,17 +373,13 @@ impl Atlas for DynamicFontAtlas {
             CanvasRasterizer::new(self.rasterizer.font_family(), effective_font_size)?;
 
         // Recalculate cell size from new rasterizer
-        let physical_cell_size = Self::measure_cell_size(&self.rasterizer)?;
-        self.cell_size = (
-            (physical_cell_size.0 as f32 / pixel_ratio).round() as i32,
-            (physical_cell_size.1 as f32 / pixel_ratio).round() as i32,
-        );
+        self.physical_cell_size = Self::measure_cell_size(&self.rasterizer)?;
 
         // Recreate texture with new dimensions
         self.texture.delete(gl);
         let padded_cell_size = (
-            physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            physical_cell_size.1 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
 
@@ -412,16 +392,20 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn cell_scale_for_dpr(&self, _pixel_ratio: f32) -> i32 {
-        // Dynamic atlas already returns logical cell size (physical / pixel_ratio),
-        // so no additional scaling is needed for layout
+        // Dynamic atlas cell_size() returns physical size, so no additional scaling needed
         1
+    }
+
+    fn texture_cell_size(&self) -> (i32, i32) {
+        // Physical cell size is the texture dimension
+        self.physical_cell_size
     }
 }
 
 impl std::fmt::Debug for DynamicFontAtlas {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynamicFontAtlas")
-            .field("cell_size", &self.cell_size)
+            .field("physical_cell_size", &self.physical_cell_size)
             .field("cache", &*self.cache.borrow())
             .finish_non_exhaustive()
     }

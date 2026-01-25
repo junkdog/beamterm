@@ -116,6 +116,15 @@ pub(crate) trait Atlas {
     ///   to avoid fractional scaling of pre-rasterized glyphs
     /// - **Dynamic atlas**: Returns `1` - cell_size() already returns logical size
     fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32;
+
+    /// Returns the texture cell size in physical pixels (for fragment shader calculations).
+    ///
+    /// This is used for computing padding fractions in the shader, which need to be
+    /// based on the actual texture dimensions rather than logical layout dimensions.
+    ///
+    /// - **Static atlas**: Same as `cell_size()` (texture is at fixed resolution)
+    /// - **Dynamic atlas**: Physical cell size (before dividing by pixel_ratio)
+    fn texture_cell_size(&self) -> (i32, i32);
 }
 
 pub(crate) struct FontAtlas {
@@ -223,6 +232,11 @@ impl FontAtlas {
     /// Returns the cell scale factor for layout calculations.
     pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> i32 {
         self.inner.cell_scale_for_dpr(pixel_ratio)
+    }
+
+    /// Returns the texture cell size in physical pixels.
+    pub(crate) fn texture_cell_size(&self) -> (i32, i32) {
+        self.inner.texture_cell_size()
     }
 }
 

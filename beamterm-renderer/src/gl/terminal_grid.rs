@@ -1164,14 +1164,15 @@ impl CellFragmentUbo {
     pub const BINDING_POINT: u32 = 1;
 
     fn new(atlas: &FontAtlas) -> Self {
-        let cell_size = atlas.cell_size();
+        // Use texture cell size for padding calculation (physical pixels in texture)
+        let texture_cell_size = atlas.texture_cell_size();
         let underline = atlas.underline();
         let strikethrough = atlas.strikethrough();
 
         Self {
             padding_frac: [
-                FontAtlasData::PADDING as f32 / cell_size.0 as f32,
-                FontAtlasData::PADDING as f32 / cell_size.1 as f32,
+                FontAtlasData::PADDING as f32 / texture_cell_size.0 as f32,
+                FontAtlasData::PADDING as f32 / texture_cell_size.1 as f32,
             ],
             underline_pos: underline.position,
             underline_thickness: underline.thickness,
