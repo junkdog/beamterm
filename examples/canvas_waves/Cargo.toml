@@ -5,10 +5,10 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ratzilla = { git = "https://github.com/junkdog/ratzilla", branch = "beamterm-latest" }
+ratzilla = { git = "https://github.com/orhun/ratzilla", branch = "main" }
 #ratzilla = { path = "../../../ratzilla" }
 console_error_panic_hook = "0.1.7"
-tachyonfx = { version = "0.22.0", default-features = false, features = ["wasm"] }
+tachyonfx = { git = "https://github.com/ratatui/tachyonfx", branch = "development", default-features = false, features = ["wasm"] }
 web-time = "1.1.0"
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
