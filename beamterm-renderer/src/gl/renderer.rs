@@ -100,18 +100,18 @@ impl Renderer {
     /// proper coordinate mapping.
     ///
     /// # Parameters
-    /// * `width` - New canvas width in pixels
-    /// * `height` - New canvas height in pixels
+    /// * `width` - New canvas width in logical (CSS) pixels
+    /// * `height` - New canvas height in logical (CSS) pixels
     pub fn resize(&mut self, width: i32, height: i32) {
         self.logical_size_px = (width, height);
         let (w, h) = self.physical_size();
 
         self.canvas.set_width(w as u32);
         self.canvas.set_height(h as u32);
-        self.canvas
+        let _ = self.canvas
             .style()
             .set_property("width", &format!("{width}px"));
-        self.canvas
+        let _ = self.canvas
             .style()
             .set_property("height", &format!("{height}px"));
         self.state.viewport(&self.gl, 0, 0, w, h);
