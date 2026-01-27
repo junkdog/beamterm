@@ -477,7 +477,7 @@ impl BeamtermRenderer {
     /// Create a new terminal renderer with the default embedded font atlas.
     #[wasm_bindgen(constructor)]
     pub fn new(canvas_id: &str) -> Result<BeamtermRenderer, JsValue> {
-        Self::with_static_atlas(canvas_id, None)
+        Self::with_static_atlas(canvas_id, None, None)
     }
 
     /// Create a terminal renderer with custom static font atlas data.
@@ -485,15 +485,21 @@ impl BeamtermRenderer {
     /// # Arguments
     /// * `canvas_id` - CSS selector for the canvas element
     /// * `atlas_data` - Binary atlas data (from .atlas file), or null for default
+    /// * `auto_resize_canvas_css` - Whether to automatically set canvas CSS dimensions
+    ///   on resize. Set to `false` when external CSS (flexbox, grid) controls sizing.
+    ///   Defaults to `true` if not specified.
     #[wasm_bindgen(js_name = "withStaticAtlas")]
     pub fn with_static_atlas(
         canvas_id: &str,
         atlas_data: Option<js_sys::Uint8Array>,
+        auto_resize_canvas_css: Option<bool>,
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
+        let auto_resize = auto_resize_canvas_css.unwrap_or(true);
+
         // Setup renderer with exact pixel ratio for HiDPI
-        let mut renderer = Renderer::create(canvas_id)
+        let mut renderer = Renderer::create(canvas_id, auto_resize)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
         let current_pixel_ratio = crate::js::device_pixel_ratio();
         renderer.set_pixel_ratio(current_pixel_ratio);
@@ -536,6 +542,9 @@ impl BeamtermRenderer {
     /// * `canvas_id` - CSS selector for the canvas element
     /// * `font_family` - Array of font family names (e.g., `["Hack", "JetBrains Mono"]`)
     /// * `font_size` - Font size in pixels
+    /// * `auto_resize_canvas_css` - Whether to automatically set canvas CSS dimensions
+    ///   on resize. Set to `false` when external CSS (flexbox, grid) controls sizing.
+    ///   Defaults to `true` if not specified.
     ///
     /// # Example
     /// ```javascript
@@ -550,11 +559,14 @@ impl BeamtermRenderer {
         canvas_id: &str,
         font_family: js_sys::Array,
         font_size: f32,
+        auto_resize_canvas_css: Option<bool>,
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
+        let auto_resize = auto_resize_canvas_css.unwrap_or(true);
+
         // Setup renderer with exact pixel ratio for HiDPI
-        let mut renderer = Renderer::create(canvas_id)
+        let mut renderer = Renderer::create(canvas_id, auto_resize)
             .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
         let current_pixel_ratio = crate::js::device_pixel_ratio();
         renderer.set_pixel_ratio(current_pixel_ratio);
