@@ -662,9 +662,8 @@ impl TerminalBuilder {
     /// Builds the terminal with the configured options.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
-        let mut renderer =
-            Self::create_renderer(self.canvas, self.auto_resize_canvas_css)?
-                .canvas_padding_color(self.canvas_padding_color, );
+        let mut renderer = Self::create_renderer(self.canvas, self.auto_resize_canvas_css)?
+            .canvas_padding_color(self.canvas_padding_color);
 
         // Always use exact DPR for canvas sizing (physical pixels)
         // Cell scaling is handled separately by each atlas type
@@ -766,13 +765,12 @@ impl TerminalBuilder {
         })
     }
 
-    fn create_renderer(
-        canvas: CanvasSource,
-        auto_resize_css: bool
-    ) -> Result<Renderer, Error> {
+    fn create_renderer(canvas: CanvasSource, auto_resize_css: bool) -> Result<Renderer, Error> {
         let renderer = match canvas {
             CanvasSource::Id(id) => Renderer::create(&id, auto_resize_css)?,
-            CanvasSource::Element(element) => Renderer::create_with_canvas(element, auto_resize_css)?,
+            CanvasSource::Element(element) => {
+                Renderer::create_with_canvas(element, auto_resize_css)?
+            },
         };
         Ok(renderer)
     }

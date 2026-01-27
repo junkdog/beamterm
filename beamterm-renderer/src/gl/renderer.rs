@@ -77,7 +77,7 @@ impl Renderer {
     /// * `Err(Error)` - Failed to create WebGL context or initialize renderer
     pub fn create_with_canvas(
         canvas: HtmlCanvasElement,
-        auto_resize_canvas_css: bool
+        auto_resize_canvas_css: bool,
     ) -> Result<Self, Error> {
         let (width, height) = (canvas.width() as i32, canvas.height() as i32);
 
