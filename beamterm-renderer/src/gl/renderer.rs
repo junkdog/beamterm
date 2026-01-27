@@ -25,6 +25,7 @@ pub struct Renderer {
     canvas_padding_color: (f32, f32, f32),
     logical_size_px: (i32, i32),
     pixel_ratio: f32,
+    auto_resize_canvas_css: bool,
 }
 
 impl Renderer {
@@ -44,9 +45,9 @@ impl Renderer {
     /// # Errors
     /// * `Error::UnableToRetrieveCanvas` - Canvas element not found
     /// * `Error::FailedToRetrieveWebGl2RenderingContext` - WebGL2 not supported or failed to initialize
-    pub fn create(canvas_id: &str) -> Result<Self, Error> {
+    pub fn create(canvas_id: &str, auto_resize_canvas_css: bool) -> Result<Self, Error> {
         let canvas = js::get_canvas_by_id(canvas_id)?;
-        Self::create_with_canvas(canvas)
+        Self::create_with_canvas(canvas, auto_resize_canvas_css)
     }
 
     /// Sets the background color for the canvas area outside the terminal grid.
@@ -74,7 +75,10 @@ impl Renderer {
     /// # Returns
     /// * `Ok(Renderer)` - Successfully created renderer
     /// * `Err(Error)` - Failed to create WebGL context or initialize renderer
-    pub fn create_with_canvas(canvas: HtmlCanvasElement) -> Result<Self, Error> {
+    pub fn create_with_canvas(
+        canvas: HtmlCanvasElement,
+        auto_resize_canvas_css: bool
+    ) -> Result<Self, Error> {
         let (width, height) = (canvas.width() as i32, canvas.height() as i32);
 
         // initialize WebGL context
@@ -88,6 +92,7 @@ impl Renderer {
             canvas_padding_color: (0.0, 0.0, 0.0),
             logical_size_px: (width, height),
             pixel_ratio: 1.0,
+            auto_resize_canvas_css,
         };
         renderer.resize(width as _, height as _);
         Ok(renderer)
@@ -108,12 +113,18 @@ impl Renderer {
 
         self.canvas.set_width(w as u32);
         self.canvas.set_height(h as u32);
-        let _ = self.canvas
-            .style()
-            .set_property("width", &format!("{width}px"));
-        let _ = self.canvas
-            .style()
-            .set_property("height", &format!("{height}px"));
+
+        if self.auto_resize_canvas_css {
+            let _ = self
+                .canvas
+                .style()
+                .set_property("width", &format!("{width}px"));
+            let _ = self
+                .canvas
+                .style()
+                .set_property("height", &format!("{height}px"));
+        }
+
         self.state.viewport(&self.gl, 0, 0, w, h);
     }
 

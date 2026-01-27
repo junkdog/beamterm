@@ -475,6 +475,7 @@ pub struct TerminalBuilder {
     input_handler: Option<InputHandler>,
     canvas_padding_color: u32,
     enable_debug_api: bool,
+    auto_resize_canvas_css: bool,
 }
 
 #[derive(Debug)]
@@ -501,6 +502,7 @@ impl TerminalBuilder {
             input_handler: None,
             canvas_padding_color: 0x000000,
             enable_debug_api: false,
+            auto_resize_canvas_css: true,
         }
     }
 
@@ -591,6 +593,19 @@ impl TerminalBuilder {
         self
     }
 
+    /// Controls whether the renderer automatically updates the canvas CSS
+    /// `width` and `height` style properties on resize.
+    ///
+    /// Set to `false` when external CSS (flexbox, grid, percentages) controls the
+    /// canvas dimensions, such as in responsive layouts.
+    ///
+    /// When `true` (the default), the renderer sets `style.width` and `style.height`
+    /// to match the logical size. When `false`, the canvas CSS size is left unchanged.
+    pub fn auto_resize_canvas_css(mut self, enabled: bool) -> Self {
+        self.auto_resize_canvas_css = enabled;
+        self
+    }
+
     /// Sets a callback for handling terminal mouse input events.
     pub fn mouse_input_handler<F>(mut self, callback: F) -> Self
     where
@@ -648,7 +663,8 @@ impl TerminalBuilder {
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
         let mut renderer =
-            Self::create_renderer(self.canvas)?.canvas_padding_color(self.canvas_padding_color);
+            Self::create_renderer(self.canvas, self.auto_resize_canvas_css)?
+                .canvas_padding_color(self.canvas_padding_color, );
 
         // Always use exact DPR for canvas sizing (physical pixels)
         // Cell scaling is handled separately by each atlas type
@@ -659,7 +675,7 @@ impl TerminalBuilder {
 
         // load font atlas
         let gl = renderer.gl();
-        let mut atlas: FontAtlas = match self.atlas_kind {
+        let atlas: FontAtlas = match self.atlas_kind {
             AtlasKind::Static(atlas_data) => {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
@@ -750,10 +766,13 @@ impl TerminalBuilder {
         })
     }
 
-    fn create_renderer(canvas: CanvasSource) -> Result<Renderer, Error> {
+    fn create_renderer(
+        canvas: CanvasSource,
+        auto_resize_css: bool
+    ) -> Result<Renderer, Error> {
         let renderer = match canvas {
-            CanvasSource::Id(id) => Renderer::create(&id)?,
-            CanvasSource::Element(element) => Renderer::create_with_canvas(element)?,
+            CanvasSource::Id(id) => Renderer::create(&id, auto_resize_css)?,
+            CanvasSource::Element(element) => Renderer::create_with_canvas(element, auto_resize_css)?,
         };
         Ok(renderer)
     }
