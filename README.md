@@ -66,7 +66,7 @@ beamterm supports two font atlas strategies with distinct trade-offs:
 | **Font source**   | Pre-generated `.atlas` file            | Any system or web font                       |
 | **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache |
 | **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via browser Canvas API             |
-| **Capacity**      | 1024 glyphs × 4 styles + 4096 emoji    | 2048 normal + 1024 wide; LRU evicts inactive |
+| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive |
 | **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                   |
 
 **Static Atlas** is the default. All glyphs are pre-rasterized and immediately available. ASCII
