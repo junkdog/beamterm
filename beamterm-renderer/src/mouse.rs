@@ -152,9 +152,9 @@ pub enum MouseEventType {
     /// Mouse button was clicked (pressed and released).
     Click = 3,
     /// Mouse cursor entered the terminal area.
-    Entered = 4,
+    MouseEnter = 4,
     /// Mouse cursor left the terminal area.
-    Exited = 5,
+    MouseLeave = 5,
 }
 
 impl MouseEventType {
@@ -165,8 +165,8 @@ impl MouseEventType {
             "mouseup" => Some(Self::MouseUp),
             "mousemove" => Some(Self::MouseMove),
             "click" => Some(Self::Click),
-            "mouseenter" => Some(Self::Entered),
-            "mouseleave" => Some(Self::Exited),
+            "mouseenter" => Some(Self::MouseEnter),
+            "mouseleave" => Some(Self::MouseLeave),
             _ => None,
         }
     }
@@ -622,8 +622,8 @@ fn create_mouse_event_closure(
 
         // For enter/exit events, we don't need valid cell coordinates
         let (col, row) = match event_type {
-            MouseEventType::Entered | MouseEventType::Exited => {
-                // Use (0, 0) for enter/exit events as they may occur outside the grid
+            MouseEventType::MouseEnter | MouseEventType::MouseLeave => {
+                // Use (0, 0) for enter/leave events as they may occur outside the grid
                 (0, 0)
             },
             _ => {
