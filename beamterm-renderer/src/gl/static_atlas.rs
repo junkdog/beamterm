@@ -166,6 +166,15 @@ impl Atlas for StaticFontAtlas {
         }
     }
 
+    fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
+        // Static atlas: ASCII chars 0x20-0x7F have glyph_id == char code
+        if (0x20..0x80).contains(&glyph_id) {
+            Some(glyph_id as u8 as char)
+        } else {
+            None
+        }
+    }
+
     fn glyph_tracker(&self) -> &GlyphTracker {
         &self.glyph_tracker
     }

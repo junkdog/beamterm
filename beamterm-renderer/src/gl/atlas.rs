@@ -31,6 +31,11 @@ pub(crate) trait Atlas {
     /// Returns the symbol for the given glyph ID, if it exists
     fn get_symbol(&self, glyph_id: u16) -> Option<CompactString>;
 
+    /// Returns the ASCII character for the given glyph ID, if it represents an ASCII char.
+    ///
+    /// This is an optimized path for URL detection that avoids string allocation.
+    fn get_ascii_char(&self, glyph_id: u16) -> Option<char>;
+
     /// Returns a reference to the glyph tracker for accessing missing glyphs.
     fn glyph_tracker(&self) -> &GlyphTracker;
 
@@ -184,6 +189,10 @@ impl FontAtlas {
 
     pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.inner.get_symbol(glyph_id)
+    }
+
+    pub(crate) fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
+        self.inner.get_ascii_char(glyph_id)
     }
 
     pub(crate) fn glyph_tracker(&self) -> &GlyphTracker {

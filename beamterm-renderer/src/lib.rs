@@ -9,10 +9,12 @@ pub(crate) mod js;
 pub mod wasm;
 
 pub mod mouse;
+mod url;
 
 pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect};
 pub use beamterm_data::FontStyle;
 pub use terminal::*;
+pub use url::UrlMatch;
 
 pub use crate::{error::Error, gl::*};
 

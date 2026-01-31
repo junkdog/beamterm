@@ -5,8 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ratzilla = { git = "https://github.com/orhun/ratzilla", branch = "main" }
-#ratzilla = { path = "../../../ratzilla" }
+#ratzilla = { git = "https://github.com/orhun/ratzilla", branch = "main" }
+ratzilla = { path = "../../../ratzilla" }
 console_error_panic_hook = "0.1.7"
 tachyonfx = { git = "https://github.com/ratatui/tachyonfx", branch = "development", default-features = false, features = ["wasm"] }
 web-time = "1.1.0"

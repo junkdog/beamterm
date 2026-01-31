@@ -5,6 +5,7 @@ use compact_str::{CompactString, CompactStringExt};
 use web_sys::{WebGl2RenderingContext, console};
 
 use crate::{
+    CursorPosition,
     error::Error,
     gl::{
         CellIterator, CellQuery, Drawable, GL, RenderContext, ShaderProgram, StaticFontAtlas,
@@ -344,6 +345,20 @@ impl TerminalGrid {
         }
 
         text
+    }
+
+    /// Returns the ASCII character at the given position, if it's an ASCII char.
+    ///
+    /// Returns `None` for non-ASCII characters or out-of-bounds positions.
+    /// This is an optimized path for URL detection that avoids string allocation.
+    pub(crate) fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
+        let idx = cursor.row as usize * self.terminal_size.0 as usize + cursor.col as usize;
+        if idx < self.cells.len() {
+            let glyph_id = self.cells[idx].glyph_id();
+            self.atlas.get_ascii_char(glyph_id)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn hash_cells(&self, selection: CellQuery) -> u64 {

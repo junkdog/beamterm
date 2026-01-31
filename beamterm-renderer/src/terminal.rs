@@ -7,13 +7,14 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
-    TerminalGrid,
+    TerminalGrid, UrlMatch,
     gl::{CellQuery, ContextLossHandler},
     js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
         TerminalMouseHandler,
     },
+    url::find_url_at_cursor,
 };
 
 /// High-performance WebGL2 terminal renderer.
@@ -266,6 +267,14 @@ impl Terminal {
     /// Returns the textual content of the specified cell selection.
     pub fn get_text(&self, selection: CellQuery) -> CompactString {
         self.grid.borrow().get_text(selection)
+    }
+
+    /// Detects an HTTP/HTTPS URL at or around the given cell position.
+    ///
+    /// Returns None if no URL is found at this position.
+    pub fn find_url_at(&self, cursor: CursorPosition) -> Option<UrlMatch> {
+        let grid = self.grid.borrow();
+        find_url_at_cursor(cursor, &grid)
     }
 
     /// Renders the current terminal state to the canvas.
@@ -773,6 +782,31 @@ impl TerminalBuilder {
             },
         };
         Ok(renderer)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CursorPosition {
+    pub col: u16,
+    pub row: u16,
+}
+
+impl CursorPosition {
+    pub fn new(col: u16, row: u16) -> Self {
+        Self { col, row }
+    }
+
+    pub(crate) fn move_left(self, distance: u16) -> Option<CursorPosition> {
+        self.col
+            .checked_sub(distance)
+            .map(|col| CursorPosition::new(col, self.row))
+    }
+
+    pub(crate) fn move_right(self, distance: u16, row_length: u16) -> Option<CursorPosition> {
+        self.col
+            .checked_add(distance)
+            .map(|col| CursorPosition::new(col, self.row))
+            .filter(|&pos| pos.col < row_length)
     }
 }
 

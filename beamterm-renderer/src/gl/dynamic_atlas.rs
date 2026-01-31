@@ -12,7 +12,7 @@ use super::{
     GL, atlas,
     atlas::{Atlas, GlyphSlot, GlyphTracker, SlotId},
     canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph},
-    glyph_cache::GlyphCache,
+    glyph_cache::{ASCII_SLOTS, GlyphCache},
     texture::Texture,
 };
 use crate::error::Error;
@@ -264,9 +264,9 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
-        // ASCII characters (slots 0-94) are directly mapped: slot_id = codepoint - 0x20
-        // This matches upload_ascii_glyphs() which assigns slots 0-94 for 0x20-0x7E
-        if glyph_id < 95 {
+        // ASCII characters (slots 0..ASCII_SLOTS) are directly mapped: slot_id = codepoint - 0x20
+        // This matches upload_ascii_glyphs() which assigns slots for 0x20..=0x7E
+        if glyph_id < ASCII_SLOTS {
             let ch = (glyph_id + 0x20) as u8 as char;
             Some(ch.to_compact_string())
         } else {
@@ -274,6 +274,18 @@ impl Atlas for DynamicFontAtlas {
                 .borrow()
                 .get(&glyph_id)
                 .cloned()
+        }
+    }
+
+    fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
+        if glyph_id < ASCII_SLOTS {
+            Some((glyph_id + 0x20) as u8 as char)
+        } else {
+            // this atlas only encodes Normal-styled ascii glyphs
+            // per default, so we have to do a lookup for all other slots
+            self.get_symbol(glyph_id)
+                .map(|s| s.chars().next().unwrap())
+                .filter(|&ch| ch.is_ascii())
         }
     }
 
