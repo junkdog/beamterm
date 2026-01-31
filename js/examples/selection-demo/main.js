@@ -103,6 +103,9 @@ class SelectionDemo {
             this.renderer.resize(canvas.width, canvas.height);
             this.size = this.renderer.terminalSize();
 
+            // Set up URL click handler (works independently of selection)
+            this.setupUrlClickHandler();
+
             // Render initial content
             this.renderSampleContent();
 
@@ -125,6 +128,64 @@ class SelectionDemo {
                 // Track hovered cell for highlighting
                 this.hoveredCell = { col: mouseEvent.col, row: mouseEvent.row };
                 this.updateStatus(`Mouse ${eventTypeStr} at (${mouseEvent.col}, ${mouseEvent.row}) - Enable selection to select text`);
+            }
+        });
+    }
+
+    setupUrlClickHandler() {
+        // Click handler for opening URLs (only on actual clicks, not drags)
+        const canvas = document.getElementById('terminal');
+        let mouseDownPos = null;
+        let lastHoveredUrl = null;
+
+        canvas.addEventListener('mousedown', (e) => {
+            mouseDownPos = { x: e.clientX, y: e.clientY };
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!this.renderer || !mouseDownPos || !this.selectionEnabled) return;
+
+            // Check if this was a drag (mouse moved more than 5px)
+            const dx = e.clientX - mouseDownPos.x;
+            const dy = e.clientY - mouseDownPos.y;
+            const wasDrag = Math.sqrt(dx * dx + dy * dy) > 5;
+
+            if (wasDrag) return; // Don't open URL if user was selecting text
+
+            const rect = canvas.getBoundingClientRect();
+            const cellSize = this.renderer.cellSize();
+            const col = Math.floor((e.clientX - rect.left) / cellSize.width);
+            const row = Math.floor((e.clientY - rect.top) / cellSize.height);
+
+            const urlMatch = this.renderer.findUrlAt(col, row);
+            if (urlMatch) {
+                console.log(`🔗 Opening URL: ${urlMatch.url}`);
+                window.open(urlMatch.url, '_blank');
+            }
+        });
+
+        // Hover feedback for URLs (only when selection is enabled)
+        canvas.addEventListener('mousemove', (e) => {
+            if (!this.renderer || !this.selectionEnabled) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const cellSize = this.renderer.cellSize();
+            const col = Math.floor((e.clientX - rect.left) / cellSize.width);
+            const row = Math.floor((e.clientY - rect.top) / cellSize.height);
+
+            const urlMatch = this.renderer.findUrlAt(col, row);
+            if (urlMatch) {
+                if (lastHoveredUrl !== urlMatch.url) {
+                    lastHoveredUrl = urlMatch.url;
+                    canvas.style.cursor = 'pointer';
+                    this.updateStatus(`🔗 ${urlMatch.url}`);
+                }
+            } else if (lastHoveredUrl) {
+                lastHoveredUrl = null;
+                canvas.style.cursor = 'default';
+                const modeStr = this.selectionModeEl.value;
+                const modifierDesc = this.getModifierDescription();
+                this.updateStatus(`Selection enabled (${modeStr} mode) - ${modifierDesc} to select`);
             }
         });
     }
@@ -159,7 +220,7 @@ class SelectionDemo {
             this.disableBtn.disabled = false;
 
             const modeStr = this.selectionModeEl.value;
-            this.updateStatus(`Selection enabled (${modeStr} mode) - ${modifierDesc} and drag to select text`);
+            this.updateStatus(`Selection enabled (${modeStr} mode) - ${modifierDesc} to select`);
 
             console.log('✅ Selection enabled with mode:', modeStr, 'modifiers:', modifierDesc);
         } catch (error) {
@@ -224,6 +285,11 @@ class SelectionDemo {
             "}",
             "",
             "selectText(SelectionMode.Linear);",
+            "",
+            "Clickable URLs (when selection is enabled):",
+            "• Repository: https://github.com/junkdog/beamterm",
+            "• Rust crate: https://crates.io/crates/beamterm-renderer",
+            "• Wikipedia: https://en.wikipedia.org/wiki/WebGL",
             ""
         ];
 
@@ -236,10 +302,13 @@ class SelectionDemo {
             let lineStyle = style().fg(0xc0caf5);
 
             // Color code different types of content
-            if (line.startsWith("🖱️") || line.startsWith("Try ") || line.startsWith("Sample content")) {
+            if (line.startsWith("🖱️") || line.startsWith("Try ") || line.startsWith("Sample content") || line.startsWith("Clickable URLs")) {
                 lineStyle = style().bold().fg(0x7aa2f7);
             } else if (line.startsWith("•") || line.startsWith("┌") || line.startsWith("│") || line.startsWith("├") || line.startsWith("└")) {
                 lineStyle = style().fg(0x9ece6a);
+            } else if (line.includes("https://")) {
+                // URLs get underline styling
+                lineStyle = style().underline().fg(0x73daca);
             } else if (line.includes("function") || line.includes("renderer.") || line.includes("console.")) {
                 lineStyle = style().fg(0x7dcfff);
             } else if (line.startsWith("    ")) {
@@ -309,6 +378,7 @@ async function main() {
 
         console.log('✅ Selection demo ready!');
         console.log('💡 Click "Enable Selection" and try both Linear and Block modes');
+        console.log('🔗 Click on URLs to open them (when selection is enabled)');
         
         demo.startAnimation();
 
