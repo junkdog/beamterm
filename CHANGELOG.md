@@ -2,11 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(terminal)* Detect url with `Terminal::find_url_at()` (#87)
+- *(mouse)* Extend mouse events with `Click`, `MouseEnter` and `MouseLeave` (#88)
+
 ## [beamterm-v0.14.0] - 2026-01-27
 
 ### 🚀 Features
 
 - *(renderer)* Add `auto_resize_canvas_css` option to `TerminalBuilder` (#85)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm 0.14.0
 
 ## [beamterm-v0.13.0] - 2026-01-25
 
