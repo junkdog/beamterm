@@ -6,14 +6,15 @@ use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
-    TerminalGrid,
+    CellData, CursorPosition, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode,
+    StaticFontAtlas, TerminalGrid, UrlMatch,
     gl::{CellQuery, ContextLossHandler},
     js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
         TerminalMouseHandler,
     },
+    url::find_url_at_cursor,
 };
 
 /// High-performance WebGL2 terminal renderer.
@@ -266,6 +267,21 @@ impl Terminal {
     /// Returns the textual content of the specified cell selection.
     pub fn get_text(&self, selection: CellQuery) -> CompactString {
         self.grid.borrow().get_text(selection)
+    }
+
+    /// Detects an HTTP/HTTPS URL at or around the given cell position.
+    ///
+    /// Scans left from the cursor to find a URL scheme (`http://` or `https://`),
+    /// then scans right to find the URL end. Handles trailing punctuation and
+    /// unbalanced parentheses (e.g., Wikipedia URLs).
+    ///
+    /// Returns `None` if no URL is found at the cursor position.
+    ///
+    /// **Note:** Only detects URLs within a single row. URLs that wrap across
+    /// multiple lines are not supported.
+    pub fn find_url_at(&self, cursor: CursorPosition) -> Option<UrlMatch> {
+        let grid = self.grid.borrow();
+        find_url_at_cursor(cursor, &grid)
     }
 
     /// Renders the current terminal state to the canvas.

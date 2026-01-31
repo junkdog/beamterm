@@ -92,9 +92,7 @@ impl Shader for WaveInterference {
         let elapsed_cos = elapsed.cos();
 
         // apply effect to each cell in the area
-        let cell_iter = self.cell_iter(buf, area);
-
-        cell_iter.for_each_cell(|pos, cell| {
+        self.cell_iter(buf, area).for_each_cell(|pos, cell| {
             let pos = (pos.x as f32, pos.y as f32);
             let normalized = calc_wave_amplitude(elapsed, pos, &waves);
             assert!(
@@ -135,8 +133,7 @@ impl Shader for WaveInterference {
     }
 
     fn cell_filter(&self) -> Option<&CellFilter> {
-        // self.cell_filter.as_ref().map(|f| f.filter_ref())
-        None
+        self.cell_filter.as_ref().map(|f| f.filter_ref())
     }
 
     fn filter_processor(&self) -> Option<&FilterProcessor> {

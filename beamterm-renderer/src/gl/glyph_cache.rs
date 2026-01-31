@@ -12,7 +12,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::gl::atlas::{GlyphSlot, SlotId};
 
 /// Pre-allocated slots for normal-styled ASCII glyphs (0x20..0x7E)
-const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
+pub(super) const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
 
 /// Normal glyphs: slots 0..2048
 const NORMAL_CAPACITY: usize = 2048;

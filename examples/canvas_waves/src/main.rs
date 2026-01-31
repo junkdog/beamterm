@@ -4,7 +4,7 @@ mod wave_effect;
 
 use ratzilla::ratatui::Terminal;
 use ratzilla::backend::webgl2::{FontAtlasData, WebGl2Backend, WebGl2BackendOptions};
-use ratzilla::WebRenderer;
+use ratzilla::{FontAtlasConfig, WebRenderer};
 use tachyonfx::{EffectRenderer, IntoEffect};
 use wave_effect::WaveInterference;
 
@@ -29,7 +29,7 @@ fn main() -> std::io::Result<()> {
 
     let backend = WebGl2Backend::new_with_options(
         WebGl2BackendOptions::new()
-            .font_atlas(font_atlas)
+            .font_atlas_config(FontAtlasConfig::Static(font_atlas))
             .measure_performance(true)
             .grid_id("container")
             .enable_console_debug_api()

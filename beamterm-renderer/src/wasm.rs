@@ -18,6 +18,8 @@ use crate::{
         DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
         TerminalMouseEvent, TerminalMouseHandler,
     },
+    position::CursorPosition,
+    url::find_url_at_cursor,
 };
 
 /// JavaScript wrapper for the terminal renderer
@@ -163,6 +165,36 @@ impl ModifierKeys {
 #[derive(Debug, Clone)]
 pub struct CellQuery {
     inner: RustCellQuery,
+}
+
+/// Result of URL detection at a terminal position.
+///
+/// Contains the detected URL string and a `CellQuery` for highlighting
+/// or extracting the URL region.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct UrlMatch {
+    /// The detected URL string
+    url: String,
+    /// Query for the URL's cell range
+    query: CellQuery,
+}
+
+#[wasm_bindgen]
+impl UrlMatch {
+    /// Returns the detected URL string.
+    #[wasm_bindgen(getter)]
+    pub fn url(&self) -> String {
+        self.url.clone()
+    }
+
+    /// Returns a `CellQuery` for the URL's position in the terminal grid.
+    ///
+    /// This can be used for highlighting or extracting text.
+    #[wasm_bindgen(getter)]
+    pub fn query(&self) -> CellQuery {
+        self.query.clone()
+    }
 }
 
 #[wasm_bindgen]
@@ -720,6 +752,39 @@ impl BeamtermRenderer {
             .borrow()
             .get_text(query.inner)
             .to_string()
+    }
+
+    /// Detects an HTTP/HTTPS URL at or around the given cell position.
+    ///
+    /// Scans left from the position to find a URL scheme (`http://` or `https://`),
+    /// then scans right to find the URL end. Handles trailing punctuation and
+    /// unbalanced parentheses (e.g., Wikipedia URLs).
+    ///
+    /// Returns `undefined` if no URL is found at the position.
+    ///
+    /// **Note:** Only detects URLs within a single row. URLs that wrap across
+    /// multiple lines are not supported.
+    ///
+    /// # Example
+    /// ```javascript
+    /// // In a mouse handler:
+    /// renderer.setMouseHandler((event) => {
+    ///     const match = renderer.findUrlAt(event.col, event.row);
+    ///     if (match) {
+    ///         console.log("URL found:", match.url);
+    ///         // match.query can be used for highlighting
+    ///     }
+    /// });
+    /// ```
+    #[wasm_bindgen(js_name = "findUrlAt")]
+    pub fn find_url_at(&self, col: u16, row: u16) -> Option<UrlMatch> {
+        let cursor = CursorPosition::new(col, row);
+        let grid = self.terminal_grid.borrow();
+
+        find_url_at_cursor(cursor, &grid).map(|m| UrlMatch {
+            url: m.url.to_string(),
+            query: CellQuery { inner: m.query },
+        })
     }
 
     /// Copy text to the system clipboard
