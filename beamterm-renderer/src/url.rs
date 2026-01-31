@@ -1,6 +1,6 @@
 use compact_str::CompactString;
 
-use crate::{CursorPosition, SelectionMode, TerminalGrid, gl::CellQuery, select};
+use crate::{SelectionMode, TerminalGrid, gl::CellQuery, position::CursorPosition, select};
 
 /// Result of URL detection containing the query and extracted URL text.
 pub struct UrlMatch {
@@ -113,16 +113,18 @@ fn find_scheme_start(
 /// Checks if a sequence of characters matches starting at the given position.
 fn matches_sequence(grid: &TerminalGrid, start: CursorPosition, seq: &str, cols: u16) -> bool {
     let mut pos = start;
-    for ch in seq.chars() {
+    let char_count = seq.chars().count();
+
+    for (i, ch) in seq.chars().enumerate() {
         if grid.get_ascii_char_at(pos) != Some(ch) {
             return false;
         }
-        // Move right for next character (except for last)
-        if let Some(next) = pos.move_right(1, cols) {
-            pos = next;
-        } else {
-            // Can't move right but we matched - only valid if this was the last char
-            return false;
+        // Move right for next character, but not after the last one
+        if i < char_count - 1 {
+            match pos.move_right(1, cols) {
+                Some(next) => pos = next,
+                None => return false, // Can't advance but more chars remain
+            }
         }
     }
     true
