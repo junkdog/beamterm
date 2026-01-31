@@ -332,9 +332,7 @@ impl TerminalMouseHandler {
                     event_type,
                     on_mouse_event.as_ref().unchecked_ref(),
                 )
-                .map_err(|_| {
-                    Error::Callback(format!("Failed to add {event_type} listener"))
-                })?;
+                .map_err(|_| Error::Callback(format!("Failed to add {event_type} listener")))?;
         }
 
         Ok(Self {
