@@ -85,6 +85,12 @@ pub enum MouseEventType {
     MouseUp,
     /// Mouse moved
     MouseMove,
+    /// Mouse button clicked (pressed and released)
+    Click,
+    /// Mouse cursor entered the terminal area
+    Entered,
+    /// Mouse cursor left the terminal area
+    Exited,
 }
 
 /// Mouse event data with terminal coordinates
@@ -1042,6 +1048,9 @@ impl From<TerminalMouseEvent> for MouseEvent {
             RustMouseEventType::MouseDown => MouseEventType::MouseDown,
             RustMouseEventType::MouseUp => MouseEventType::MouseUp,
             RustMouseEventType::MouseMove => MouseEventType::MouseMove,
+            RustMouseEventType::Click => MouseEventType::Click,
+            RustMouseEventType::Entered => MouseEventType::Entered,
+            RustMouseEventType::Exited => MouseEventType::Exited,
         };
 
         MouseEvent {

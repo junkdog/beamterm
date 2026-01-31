@@ -63,21 +63,20 @@ pub type MouseEventCallback = Box<dyn FnMut(TerminalMouseEvent, &TerminalGrid) +
 /// Internal type for shared event handler wrapped in Rc<RefCell>.
 type EventHandler = Rc<RefCell<dyn FnMut(TerminalMouseEvent, &TerminalGrid) + 'static>>;
 
+/// All mouse event types this handler listens to.
+const MOUSE_EVENTS: &[&str] =
+    &["mousedown", "mouseup", "mousemove", "click", "mouseenter", "mouseleave"];
+
 /// Handles mouse input events for a terminal grid.
 ///
 /// Converts browser mouse events into terminal grid coordinates and manages
 /// event handlers for mouse interactions. Maintains terminal dimensions for
 /// accurate coordinate mapping.
-///
 pub struct TerminalMouseHandler {
     /// The canvas element this handler is attached to.
     canvas: web_sys::HtmlCanvasElement,
-    /// Closure for mousedown events.
-    on_mouse_down: Closure<dyn FnMut(web_sys::MouseEvent)>,
-    /// Closure for mouseup events.
-    on_mouse_up: Closure<dyn FnMut(web_sys::MouseEvent)>,
-    /// Closure for mousemove events.
-    on_mouse_move: Closure<dyn FnMut(web_sys::MouseEvent)>,
+    /// Unified closure for all mouse events.
+    on_mouse_event: Closure<dyn FnMut(web_sys::MouseEvent)>,
     /// Cached terminal metrics (dimensions + cell size) for coordinate conversion.
     metrics: TerminalMetrics,
     /// Optional default selection handler.
@@ -150,6 +149,27 @@ pub enum MouseEventType {
     MouseUp = 1,
     /// Mouse moved while over the terminal.
     MouseMove = 2,
+    /// Mouse button was clicked (pressed and released).
+    Click = 3,
+    /// Mouse cursor entered the terminal area.
+    Entered = 4,
+    /// Mouse cursor left the terminal area.
+    Exited = 5,
+}
+
+impl MouseEventType {
+    /// Converts a browser event type string to a MouseEventType.
+    fn from_event_type(event_type: &str) -> Option<Self> {
+        match event_type {
+            "mousedown" => Some(Self::MouseDown),
+            "mouseup" => Some(Self::MouseUp),
+            "mousemove" => Some(Self::MouseMove),
+            "click" => Some(Self::Click),
+            "mouseenter" => Some(Self::Entered),
+            "mouseleave" => Some(Self::Exited),
+            _ => None,
+        }
+    }
 }
 
 /// Configuration options for mouse-based text selection.
@@ -301,39 +321,25 @@ impl TerminalMouseHandler {
             if col < m.cols && row < m.rows { Some((col, row)) } else { None }
         };
 
-        // Create event handlers
-        use MouseEventType::*;
-        let on_mouse_down = create_mouse_event_closure(
-            MouseDown,
-            grid.clone(),
-            shared_handler.clone(),
-            pixel_to_cell.clone(),
-        );
-        let on_mouse_up = create_mouse_event_closure(
-            MouseUp,
-            grid.clone(),
-            shared_handler.clone(),
-            pixel_to_cell.clone(),
-        );
-        let on_mouse_move =
-            create_mouse_event_closure(MouseMove, grid.clone(), shared_handler, pixel_to_cell);
+        // Create unified event handler
+        let on_mouse_event =
+            create_mouse_event_closure(grid.clone(), shared_handler, pixel_to_cell);
 
-        // Attach event listeners
-        canvas
-            .add_event_listener_with_callback("mousedown", on_mouse_down.as_ref().unchecked_ref())
-            .map_err(|_| Error::Callback("Failed to add mousedown listener".into()))?;
-        canvas
-            .add_event_listener_with_callback("mouseup", on_mouse_up.as_ref().unchecked_ref())
-            .map_err(|_| Error::Callback("Failed to add mouseup listener".into()))?;
-        canvas
-            .add_event_listener_with_callback("mousemove", on_mouse_move.as_ref().unchecked_ref())
-            .map_err(|_| Error::Callback("Failed to add mousemove listener".into()))?;
+        // Attach event listeners for all mouse event types
+        for event_type in MOUSE_EVENTS {
+            canvas
+                .add_event_listener_with_callback(
+                    event_type,
+                    on_mouse_event.as_ref().unchecked_ref(),
+                )
+                .map_err(|_| {
+                    Error::Callback(format!("Failed to add {event_type} listener"))
+                })?;
+        }
 
         Ok(Self {
             canvas: canvas.clone(),
-            on_mouse_down,
-            on_mouse_up,
-            on_mouse_move,
+            on_mouse_event,
             metrics,
             default_input_handler: None,
         })
@@ -343,18 +349,12 @@ impl TerminalMouseHandler {
     ///
     /// Called automatically on drop. Safe to call multiple times.
     pub fn cleanup(&self) {
-        let _ = self.canvas.remove_event_listener_with_callback(
-            "mousedown",
-            self.on_mouse_down.as_ref().unchecked_ref(),
-        );
-        let _ = self.canvas.remove_event_listener_with_callback(
-            "mouseup",
-            self.on_mouse_up.as_ref().unchecked_ref(),
-        );
-        let _ = self.canvas.remove_event_listener_with_callback(
-            "mousemove",
-            self.on_mouse_move.as_ref().unchecked_ref(),
-        );
+        for event_type in MOUSE_EVENTS {
+            let _ = self.canvas.remove_event_listener_with_callback(
+                event_type,
+                self.on_mouse_event.as_ref().unchecked_ref(),
+            );
+        }
     }
 
     /// Updates the cached terminal metrics.
@@ -610,41 +610,59 @@ impl SelectionState {
 /// Creates a closure that handles browser mouse events and converts them to terminal events.
 ///
 /// Wraps the event handler with coordinate conversion and terminal event creation logic.
+/// Handles all mouse event types (mousedown, mouseup, mousemove, click, mouseenter, mouseleave).
 fn create_mouse_event_closure(
-    event_type: MouseEventType,
     grid: Rc<RefCell<TerminalGrid>>,
     event_handler: EventHandler,
     pixel_to_cell: impl Fn(&web_sys::MouseEvent) -> Option<(u16, u16)> + 'static,
 ) -> Closure<dyn FnMut(web_sys::MouseEvent)> {
     Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
-        if let Some((col, row)) = pixel_to_cell(&event) {
-            let modifiers = {
-                let mut mods = ModifierKeys::empty();
-                if event.ctrl_key() {
-                    mods |= ModifierKeys::CONTROL;
-                }
-                if event.shift_key() {
-                    mods |= ModifierKeys::SHIFT;
-                }
-                if event.alt_key() {
-                    mods |= ModifierKeys::ALT;
-                }
-                if event.meta_key() {
-                    mods |= ModifierKeys::META;
-                }
-                mods
-            };
+        // Determine event type from browser event
+        let Some(event_type) = MouseEventType::from_event_type(&event.type_()) else {
+            return;
+        };
 
-            let terminal_event = TerminalMouseEvent {
-                event_type,
-                col,
-                row,
-                button: event.button(),
-                modifier_keys: modifiers,
-            };
-            let grid_ref = grid.borrow();
-            event_handler.borrow_mut()(terminal_event, &grid_ref);
-        }
+        // For enter/exit events, we don't need valid cell coordinates
+        let (col, row) = match event_type {
+            MouseEventType::Entered | MouseEventType::Exited => {
+                // Use (0, 0) for enter/exit events as they may occur outside the grid
+                (0, 0)
+            },
+            _ => {
+                // For other events, require valid cell coordinates
+                match pixel_to_cell(&event) {
+                    Some(coords) => coords,
+                    None => return,
+                }
+            },
+        };
+
+        let modifiers = {
+            let mut mods = ModifierKeys::empty();
+            if event.ctrl_key() {
+                mods |= ModifierKeys::CONTROL;
+            }
+            if event.shift_key() {
+                mods |= ModifierKeys::SHIFT;
+            }
+            if event.alt_key() {
+                mods |= ModifierKeys::ALT;
+            }
+            if event.meta_key() {
+                mods |= ModifierKeys::META;
+            }
+            mods
+        };
+
+        let terminal_event = TerminalMouseEvent {
+            event_type,
+            col,
+            row,
+            button: event.button(),
+            modifier_keys: modifiers,
+        };
+        let grid_ref = grid.borrow();
+        event_handler.borrow_mut()(terminal_event, &grid_ref);
     }) as Box<dyn FnMut(_)>)
 }
 
