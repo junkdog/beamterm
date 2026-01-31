@@ -56,46 +56,6 @@ versioned format with header validation and cross-platform encoding.
 **`beamterm-renderer`** - The WebGL2 rendering engine. Implements instanced rendering with optimized
 buffer management and state tracking for consistent sub-millisecond performance.
 
-
-## Font Atlas Types
-
-beamterm supports two font atlas strategies with distinct trade-offs:
-
-| Aspect            | Static Atlas                           | Dynamic Atlas                                |
-|-------------------|----------------------------------------|----------------------------------------------|
-| **Font source**   | Pre-generated `.atlas` file            | Any system or web font                       |
-| **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache |
-| **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via browser Canvas API             |
-| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive |
-| **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                   |
-
-**Static Atlas** is the default. All glyphs are pre-rasterized and immediately available. ASCII
-characters use a direct bit-cast for lookup; non-ASCII characters fall back to a HashMap. Because
-glyphs are fixed at build time, HiDPI scaling uses discrete steps to preserve sharpness.
-
-**Dynamic Atlas** rasterizes glyphs on first use via the browser's Canvas API. ASCII characters
-in Normal style bypass the cache; styled ASCII and all non-ASCII characters go through
-an LRU cache. When slots fill up, least-recently-used glyphs are evicted and re-rasterized on
-next access. Glyphs are re-rasterized at the new resolution whenever the device pixel ratio changes.
-
-```rust
-// Static atlas (default, or with custom atlas)
-let terminal = Terminal::builder("#canvas").build()?;
-let terminal = Terminal::builder("#canvas")
-    .font_atlas(FontAtlasData::from_binary(include_bytes!("custom.atlas"))?)
-    .build()?;
-
-// Dynamic atlas
-let terminal = Terminal::builder("#canvas")
-    .dynamic_font_atlas(&["JetBrains Mono", "Fira Code"], 16.0)
-    .build()?;
-
-// Switch atlas at runtime
-terminal.replace_with_dynamic_atlas(&["Hack", "monospace"], 14.0)?;
-terminal.replace_with_static_atlas(new_atlas_data)?;
-```
-
-
 ## Architecture Overview
 
 The architecture leverages GPU instancing to reuse a single quad geometry across all terminal cells,
@@ -175,10 +135,48 @@ Each terminal cell requires:
 - **fg/bg**: Colors as 32-bit ARGB values (`0xAARRGGBB`)
 
 
-## Font Atlas 2D Texture Array Architecture
+## Font Atlas Types
+
+beamterm supports two font atlas strategies with distinct trade-offs:
+
+| Aspect            | Static Atlas                           | Dynamic Atlas                                |
+|-------------------|----------------------------------------|----------------------------------------------|
+| **Font source**   | Pre-generated `.atlas` file            | Any system or web font                       |
+| **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache |
+| **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via browser Canvas API             |
+| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive |
+| **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                   |
+
+**Static Atlas** is the default. All glyphs are pre-rasterized and immediately available. ASCII
+characters (0-127) use direct bit manipulation (`char_code | style_bits`) for zero-overhead glyph
+lookup; non-ASCII characters fall back to a HashMap. Because glyphs are fixed at build time, HiDPI
+scaling uses discrete steps to preserve sharpness.
+
+**Dynamic Atlas** rasterizes glyphs on first use via the browser's Canvas API. ASCII characters
+in Normal style bypass the cache; styled ASCII and all non-ASCII characters go through
+an LRU cache. When slots fill up, least-recently-used glyphs are evicted and re-rasterized on
+next access. Glyphs are re-rasterized at the new resolution whenever the device pixel ratio changes.
+
+```rust
+// Static atlas (default, or with custom atlas)
+let terminal = Terminal::builder("#canvas").build()?;
+let terminal = Terminal::builder("#canvas")
+    .font_atlas(FontAtlasData::from_binary(include_bytes!("custom.atlas"))?)
+    .build()?;
+
+// Dynamic atlas
+let terminal = Terminal::builder("#canvas")
+    .dynamic_font_atlas(&["JetBrains Mono", "Fira Code"], 16.0)
+    .build()?;
+
+// Switch atlas at runtime
+terminal.replace_with_dynamic_atlas(&["Hack", "monospace"], 14.0)?;
+terminal.replace_with_static_atlas(new_atlas_data)?;
+```
+
+### Texture Array Layout
 
 Both atlas types use a WebGL 2D texture array where each layer contains a 1×32 grid of glyphs.
-However, they differ significantly in how glyphs are addressed and organized.
 
 ### Static Atlas: Style-Encoded Glyph IDs
 
@@ -252,13 +250,6 @@ The atlas stores these as left/right half-pairs with consecutive glyph IDs:
 
 Both types are rasterized at 2× cell width, then split into left (even ID) and right (odd ID) halves.
 
-
-### ASCII Optimization
-
-Non-ASCII character lookups use a HashMap to find their glyph IDs. ASCII characters (0-127) bypass
-the HashMap lookup entirely through direct bit manipulation. For ASCII input, the glyph ID is computed
-as `char_code | style_bits`, providing zero-overhead character mapping. This approach optimizes for
-the common case while maintaining full Unicode capability.
 
 ### Dynamic Atlas: Flat Slot Addressing
 
