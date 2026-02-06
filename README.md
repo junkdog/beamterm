@@ -122,10 +122,6 @@ let terminal = Terminal::builder("#canvas")
 Main rendering component managing the terminal display. Handles shader programs, cell data, GPU
 buffers, and rendering state.
 
-### FontAtlas
-Manages the 2D texture array containing all font glyphs. Provides character-to-glyph ID
-mapping with fast ASCII optimization. Supports loading default or custom font atlases.
-
 ### Cell Data Structure
 
 Each terminal cell requires:
