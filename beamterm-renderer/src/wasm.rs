@@ -10,7 +10,7 @@ use web_sys::console;
 
 use crate::{
     gl::{
-        CellData, CellQuery as RustCellQuery, DynamicFontAtlas, Renderer,
+        CellData, CellQuery as RustCellQuery, ContextLossHandler, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
     },
     js::device_pixel_ratio,
@@ -29,6 +29,8 @@ pub struct BeamtermRenderer {
     renderer: Renderer,
     terminal_grid: Rc<RefCell<TerminalGrid>>,
     mouse_handler: Option<TerminalMouseHandler>,
+    /// Handles WebGL context loss and restoration
+    context_loss_handler: Option<ContextLossHandler>,
     /// Current device pixel ratio for HiDPI rendering
     current_pixel_ratio: f32,
 }
@@ -563,10 +565,15 @@ impl BeamtermRenderer {
                 .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
+
+        let context_loss_handler = ContextLossHandler::new(renderer.canvas())
+            .map_err(|e| JsValue::from_str(&format!("Failed to create context loss handler: {e}")))?;
+
         Ok(BeamtermRenderer {
             renderer,
             terminal_grid,
             mouse_handler: None,
+            context_loss_handler: Some(context_loss_handler),
             current_pixel_ratio,
         })
     }
@@ -631,10 +638,15 @@ impl BeamtermRenderer {
                 .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
+
+        let context_loss_handler = ContextLossHandler::new(renderer.canvas())
+            .map_err(|e| JsValue::from_str(&format!("Failed to create context loss handler: {e}")))?;
+
         Ok(BeamtermRenderer {
             renderer,
             terminal_grid,
             mouse_handler: None,
+            context_loss_handler: Some(context_loss_handler),
             current_pixel_ratio,
         })
     }
@@ -860,6 +872,19 @@ impl BeamtermRenderer {
     /// Render the terminal to the canvas
     #[wasm_bindgen]
     pub fn render(&mut self) {
+        // Check for pending rebuild after context restoration
+        if self.needs_gl_reinit()
+            && let Err(e) = self.restore_context()
+        {
+            console::error_1(&format!("Failed to restore WebGL context: {e:?}").into());
+            return;
+        }
+
+        // Skip rendering if context is currently lost (waiting for browser restoration)
+        if self.is_context_lost() {
+            return;
+        }
+
         // Check for device pixel ratio changes (HiDPI display switching)
         let raw_dpr = device_pixel_ratio();
         if (raw_dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
@@ -872,6 +897,65 @@ impl BeamtermRenderer {
         self.renderer.begin_frame();
         self.renderer.render(&*grid);
         self.renderer.end_frame();
+    }
+
+    /// Checks if the WebGL context has been lost.
+    fn is_context_lost(&self) -> bool {
+        if let Some(handler) = &self.context_loss_handler {
+            handler.is_context_lost()
+        } else {
+            self.renderer.is_context_lost()
+        }
+    }
+
+    /// Checks if the terminal needs to restore GPU resources after a context loss.
+    fn needs_gl_reinit(&self) -> bool {
+        self.context_loss_handler
+            .as_ref()
+            .is_some_and(ContextLossHandler::context_pending_rebuild)
+    }
+
+    /// Restores all GPU resources after a WebGL context loss.
+    fn restore_context(&mut self) -> Result<(), JsValue> {
+        self.renderer
+            .restore_context()
+            .map_err(|e| JsValue::from_str(&format!("Failed to restore renderer context: {e}")))?;
+
+        let gl = self.renderer.gl();
+
+        self.terminal_grid
+            .borrow_mut()
+            .recreate_atlas_texture(gl)
+            .map_err(|e| JsValue::from_str(&format!("Failed to recreate atlas texture: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .recreate_resources(gl)
+            .map_err(|e| JsValue::from_str(&format!("Failed to recreate grid resources: {e}")))?;
+
+        self.terminal_grid
+            .borrow_mut()
+            .flush_cells(gl)
+            .map_err(|e| JsValue::from_str(&format!("Failed to flush cells: {e}")))?;
+
+        if let Some(handler) = &self.context_loss_handler {
+            handler.clear_context_rebuild_needed();
+        }
+
+        // Re-apply current pixel ratio after context restoration
+        // (display may have changed during context loss)
+        let dpr = device_pixel_ratio();
+        if (dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
+            self.handle_pixel_ratio_change(dpr)?;
+        } else {
+            // Even if DPR unchanged, renderer state was reset - reapply it
+            self.renderer.set_pixel_ratio(dpr);
+            let (w, h) = self.renderer.logical_size();
+            self.renderer.resize(w, h);
+        }
+
+        console::log_1(&"WebGL context restored successfully".into());
+        Ok(())
     }
 
     /// Handles a change in device pixel ratio.
