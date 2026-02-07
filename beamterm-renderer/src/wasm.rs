@@ -566,8 +566,9 @@ impl BeamtermRenderer {
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
 
-        let context_loss_handler = ContextLossHandler::new(renderer.canvas())
-            .map_err(|e| JsValue::from_str(&format!("Failed to create context loss handler: {e}")))?;
+        let context_loss_handler = ContextLossHandler::new(renderer.canvas()).map_err(|e| {
+            JsValue::from_str(&format!("Failed to create context loss handler: {e}"))
+        })?;
 
         Ok(BeamtermRenderer {
             renderer,
@@ -639,8 +640,9 @@ impl BeamtermRenderer {
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
 
-        let context_loss_handler = ContextLossHandler::new(renderer.canvas())
-            .map_err(|e| JsValue::from_str(&format!("Failed to create context loss handler: {e}")))?;
+        let context_loss_handler = ContextLossHandler::new(renderer.canvas()).map_err(|e| {
+            JsValue::from_str(&format!("Failed to create context loss handler: {e}"))
+        })?;
 
         Ok(BeamtermRenderer {
             renderer,

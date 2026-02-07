@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 - *(terminal)* Detect url with `Terminal::find_url_at()` (#87)
 - *(mouse)* Extend mouse events with `Click`, `MouseEnter` and `MouseLeave` (#88)
 
+### 💼 Other
+
+- *(js)* Add opengl context loss/recovery button to atlas replacement example
+
+### 🐛 Bug Fixes
+
+- *(js)* Recovery from opengl context loss was missing
+
 ## [beamterm-v0.14.0] - 2026-01-27
 
 ### 🚀 Features

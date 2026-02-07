@@ -70,6 +70,11 @@
             background: #2a2f45;
         }
 
+        button.context-lost {
+            border-color: #f7768e;
+            background: #2d202a;
+        }
+
         input[type="range"] {
             width: 120px;
             padding: 4px;
@@ -130,6 +135,9 @@
             <span class="size-value" id="size-value">16px</span>
         </div>
         <span class="status" id="status">Atlas updated!</span>
+        <div class="control-group">
+            <button id="context-loss-btn" title="Simulate WebGL context loss/recovery">💥 Context Loss</button>
+        </div>
     </div>
     <canvas id="terminal"></canvas>
     <div class="info">

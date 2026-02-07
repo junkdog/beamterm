@@ -343,6 +343,59 @@ async function main() {
             resizeAfterAtlasChange();
         }, 100);
     });
+
+    // WebGL context loss simulation
+    const contextLossBtn = document.getElementById('context-loss-btn') as HTMLButtonElement;
+    let isContextLost = false;
+    let loseContextExt: WEBGL_lose_context | null = null;
+
+    contextLossBtn.addEventListener('click', () => {
+        const gl = canvas.getContext('webgl2');
+        if (!gl) {
+            console.error('Failed to get WebGL2 context');
+            return;
+        }
+
+        if (!loseContextExt) {
+            loseContextExt = gl.getExtension('WEBGL_lose_context');
+            if (!loseContextExt) {
+                console.error('WEBGL_lose_context extension not available');
+                contextLossBtn.disabled = true;
+                contextLossBtn.textContent = '❌ Not supported';
+                return;
+            }
+        }
+
+        if (!isContextLost) {
+            // Lose context
+            loseContextExt.loseContext();
+            isContextLost = true;
+            contextLossBtn.textContent = '🔄 Restore Context';
+            contextLossBtn.classList.add('context-lost');
+            console.log('WebGL context lost (simulated)');
+        } else {
+            // Restore context
+            loseContextExt.restoreContext();
+            isContextLost = false;
+            contextLossBtn.textContent = '💥 Context Loss';
+            contextLossBtn.classList.remove('context-lost');
+            console.log('WebGL context restored (simulated)');
+        }
+    });
+
+    // Listen for context events to update button state
+    canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        isContextLost = true;
+        contextLossBtn.textContent = '🔄 Restore Context';
+        contextLossBtn.classList.add('context-lost');
+    });
+
+    canvas.addEventListener('webglcontextrestored', () => {
+        isContextLost = false;
+        contextLossBtn.textContent = '💥 Context Loss';
+        contextLossBtn.classList.remove('context-lost');
+    });
 }
 
 function calculateCanvasSize(): { width: number; height: number } {
