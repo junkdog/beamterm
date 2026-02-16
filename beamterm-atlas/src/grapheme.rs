@@ -242,7 +242,7 @@ pub(super) fn is_emoji(s: &str) -> bool {
                 // Emoji-presentation-by-default (e.g., 🚀, ⏩)
                 true
             }
-        }
+        },
         None => false,
     }
 }
@@ -341,18 +341,11 @@ mod tests {
         }
 
         // Emoji-presentation-by-default: always emoji regardless of FE0F
-        let emoji_default = [
-            ("🚀", "ROCKET"),
-            ("😀", "GRINNING FACE"),
-            ("⏩", "FAST-FORWARD"),
-            ("⏪", "REWIND"),
-        ];
+        let emoji_default =
+            [("🚀", "ROCKET"), ("😀", "GRINNING FACE"), ("⏩", "FAST-FORWARD"), ("⏪", "REWIND")];
 
         for (s, name) in &emoji_default {
-            assert!(
-                is_emoji(s),
-                "{name} ({s}) should be classified as emoji",
-            );
+            assert!(is_emoji(s), "{name} ({s}) should be classified as emoji",);
         }
     }
 }
