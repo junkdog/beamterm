@@ -91,16 +91,20 @@ impl GraphemeSet {
 }
 
 fn grapheme_set_from(ranges: &[RangeInclusive<char>], chars: &str) -> GraphemeSet {
+    // Range characters use strict is_emoji() — text-presentation-by-default
+    // characters from Unicode ranges should be treated as text glyphs.
     let (emoji_ranged, unicode_ranged) = flatten_ranges_no_ascii(ranges);
     let emoji_ranged = emoji_ranged
         .into_iter()
         .map(|c| c.to_compact_string());
 
+    // Symbols file characters use emojis::get() directly — these are
+    // explicitly curated and should be treated as emoji when recognized.
     let (emoji, other_symbols): (Vec<&str>, Vec<&str>) = chars
         .graphemes(true)
         .filter(|s| !is_ascii_control(s))
         .filter(|s| !s.is_ascii()) // always inserted
-        .partition(|s| is_emoji(s));
+        .partition(|s| emojis::get(s).is_some());
 
     let mut emoji: Vec<_> = emoji
         .into_iter()
@@ -110,6 +114,18 @@ fn grapheme_set_from(ranges: &[RangeInclusive<char>], chars: &str) -> GraphemeSe
     emoji.sort();
     emoji.dedup();
 
+    // Build set of emoji first-chars so we can exclude range characters
+    // that are already classified as emoji from the symbols file.
+    let emoji_chars: HashSet<char> = emoji
+        .iter()
+        .filter_map(|s| {
+            let mut chars = s.chars();
+            let first = chars.next()?;
+            // only single-char emoji (not multi-codepoint sequences)
+            if chars.next().is_none() { Some(first) } else { None }
+        })
+        .collect();
+
     let mut other_symbols: Vec<char> = other_symbols
         .into_iter()
         .map(|s: &str| s.chars().next().unwrap())
@@ -117,6 +133,8 @@ fn grapheme_set_from(ranges: &[RangeInclusive<char>], chars: &str) -> GraphemeSe
     other_symbols.extend(unicode_ranged);
     other_symbols.sort();
     other_symbols.dedup();
+    // Remove characters already classified as emoji (from the symbols file)
+    other_symbols.retain(|c| !emoji_chars.contains(c));
 
     let (halfwidth, fullwidth): (Vec<char>, Vec<char>) = other_symbols
         .into_iter()
@@ -213,7 +231,20 @@ fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
 }
 
 pub(super) fn is_emoji(s: &str) -> bool {
-    emojis::get(s).is_some()
+    match emojis::get(s) {
+        Some(emoji) => {
+            // If the canonical form contains FE0F, the base character is
+            // text-presentation-by-default and should only be emoji when
+            // the caller explicitly includes the variant selector.
+            if emoji.as_str().contains('\u{FE0F}') {
+                s.contains('\u{FE0F}')
+            } else {
+                // Emoji-presentation-by-default (e.g., 🚀, ⏩)
+                true
+            }
+        }
+        None => false,
+    }
 }
 
 #[cfg(test)]
@@ -222,11 +253,30 @@ mod tests {
 
     #[test]
     fn test_is_emoji() {
-        assert!(super::is_emoji("⏭"));
-        assert!(super::is_emoji("⏹"));
-        assert!(super::is_emoji("▶️"));
-        assert!(super::is_emoji("⏹"));
-        assert!(super::is_emoji("⏮"));
+        // Emoji-presentation-by-default: always emoji
+        assert!(is_emoji("🚀"));
+        assert!(is_emoji("😀"));
+        assert!(is_emoji("⏩"));
+        assert!(is_emoji("⏪"));
+        assert!(is_emoji("⏫"));
+        assert!(is_emoji("⏬"));
+
+        // Text-presentation-by-default with FE0F: emoji
+        assert!(is_emoji("▶\u{FE0F}"));
+
+        // Text-presentation-by-default without FE0F: NOT emoji
+        assert!(!is_emoji("▶"));
+        assert!(!is_emoji("◀"));
+        assert!(!is_emoji("⏭"));
+        assert!(!is_emoji("⏹"));
+        assert!(!is_emoji("⏮"));
+        assert!(!is_emoji("▪"));
+        assert!(!is_emoji("▫"));
+        assert!(!is_emoji("◼"));
+
+        // Not recognized by emojis crate at all
+        assert!(!is_emoji("A"));
+        assert!(!is_emoji("█"));
     }
 
     #[test]
@@ -261,5 +311,48 @@ mod tests {
 
         // Should not panic or misclassify
         assert!(gs.unicode.len() + gs.fullwidth_unicode.len() <= 1);
+    }
+
+    #[test]
+    fn test_text_presentation_defaults_respected() {
+        // Text-presentation-by-default glyphs: recognized by emojis crate
+        // but their canonical forms contain FE0F, so they should be treated
+        // as regular text glyphs unless explicitly followed by FE0F.
+        let text_default = [
+            ("▪", "BLACK SMALL SQUARE"),
+            ("▫", "WHITE SMALL SQUARE"),
+            ("◼", "BLACK MEDIUM SQUARE"),
+            ("▶", "BLACK RIGHT-POINTING TRIANGLE"),
+            ("◀", "BLACK LEFT-POINTING TRIANGLE"),
+            ("⏭", "NEXT TRACK"),
+            ("⏹", "STOP"),
+            ("⏮", "PREVIOUS TRACK"),
+        ];
+
+        for (s, name) in &text_default {
+            assert!(
+                emojis::get(s).is_some(),
+                "{name} should be recognized by emojis crate",
+            );
+            assert!(
+                !is_emoji(s),
+                "{name} ({s}) should NOT be classified as emoji without FE0F",
+            );
+        }
+
+        // Emoji-presentation-by-default: always emoji regardless of FE0F
+        let emoji_default = [
+            ("🚀", "ROCKET"),
+            ("😀", "GRINNING FACE"),
+            ("⏩", "FAST-FORWARD"),
+            ("⏪", "REWIND"),
+        ];
+
+        for (s, name) in &emoji_default {
+            assert!(
+                is_emoji(s),
+                "{name} ({s}) should be classified as emoji",
+            );
+        }
     }
 }

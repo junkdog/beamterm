@@ -428,7 +428,7 @@ fn default_unicode_ranges() -> Vec<std::ops::RangeInclusive<char>> {
         '\u{00A0}'..='\u{00FF}', // Latin-1 Supplement
         '\u{0100}'..='\u{017F}', // Latin Extended-A
         '\u{2300}'..='\u{232F}', // Miscellaneous Technical
-        '\u{2350}'..='\u{23FF}', // Miscellaneous Technical
+        '\u{2358}'..='\u{23FF}', // Miscellaneous Technical (skip APL functional symbols)
         '\u{2500}'..='\u{257F}', // Box Drawing
         '\u{2580}'..='\u{259F}', // Block Elements
         '\u{25A0}'..='\u{25CF}', // Geometric Shapes (excerpt)
