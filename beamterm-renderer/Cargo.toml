@@ -22,7 +22,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bitflags.workspace = true
-beamterm-data = { path = "../beamterm-data", version = "0.14.0" }
+beamterm-data = { path = "../beamterm-data", version = "0.15.0" }
 compact_str = { workspace = true }
 console_error_panic_hook = { workspace = true }
 thiserror = { workspace = true }
