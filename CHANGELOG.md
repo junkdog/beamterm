@@ -13,11 +13,17 @@ All notable changes to this project will be documented in this file.
 
 - *(js)* Add opengl context loss/recovery button to atlas replacement example
 - *(deps)* Bump clap from 4.5.54 to 4.5.56 (#90)
+- *(deps)* Bump bitflags from 2.10.0 to 2.11.0 (#94)
+- *(deps)* Bump clap from 4.5.56 to 4.5.58 (#93)
 
 ### 🐛 Bug Fixes
 
 - *(js)* Recovery from opengl context loss was missing
 - *(atlas)* Correct emoji classification for text-presentation-by-default glyphs
+
+### ⚙️ Miscellaneous Tasks
+
+- *(atlas)* Expand emoji set for default atlas
 
 ## [beamterm-v0.14.0] - 2026-01-27
 
