@@ -9,7 +9,10 @@ use compact_str::CompactString;
 use lru::LruCache;
 use unicode_width::UnicodeWidthStr;
 
-use crate::gl::atlas::{GlyphSlot, SlotId};
+use crate::{
+    gl::atlas::{GlyphSlot, SlotId},
+    terminal::is_emoji,
+};
 
 /// Pre-allocated slots for normal-styled ASCII glyphs (0x20..0x7E)
 pub(super) const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
@@ -61,7 +64,7 @@ impl GlyphCache {
             _ if key.len() == 1 => self.normal.get(&cache_key).copied(),
 
             // emoji glyphs disregard style
-            _ if emojis::get(key).is_some() => self
+            _ if is_emoji(key) => self
                 .wide
                 .get(&(CompactString::new(key), FontStyle::Normal))
                 .copied(),
@@ -84,7 +87,7 @@ impl GlyphCache {
         }
 
         let cache_key = (CompactString::new(key), style);
-        let is_emoji = emojis::get(key).is_some();
+        let is_emoji = is_emoji(key);
 
         if is_emoji || key.width() == 2 {
             // Check if already present

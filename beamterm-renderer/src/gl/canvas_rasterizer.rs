@@ -190,7 +190,7 @@ impl CanvasRasterizer {
         for (i, &(grapheme, style)) in symbols.iter().enumerate() {
             // emoji always uses normal style (no bold/italic variants)
             let effective_style =
-                if emojis::get(grapheme).is_some() { FontStyle::Normal } else { style };
+                if crate::terminal::is_emoji(grapheme) { FontStyle::Normal } else { style };
 
             // update font if style changed
             if current_style != Some(effective_style) {

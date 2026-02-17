@@ -797,9 +797,27 @@ enum InputHandler {
     CopyOnSelect(MouseSelectOptions),
 }
 
+/// Checks if a grapheme is an emoji-presentation-by-default character.
+///
+/// Text-presentation-by-default characters (e.g., `▶`, `⏭`, `⏹`, `▪`) are
+/// recognized by the `emojis` crate but should only be treated as emoji when
+/// explicitly followed by the variation selector `\u{FE0F}`. Without it, they
+/// are regular text glyphs.
+pub(crate) fn is_emoji(s: &str) -> bool {
+    match emojis::get(s) {
+        Some(emoji) => {
+            // If the canonical form contains FE0F, the base character is
+            // text-presentation-by-default and should only be emoji when
+            // the caller explicitly includes the variant selector.
+            if emoji.as_str().contains('\u{FE0F}') { s.contains('\u{FE0F}') } else { true }
+        },
+        None => false,
+    }
+}
+
 /// Checks if a grapheme is double-width (emoji or fullwidth character).
 pub(crate) fn is_double_width(grapheme: &str) -> bool {
-    grapheme.len() > 1 && (emojis::get(grapheme).is_some() || grapheme.width() == 2)
+    grapheme.len() > 1 && (is_emoji(grapheme) || grapheme.width() == 2)
 }
 
 /// Debug API exposed to browser console for terminal inspection.
@@ -937,21 +955,64 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_is_emoji() {
+        // Emoji-presentation-by-default: always emoji
+        assert!(is_emoji("🚀"));
+        assert!(is_emoji("😀"));
+        assert!(is_emoji("⏩"));
+        assert!(is_emoji("⏪"));
+
+        // Text-presentation-by-default with FE0F: emoji
+        assert!(is_emoji("▶\u{FE0F}"));
+
+        // Text-presentation-by-default without FE0F: NOT emoji
+        assert!(!is_emoji("▶"));
+        assert!(!is_emoji("◀"));
+        assert!(!is_emoji("⏭"));
+        assert!(!is_emoji("⏹"));
+        assert!(!is_emoji("⏮"));
+        assert!(!is_emoji("▪"));
+        assert!(!is_emoji("▫"));
+        assert!(!is_emoji("◼"));
+
+        // Not recognized by emojis crate at all
+        assert!(!is_emoji("A"));
+        assert!(!is_emoji("█"));
+    }
+
+    #[test]
     fn test_is_double_width() {
-        // emoji
+        // emoji-presentation-by-default
         assert!(is_double_width("😀"));
         assert!(is_double_width("👨‍👩‍👧")); // ZWJ sequence
 
         [
-            "⌚", "⌛", "⏩", "⏳", "⏸", "⏺", "▪", "▫", "▶", "◀", "◻", "◾", "☔", "☕", "♈",
-            "♓", "♿", "⚓", "⚡", "⚪", "⚫", "⚽", "⚾", "⛄", "⛅", "⛎", "⛔", "⛪", "⛲",
-            "⛳", "⛵", "⛺", "⛽", "⤴", "⤵", "⬅", "⬇", "⬛", "⬜", "⭐", "⭕", "〰", "〽", "㊗",
-            "㊙", "⛈",
+            "⌚", "⌛", "⏩", "⏳", "☔", "☕", "♈", "♓", "♿", "⚓", "⚡", "⚪", "⚫", "⚽",
+            "⚾", "⛄", "⛅", "⛎", "⛔", "⛪", "⛲", "⛳", "⛵", "⛺", "⛽", "◾", "⬛", "⬜",
+            "⭐", "⭕", "〰", "〽", "㊗", "㊙",
         ]
         .iter()
         .for_each(|s| {
             assert!(is_double_width(s), "Failed for emoji: {}", s);
         });
+
+        // text-presentation-by-default with FE0F: double-width
+        assert!(is_double_width("▶\u{FE0F}"));
+        assert!(is_double_width("◀\u{FE0F}"));
+
+        // text-presentation-by-default without FE0F: single-width
+        assert!(!is_double_width("⏸"));
+        assert!(!is_double_width("⏺"));
+        assert!(!is_double_width("▪"));
+        assert!(!is_double_width("▫"));
+        assert!(!is_double_width("▶"));
+        assert!(!is_double_width("◀"));
+        assert!(!is_double_width("◻"));
+        assert!(!is_double_width("⤴"));
+        assert!(!is_double_width("⤵"));
+        assert!(!is_double_width("⬅"));
+        assert!(!is_double_width("⬇"));
+        assert!(!is_double_width("⛈"));
 
         // CJK
         assert!(is_double_width("中"));
