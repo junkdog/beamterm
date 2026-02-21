@@ -54,8 +54,7 @@ impl ApplicationHandler for App {
 
         // --- beamterm setup ---
         let atlas_data = FontAtlasData::default();
-        let atlas = StaticFontAtlas::load(&win.gl, atlas_data)
-            .expect("failed to load font atlas");
+        let atlas = StaticFontAtlas::load(&win.gl, atlas_data).expect("failed to load font atlas");
 
         let mut grid = TerminalGrid::new(
             &win.gl,
@@ -98,7 +97,9 @@ impl ApplicationHandler for App {
                     );
 
                     populate_demo_content(&mut state.grid, &state.win.gl);
-                    state.grid.flush_cells(&state.win.gl)
+                    state
+                        .grid
+                        .flush_cells(&state.win.gl)
                         .expect("failed to flush cells");
                     state.win.window.request_redraw();
                 }
@@ -106,7 +107,9 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let (w, h) = state.grid.canvas_size();
                 state.gl_state.viewport(&state.win.gl, 0, 0, w, h);
-                state.gl_state.clear_color(&state.win.gl, 0.0, 0.0, 0.0, 1.0);
+                state
+                    .gl_state
+                    .clear_color(&state.win.gl, 0.0, 0.0, 0.0, 1.0);
 
                 unsafe {
                     use glow::HasContext;
@@ -115,7 +118,9 @@ impl ApplicationHandler for App {
 
                 let mut ctx = RenderContext { gl: &state.win.gl, state: &mut state.gl_state };
 
-                state.grid.prepare(&mut ctx)
+                state
+                    .grid
+                    .prepare(&mut ctx)
                     .expect("failed to prepare grid");
                 state.grid.draw(&mut ctx);
                 state.grid.cleanup(&mut ctx);
@@ -354,7 +359,10 @@ use glutin::{
 };
 use glutin_winit::DisplayBuilder;
 use raw_window_handle::HasWindowHandle;
-use winit::{dpi::LogicalSize, window::{Window, WindowAttributes}};
+use winit::{
+    dpi::LogicalSize,
+    window::{Window, WindowAttributes},
+};
 
 struct GlWindow {
     window: Window,

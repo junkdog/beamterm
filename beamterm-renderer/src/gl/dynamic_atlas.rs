@@ -248,8 +248,8 @@ impl Atlas for DynamicFontAtlas {
         self.physical_cell_size
     }
 
-    fn bind(&self, gl: &glow::Context, texture_unit: u32) {
-        self.texture.bind(gl, texture_unit);
+    fn bind(&self, gl: &glow::Context) {
+        self.texture.bind(gl);
     }
 
     fn underline(&self) -> LineDecoration {

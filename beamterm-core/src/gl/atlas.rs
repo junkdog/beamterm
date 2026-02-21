@@ -19,8 +19,8 @@ pub trait Atlas {
     /// Returns the height of the atlas in pixels.
     fn cell_size(&self) -> (i32, i32);
 
-    /// Binds the font atlas texture to the specified texture unit.
-    fn bind(&self, gl: &glow::Context, texture_unit: u32);
+    /// Binds the font atlas texture to the currently active texture unit.
+    fn bind(&self, gl: &glow::Context);
 
     /// Returns the underline configuration
     fn underline(&self) -> beamterm_data::LineDecoration;
@@ -171,8 +171,8 @@ impl FontAtlas {
         self.inner.cell_size()
     }
 
-    pub fn bind(&self, gl: &glow::Context, texture_unit: u32) {
-        self.inner.bind(gl, texture_unit)
+    pub fn bind(&self, gl: &glow::Context) {
+        self.inner.bind(gl)
     }
 
     pub fn underline(&self) -> beamterm_data::LineDecoration {

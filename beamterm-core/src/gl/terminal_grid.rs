@@ -833,7 +833,8 @@ impl Drawable for TerminalGrid {
 
         unsafe { gl.bind_vertex_array(Some(self.gpu.buffers.vao)) };
 
-        self.atlas.bind(gl, 0);
+        context.state.active_texture(gl, glow::TEXTURE0);
+        self.atlas.bind(gl);
         self.atlas.flush(gl)?;
         self.gpu.ubo_vertex.bind(context.gl);
         self.gpu.ubo_fragment.bind(context.gl);
@@ -856,6 +857,7 @@ impl Drawable for TerminalGrid {
         unsafe {
             gl.bind_vertex_array(None);
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, None);
+            gl.use_program(None);
         }
 
         self.gpu.ubo_vertex.unbind(gl);

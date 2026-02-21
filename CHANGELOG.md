@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - *(core)* Abstract GL backend with glow for OpenGL 3.3 + WebGL2
 - *(example)* Add native OpenGL 3.3 example with glutin/winit in core
 
+### 🐛 Bug Fixes
+
+- *(renderer)* `TerminalGrid::cleanup()` now unbinds the shader program
+
 ### 🚜 Refactor
 
 - *(renderer)* Replace web_sys WebGL2 calls with glow

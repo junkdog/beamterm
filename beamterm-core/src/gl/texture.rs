@@ -202,10 +202,8 @@ impl Texture {
         self.dimensions
     }
 
-    pub fn bind(&self, gl: &glow::Context, texture_unit: u32) {
-        // bind texture and set uniform
+    pub fn bind(&self, gl: &glow::Context) {
         unsafe {
-            gl.active_texture(glow::TEXTURE0 + texture_unit);
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(self.gl_texture));
         }
     }

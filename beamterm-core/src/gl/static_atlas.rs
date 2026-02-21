@@ -131,8 +131,8 @@ impl Atlas for StaticFontAtlas {
         )
     }
 
-    fn bind(&self, gl: &glow::Context, texture_unit: u32) {
-        self.texture.bind(gl, texture_unit);
+    fn bind(&self, gl: &glow::Context) {
+        self.texture.bind(gl);
     }
 
     /// Returns the underline configuration
