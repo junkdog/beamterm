@@ -5,6 +5,7 @@ members = [
     "beamterm-core",
     "beamterm-data",
     "beamterm-renderer",
+    "examples/native-terminal",
 ]
 exclude = [
     "examples/canvas_waves",

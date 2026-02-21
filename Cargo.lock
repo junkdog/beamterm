@@ -207,14 +207,10 @@ dependencies = [
  "compact_str",
  "emojis",
  "glow",
- "glutin",
- "glutin-winit",
  "lru",
- "raw-window-handle",
  "rustc-hash 2.1.1",
  "thiserror 2.0.18",
  "unicode-width",
- "winit",
 ]
 
 [[package]]
@@ -1143,6 +1139,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5faa9f23e86bd5768d76def086192ff5f869fb088da12a976ea21e9796b975f6"
 dependencies = [
  "adler2",
+]
+
+[[package]]
+name = "native-terminal"
+version = "0.1.0"
+dependencies = [
+ "beamterm-core",
+ "glow",
+ "glutin",
+ "glutin-winit",
+ "raw-window-handle",
+ "winit",
 ]
 
 [[package]]

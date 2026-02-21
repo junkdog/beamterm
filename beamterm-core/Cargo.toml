@@ -21,11 +21,5 @@ glow = "0.16"
 lru = "0.16"
 rustc-hash = "2.1.1"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-glutin = "0.32"
-winit = "0.30"
-glutin-winit = "0.5"
-raw-window-handle = "0.6"
-
 [lints]
 workspace = true
