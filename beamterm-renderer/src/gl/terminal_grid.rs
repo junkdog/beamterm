@@ -2,13 +2,14 @@ use std::{borrow::Cow, cmp::min, fmt::Debug, ops::Index};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, GlyphEffect};
 use compact_str::{CompactString, CompactStringExt};
-use web_sys::{WebGl2RenderingContext, console};
+use glow::HasContext;
+use web_sys::console;
 
 use crate::{
     CursorPosition,
     error::Error,
     gl::{
-        CellIterator, CellQuery, Drawable, GL, RenderContext, ShaderProgram, StaticFontAtlas,
+        CellIterator, CellQuery, Drawable, RenderContext, ShaderProgram, StaticFontAtlas,
         atlas::{FontAtlas, GlyphSlot},
         buffer_upload_array,
         selection::SelectionTracker,
@@ -62,7 +63,7 @@ struct GpuResources {
     /// Shared state for the fragment shader
     ubo_fragment: UniformBufferObject,
     /// Uniform location for the texture sampler.
-    sampler_loc: web_sys::WebGlUniformLocation,
+    sampler_loc: glow::UniformLocation,
 }
 
 impl GpuResources {
@@ -78,20 +79,21 @@ impl GpuResources {
     /// - Shader program
     /// - Uniform Buffer Objects (UBOs)
     fn new(
-        gl: &WebGl2RenderingContext,
+        gl: &glow::Context,
         cell_pos: &[CellStatic],
         cell_data: &[CellDynamic],
         cell_size: (i32, i32),
     ) -> Result<Self, Error> {
         // Create and setup the Vertex Array Object
-        let vao = create_vao(gl)?;
-        gl.bind_vertex_array(Some(&vao));
+        let vao = unsafe { gl.create_vertex_array() }
+            .map_err(|_| Error::vertex_array_creation_failed())?;
+        unsafe { gl.bind_vertex_array(Some(vao)) };
 
         // Create all buffers
         let buffers = setup_buffers(gl, vao, cell_pos, cell_data, cell_size)?;
 
         // Unbind VAO to prevent accidental modification
-        gl.bind_vertex_array(None);
+        unsafe { gl.bind_vertex_array(None) };
 
         // Setup shader and uniform data
         let shader = ShaderProgram::create(gl, Self::VERTEX_GLSL, Self::FRAGMENT_GLSL)?;
@@ -102,8 +104,7 @@ impl GpuResources {
         let ubo_fragment = UniformBufferObject::new(gl, CellFragmentUbo::BINDING_POINT)?;
         ubo_fragment.bind_to_shader(gl, &shader, "FragUbo")?;
 
-        let sampler_loc = gl
-            .get_uniform_location(&shader.program, "u_sampler")
+        let sampler_loc = unsafe { gl.get_uniform_location(shader.program, "u_sampler") }
             .ok_or(Error::uniform_location_failed("u_sampler"))?;
 
         Ok(Self {
@@ -118,25 +119,27 @@ impl GpuResources {
 
 #[derive(Debug)]
 struct TerminalBuffers {
-    vao: web_sys::WebGlVertexArrayObject,
-    vertices: web_sys::WebGlBuffer,
-    instance_pos: web_sys::WebGlBuffer,
-    instance_cell: web_sys::WebGlBuffer,
-    indices: web_sys::WebGlBuffer,
+    vao: glow::VertexArray,
+    vertices: glow::Buffer,
+    instance_pos: glow::Buffer,
+    instance_cell: glow::Buffer,
+    indices: glow::Buffer,
 }
 
 impl TerminalBuffers {
-    fn upload_instance_data<T>(&self, gl: &WebGl2RenderingContext, cell_data: &[T]) {
-        gl.bind_vertex_array(Some(&self.vao));
-        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.instance_cell));
+    fn upload_instance_data<T>(&self, gl: &glow::Context, cell_data: &[T]) {
+        unsafe {
+            gl.bind_vertex_array(Some(self.vao));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
+        }
 
-        buffer_upload_array(gl, GL::ARRAY_BUFFER, cell_data, GL::DYNAMIC_DRAW);
+        buffer_upload_array(gl, glow::ARRAY_BUFFER, cell_data, glow::DYNAMIC_DRAW);
 
-        gl.bind_vertex_array(None);
+        unsafe { gl.bind_vertex_array(None) };
     }
 
     /// Updates the vertex buffer with new cell dimensions.
-    fn update_vertex_buffer(&self, gl: &WebGl2RenderingContext, cell_size: (i32, i32)) {
+    fn update_vertex_buffer(&self, gl: &glow::Context, cell_size: (i32, i32)) {
         let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
 
         #[rustfmt::skip]
@@ -148,21 +151,22 @@ impl TerminalBuffers {
             0.0, 0.0, 0.0, 0.0  // top-left
         ];
 
-        gl.bind_vertex_array(Some(&self.vao));
-        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.vertices));
-
         unsafe {
-            let view = js_sys::Float32Array::view(&vertices);
-            gl.buffer_sub_data_with_i32_and_array_buffer_view(GL::ARRAY_BUFFER, 0, &view);
+            gl.bind_vertex_array(Some(self.vao));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vertices));
+            let bytes = std::slice::from_raw_parts(
+                vertices.as_ptr() as *const u8,
+                vertices.len() * size_of::<f32>(),
+            );
+            gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, 0, bytes);
+            gl.bind_vertex_array(None);
         }
-
-        gl.bind_vertex_array(None);
     }
 }
 
 impl TerminalGrid {
     pub(crate) fn new(
-        gl: &WebGl2RenderingContext,
+        gl: &glow::Context,
         atlas: FontAtlas,
         screen_size: (i32, i32),
         pixel_ratio: f32,
@@ -226,7 +230,7 @@ impl TerminalGrid {
     /// # Parameters
     /// * `gl` - WebGL2 rendering context
     /// * `atlas` - The new font atlas to use
-    pub(crate) fn replace_atlas(&mut self, gl: &WebGl2RenderingContext, atlas: FontAtlas) {
+    pub(crate) fn replace_atlas(&mut self, gl: &glow::Context, atlas: FontAtlas) {
         let glyph_mask = self.atlas.base_lookup_mask() as u16;
         let style_mask = !glyph_mask;
 
@@ -394,7 +398,7 @@ impl TerminalGrid {
     ///
     /// # Parameters
     /// * `gl` - WebGL2 rendering context
-    fn upload_ubo_data(&self, gl: &WebGl2RenderingContext) {
+    fn upload_ubo_data(&self, gl: &glow::Context) {
         let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.effective_cell_size());
         self.gpu.ubo_vertex.upload_data(gl, &vertex_ubo);
 
@@ -424,7 +428,7 @@ impl TerminalGrid {
     /// * `Err(Error)` - Failed to update buffer or other WebGL error
     pub fn update_cells<'a>(
         &mut self,
-        gl: &WebGl2RenderingContext,
+        gl: &glow::Context,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
         // update instance buffer with new cell data
@@ -537,7 +541,7 @@ impl TerminalGrid {
     }
 
     /// Flushes pending cell updates to the GPU.
-    pub(crate) fn flush_cells(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    pub(crate) fn flush_cells(&mut self, gl: &glow::Context) -> Result<(), Error> {
         if !self.cells_pending_flush {
             return Ok(()); // no pending updates to flush
         }
@@ -600,7 +604,7 @@ impl TerminalGrid {
     /// * `Err(Error)` - Failed to recreate buffers or other WebGL error
     pub fn resize(
         &mut self,
-        gl: &WebGl2RenderingContext,
+        gl: &glow::Context,
         canvas_size: (i32, i32),
         pixel_ratio: f32,
     ) -> Result<(), Error> {
@@ -624,11 +628,13 @@ impl TerminalGrid {
         }
 
         // update buffers; bind VAO to ensure correct state
-        gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
+        unsafe {
+            gl.bind_vertex_array(Some(self.gpu.buffers.vao));
 
-        // delete old cell instance buffers
-        gl.delete_buffer(Some(&self.gpu.buffers.instance_cell));
-        gl.delete_buffer(Some(&self.gpu.buffers.instance_pos));
+            // delete old cell instance buffers
+            gl.delete_buffer(self.gpu.buffers.instance_cell);
+            gl.delete_buffer(self.gpu.buffers.instance_pos);
+        }
 
         // resize cell data vector
         let current_size = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
@@ -642,7 +648,7 @@ impl TerminalGrid {
         self.gpu.buffers.instance_pos = create_static_instance_buffer(gl, &cell_pos)?;
 
         // unbind VAO
-        gl.bind_vertex_array(None);
+        unsafe { gl.bind_vertex_array(None) };
 
         self.terminal_size = (cols as u16, rows as u16);
 
@@ -665,7 +671,7 @@ impl TerminalGrid {
     /// # Note
     /// The font atlas texture must be recreated separately via
     /// [`StaticFontAtlas::recreate_texture`] before calling this method.
-    pub fn recreate_resources(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    pub fn recreate_resources(&mut self, gl: &glow::Context) -> Result<(), Error> {
         let cell_size = self.effective_cell_size();
         let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
         let cell_pos = CellStatic::create_grid(cols, rows);
@@ -686,7 +692,7 @@ impl TerminalGrid {
     ///
     /// This is a convenience method that delegates to [`StaticFontAtlas::recreate_texture`].
     /// Call this before [`recreate_resources`] when recovering from context loss.
-    pub fn recreate_atlas_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    pub fn recreate_atlas_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.atlas.recreate_texture(gl)
     }
 
@@ -730,14 +736,9 @@ impl TerminalGrid {
     }
 }
 
-fn create_vao(gl: &WebGl2RenderingContext) -> Result<web_sys::WebGlVertexArrayObject, Error> {
-    gl.create_vertex_array()
-        .ok_or(Error::vertex_array_creation_failed())
-}
-
 fn setup_buffers(
-    gl: &WebGl2RenderingContext,
-    vao: web_sys::WebGlVertexArrayObject,
+    gl: &glow::Context,
+    vao: glow::VertexArray,
     cell_pos: &[CellStatic],
     cell_data: &[CellDynamic],
     cell_size: (i32, i32),
@@ -756,81 +757,77 @@ fn setup_buffers(
 
     Ok(TerminalBuffers {
         vao,
-        vertices: create_buffer_f32(gl, GL::ARRAY_BUFFER, &vertices, GL::STATIC_DRAW)?,
+        vertices: create_buffer_f32(gl, glow::ARRAY_BUFFER, &vertices, glow::STATIC_DRAW)?,
         instance_pos: create_static_instance_buffer(gl, cell_pos)?,
         instance_cell: create_dynamic_instance_buffer(gl, cell_data)?,
-        indices: create_buffer_u8(gl, GL::ELEMENT_ARRAY_BUFFER, &indices, GL::STATIC_DRAW)?,
+        indices: create_buffer_u8(gl, glow::ELEMENT_ARRAY_BUFFER, &indices, glow::STATIC_DRAW)?,
     })
 }
 
 fn create_buffer_u8(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     target: u32,
     data: &[u8],
     usage: u32,
-) -> Result<web_sys::WebGlBuffer, Error> {
-    let index_buf = gl
-        .create_buffer()
-        .ok_or(Error::buffer_creation_failed("vbo-u8"))?;
-    gl.bind_buffer(target, Some(&index_buf));
-
-    gl.buffer_data_with_u8_array(target, data, usage);
-
-    Ok(index_buf)
+) -> Result<glow::Buffer, Error> {
+    let buffer =
+        unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("vbo-u8"))?;
+    unsafe {
+        gl.bind_buffer(target, Some(buffer));
+        gl.buffer_data_u8_slice(target, data, usage);
+    }
+    Ok(buffer)
 }
 
 fn create_buffer_f32(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     target: u32,
     data: &[f32],
     usage: u32,
-) -> Result<web_sys::WebGlBuffer, Error> {
-    let buffer = gl
-        .create_buffer()
-        .ok_or(Error::buffer_creation_failed("vbo-f32"))?;
-
-    gl.bind_buffer(target, Some(&buffer));
+) -> Result<glow::Buffer, Error> {
+    let buffer =
+        unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("vbo-f32"))?;
 
     unsafe {
-        let view = js_sys::Float32Array::view(data);
-        gl.buffer_data_with_array_buffer_view(target, &view, usage);
+        gl.bind_buffer(target, Some(buffer));
+        let bytes =
+            std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data));
+        gl.buffer_data_u8_slice(target, bytes, usage);
     }
 
-    // vertex attributes \\
+    // vertex attributes
     const STRIDE: i32 = (2 + 2) * 4; // 4 floats per vertex
-    enable_vertex_attrib(gl, attrib::POS, 2, GL::FLOAT, 0, STRIDE);
-    enable_vertex_attrib(gl, attrib::UV, 2, GL::FLOAT, 8, STRIDE);
+    enable_vertex_attrib(gl, attrib::POS, 2, glow::FLOAT, 0, STRIDE);
+    enable_vertex_attrib(gl, attrib::UV, 2, glow::FLOAT, 8, STRIDE);
 
     Ok(buffer)
 }
 
 fn create_static_instance_buffer(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     instance_data: &[CellStatic],
-) -> Result<web_sys::WebGlBuffer, Error> {
-    let instance_buf = gl
-        .create_buffer()
-        .ok_or(Error::buffer_creation_failed("static-instance-buffer"))?;
+) -> Result<glow::Buffer, Error> {
+    let buffer = unsafe { gl.create_buffer() }
+        .map_err(|_| Error::buffer_creation_failed("static-instance-buffer"))?;
 
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&instance_buf));
-    buffer_upload_array(gl, GL::ARRAY_BUFFER, instance_data, GL::STATIC_DRAW);
+    unsafe { gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer)) };
+    buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::STATIC_DRAW);
 
     let stride = size_of::<CellStatic>() as i32;
-    enable_vertex_attrib_array(gl, attrib::GRID_XY, 2, GL::UNSIGNED_SHORT, 0, stride);
+    enable_vertex_attrib_array(gl, attrib::GRID_XY, 2, glow::UNSIGNED_SHORT, 0, stride);
 
-    Ok(instance_buf)
+    Ok(buffer)
 }
 
 fn create_dynamic_instance_buffer(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     instance_data: &[CellDynamic],
-) -> Result<web_sys::WebGlBuffer, Error> {
-    let instance_buf = gl
-        .create_buffer()
-        .ok_or(Error::buffer_creation_failed("dynamic-instance-buffer"))?;
+) -> Result<glow::Buffer, Error> {
+    let buffer = unsafe { gl.create_buffer() }
+        .map_err(|_| Error::buffer_creation_failed("dynamic-instance-buffer"))?;
 
-    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&instance_buf));
-    buffer_upload_array(gl, GL::ARRAY_BUFFER, instance_data, GL::DYNAMIC_DRAW);
+    unsafe { gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer)) };
+    buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::DYNAMIC_DRAW);
 
     let stride = size_of::<CellDynamic>() as i32;
 
@@ -839,16 +836,16 @@ fn create_dynamic_instance_buffer(
         gl,
         attrib::PACKED_DEPTH_FG_BG,
         2,
-        GL::UNSIGNED_INT,
+        glow::UNSIGNED_INT,
         0,
         stride,
     );
 
-    Ok(instance_buf)
+    Ok(buffer)
 }
 
 fn enable_vertex_attrib_array(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     index: u32,
     size: i32,
     type_: u32,
@@ -856,22 +853,24 @@ fn enable_vertex_attrib_array(
     stride: i32,
 ) {
     enable_vertex_attrib(gl, index, size, type_, offset, stride);
-    gl.vertex_attrib_divisor(index, 1);
+    unsafe { gl.vertex_attrib_divisor(index, 1) };
 }
 
 fn enable_vertex_attrib(
-    gl: &WebGl2RenderingContext,
+    gl: &glow::Context,
     index: u32,
     size: i32,
     type_: u32,
     offset: i32,
     stride: i32,
 ) {
-    gl.enable_vertex_attrib_array(index);
-    if type_ == GL::FLOAT {
-        gl.vertex_attrib_pointer_with_i32(index, size, type_, false, stride, offset);
-    } else {
-        gl.vertex_attrib_i_pointer_with_i32(index, size, type_, stride, offset);
+    unsafe {
+        gl.enable_vertex_attrib_array(index);
+        if type_ == glow::FLOAT {
+            gl.vertex_attrib_pointer_f32(index, size, type_, false, stride, offset);
+        } else {
+            gl.vertex_attrib_pointer_i32(index, size, type_, stride, offset);
+        }
     }
 }
 
@@ -881,26 +880,30 @@ impl Drawable for TerminalGrid {
 
         self.gpu.shader.use_program(gl);
 
-        gl.bind_vertex_array(Some(&self.gpu.buffers.vao));
+        unsafe { gl.bind_vertex_array(Some(self.gpu.buffers.vao)) };
 
         self.atlas.bind(gl, 0);
         self.atlas.flush(gl).unwrap(); // fixme: handle error
         self.gpu.ubo_vertex.bind(context.gl);
         self.gpu.ubo_fragment.bind(context.gl);
-        gl.uniform1i(Some(&self.gpu.sampler_loc), 0);
+        unsafe { gl.uniform_1_i32(Some(&self.gpu.sampler_loc), 0) };
     }
 
     fn draw(&self, context: &mut RenderContext) {
         let gl = context.gl;
         let cell_count = self.cells.len() as i32;
 
-        gl.draw_elements_instanced_with_i32(GL::TRIANGLES, 6, GL::UNSIGNED_BYTE, 0, cell_count);
+        unsafe {
+            gl.draw_elements_instanced(glow::TRIANGLES, 6, glow::UNSIGNED_BYTE, 0, cell_count);
+        }
     }
 
     fn cleanup(&self, context: &mut RenderContext) {
         let gl = context.gl;
-        gl.bind_vertex_array(None);
-        gl.bind_texture(GL::TEXTURE_2D_ARRAY, None);
+        unsafe {
+            gl.bind_vertex_array(None);
+            gl.bind_texture(glow::TEXTURE_2D_ARRAY, None);
+        }
 
         self.gpu.ubo_vertex.unbind(gl);
         self.gpu.ubo_fragment.unbind(gl);
@@ -916,7 +919,7 @@ impl Drawable for TerminalGrid {
 /// # Color Format
 /// Colors use the format 0xRRGGBB where:
 /// - RR: Red component
-/// - GG: Green component  
+/// - GG: Green component
 /// - BB: Blue component
 #[derive(Debug, Copy, Clone)]
 pub struct CellData<'a> {
@@ -994,7 +997,7 @@ impl<'a> CellData<'a> {
 /// using instanced drawing.
 ///
 /// # Buffer Upload
-/// Uploaded to GPU using `GL::STATIC_DRAW` since positions don't change.
+/// Uploaded to GPU using `glow::STATIC_DRAW` since positions don't change.
 #[repr(C, align(4))]
 struct CellStatic {
     /// Grid position as (x, y) coordinates in cell units.
@@ -1027,7 +1030,7 @@ struct CellStatic {
 /// shaders for character selection and color application.
 ///
 /// # Buffer Upload
-/// Uploaded to GPU using `GL::DYNAMIC_DRAW` for efficient updates.
+/// Uploaded to GPU using `glow::DYNAMIC_DRAW` for efficient updates.
 #[derive(Debug, Clone, Copy, Hash)]
 #[repr(C, align(4))]
 pub struct CellDynamic {
@@ -1035,7 +1038,7 @@ pub struct CellDynamic {
     ///
     /// # Byte Layout
     /// - `data[0]`: Lower 8 bits of glyph depth/layer index
-    /// - `data[1]`: Upper 8 bits of glyph depth/layer index  
+    /// - `data[1]`: Upper 8 bits of glyph depth/layer index
     /// - `data[2]`: Foreground red component (0-255)
     /// - `data[3]`: Foreground green component (0-255)
     /// - `data[4]`: Foreground blue component (0-255)

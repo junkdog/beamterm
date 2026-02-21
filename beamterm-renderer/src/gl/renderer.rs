@@ -1,14 +1,11 @@
+use glow::HasContext;
 use web_sys::HtmlCanvasElement;
 
-use crate::{
-    error::Error,
-    gl::{GL, context::GlState},
-    js,
-};
+use crate::{error::Error, gl::context::GlState, js};
 
 /// Rendering context that provides access to WebGL state.
 pub(super) struct RenderContext<'a> {
-    pub gl: &'a web_sys::WebGl2RenderingContext,
+    pub gl: &'a glow::Context,
     pub state: &'a mut GlState,
 }
 
@@ -17,15 +14,26 @@ pub(super) struct RenderContext<'a> {
 /// The `Renderer` manages the WebGL2 rendering context, canvas, and provides
 /// a simplified interface for rendering drawable objects. It handles frame
 /// management, viewport setup, and coordinate system transformations.
-#[derive(Debug)]
 pub struct Renderer {
-    gl: web_sys::WebGl2RenderingContext,
+    gl: glow::Context,
+    raw_gl: web_sys::WebGl2RenderingContext, // for is_context_lost() only
     canvas: web_sys::HtmlCanvasElement,
     state: GlState,
     canvas_padding_color: (f32, f32, f32),
     logical_size_px: (i32, i32),
     pixel_ratio: f32,
     auto_resize_canvas_css: bool,
+}
+
+impl std::fmt::Debug for Renderer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Renderer")
+            .field("canvas_padding_color", &self.canvas_padding_color)
+            .field("logical_size_px", &self.logical_size_px)
+            .field("pixel_ratio", &self.pixel_ratio)
+            .field("auto_resize_canvas_css", &self.auto_resize_canvas_css)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Renderer {
@@ -82,11 +90,12 @@ impl Renderer {
         let (width, height) = (canvas.width() as i32, canvas.height() as i32);
 
         // initialize WebGL context
-        let gl = js::get_webgl2_context(&canvas)?;
+        let (gl, raw_gl) = js::create_glow_context(&canvas)?;
         let state = GlState::new(&gl);
 
         let mut renderer = Self {
             gl,
+            raw_gl,
             canvas,
             state,
             canvas_padding_color: (0.0, 0.0, 0.0),
@@ -139,8 +148,10 @@ impl Renderer {
     /// * `b` - Blue component (0.0 to 1.0)
     pub fn clear(&mut self, r: f32, g: f32, b: f32) {
         self.state.clear_color(&self.gl, r, g, b, 1.0);
-        self.gl
-            .clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
+        unsafe {
+            self.gl
+                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT)
+        };
     }
 
     /// Begins a new rendering frame.
@@ -173,12 +184,12 @@ impl Renderer {
         // swap buffers (todo)
     }
 
-    /// Returns a reference to the WebGL2 rendering context.
-    pub fn gl(&self) -> &GL {
+    /// Returns a reference to the glow rendering context.
+    pub fn gl(&self) -> &glow::Context {
         &self.gl
     }
 
-    /// Returns a mutable reference to the WebGL2 rendering context.
+    /// Returns a reference to the HTML canvas element.
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
     }
@@ -212,7 +223,7 @@ impl Renderer {
     /// Returns `true` if the context is lost and needs to be restored.
     /// Use [`restore_context`] to recover from context loss.
     pub fn is_context_lost(&self) -> bool {
-        self.gl.is_context_lost()
+        self.raw_gl.is_context_lost()
     }
 
     /// Restores the WebGL context after a context loss event.
@@ -229,10 +240,10 @@ impl Renderer {
     /// This only restores the renderer's context. You must separately call
     /// recreation methods on `TerminalGrid` and `FontAtlas` to fully recover.
     pub fn restore_context(&mut self) -> Result<(), Error> {
-        // Get a fresh WebGL2 context from the same canvas
-        let gl = js::get_webgl2_context(&self.canvas)?;
+        let (gl, raw_gl) = js::create_glow_context(&self.canvas)?;
         self.state = GlState::new(&gl);
         self.gl = gl;
+        self.raw_gl = raw_gl;
 
         // Restore viewport
         let (width, height) = self.canvas_size();

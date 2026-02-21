@@ -137,8 +137,8 @@ impl Terminal {
             .update_cells_by_index(cells)
     }
 
-    /// Returns the WebGL2 rendering context.
-    pub fn gl(&self) -> &web_sys::WebGl2RenderingContext {
+    /// Returns the glow rendering context.
+    pub fn gl(&self) -> &glow::Context {
         self.renderer.gl()
     }
 

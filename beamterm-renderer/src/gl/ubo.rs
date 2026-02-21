@@ -1,53 +1,54 @@
 use std::fmt::Debug;
 
+use glow::HasContext;
+
 use crate::{
     error::Error,
-    gl::{GL, ShaderProgram, buffer_upload_struct},
+    gl::{ShaderProgram, buffer_upload_struct},
 };
 
 #[derive(Debug)]
 pub(super) struct UniformBufferObject {
-    buffer: web_sys::WebGlBuffer,
+    buffer: glow::Buffer,
     binding_point: u32,
 }
 
 impl UniformBufferObject {
-    pub fn new(gl: &GL, binding_point: u32) -> Result<Self, Error> {
-        let buffer = gl
-            .create_buffer()
-            .ok_or(Error::buffer_creation_failed("ubo"))?;
+    pub fn new(gl: &glow::Context, binding_point: u32) -> Result<Self, Error> {
+        let buffer =
+            unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("ubo"))?;
 
         Ok(Self { buffer, binding_point })
     }
 
-    pub fn bind(&self, gl: &GL) {
-        gl.bind_buffer(GL::UNIFORM_BUFFER, Some(&self.buffer));
+    pub fn bind(&self, gl: &glow::Context) {
+        unsafe { gl.bind_buffer(glow::UNIFORM_BUFFER, Some(self.buffer)) };
     }
 
-    pub fn unbind(&self, gl: &GL) {
-        gl.bind_buffer(GL::UNIFORM_BUFFER, None);
+    pub fn unbind(&self, gl: &glow::Context) {
+        unsafe { gl.bind_buffer(glow::UNIFORM_BUFFER, None) };
     }
 
     pub(crate) fn bind_to_shader(
         &self,
-        gl: &GL,
+        gl: &glow::Context,
         shader: &ShaderProgram,
         block_name: &'static str,
     ) -> Result<(), Error> {
-        let block_index = gl.get_uniform_block_index(&shader.program, block_name);
-        if block_index == GL::INVALID_INDEX {
-            return Err(Error::uniform_location_failed(block_name));
-        }
+        let block_index = unsafe { gl.get_uniform_block_index(shader.program, block_name) }
+            .ok_or(Error::uniform_location_failed(block_name))?;
 
-        gl.uniform_block_binding(&shader.program, block_index, self.binding_point);
-        gl.bind_buffer_base(GL::UNIFORM_BUFFER, self.binding_point, Some(&self.buffer));
+        unsafe {
+            gl.uniform_block_binding(shader.program, block_index, self.binding_point);
+            gl.bind_buffer_base(glow::UNIFORM_BUFFER, self.binding_point, Some(self.buffer));
+        }
 
         Ok(())
     }
 
-    pub fn upload_data<T>(&self, gl: &GL, data: &T) {
+    pub fn upload_data<T>(&self, gl: &glow::Context, data: &T) {
         self.bind(gl);
-        buffer_upload_struct(gl, GL::UNIFORM_BUFFER, data, GL::STATIC_DRAW);
+        buffer_upload_struct(gl, glow::UNIFORM_BUFFER, data, glow::STATIC_DRAW);
         self.unbind(gl);
     }
 }

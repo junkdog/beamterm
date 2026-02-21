@@ -26,5 +26,3 @@ pub use renderer::*;
 pub use selection::*;
 pub(crate) use static_atlas::StaticFontAtlas;
 pub use terminal_grid::*;
-
-pub(crate) type GL = web_sys::WebGl2RenderingContext;

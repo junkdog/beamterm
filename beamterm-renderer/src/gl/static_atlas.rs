@@ -2,10 +2,9 @@ use std::{borrow::Cow, collections::HashMap};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, ToCompactString};
-use web_sys::WebGl2RenderingContext;
 
 use super::{
-    GL, atlas,
+    atlas,
     atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker},
 };
 use crate::error::Error;
@@ -48,17 +47,14 @@ pub(crate) struct StaticFontAtlas {
 
 impl StaticFontAtlas {
     /// Loads the default embedded font atlas.
-    fn load_default(gl: &web_sys::WebGl2RenderingContext) -> Result<Self, Error> {
+    fn load_default(gl: &glow::Context) -> Result<Self, Error> {
         let config = FontAtlasData::default();
         Self::load(gl, config)
     }
 
     /// Creates a TextureAtlas from a grid of equal-sized cells
-    pub(crate) fn load(
-        gl: &web_sys::WebGl2RenderingContext,
-        config: FontAtlasData,
-    ) -> Result<Self, Error> {
-        let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &config)?;
+    pub(crate) fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
+        let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &config)?;
         let num_slices = config.texture_dimensions.2;
 
         let texture_layers = config
@@ -135,7 +131,7 @@ impl Atlas for StaticFontAtlas {
         )
     }
 
-    fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {
+    fn bind(&self, gl: &glow::Context, texture_unit: u32) {
         self.texture.bind(gl, texture_unit);
     }
 
@@ -187,7 +183,7 @@ impl Atlas for StaticFontAtlas {
         ascii_count + non_ascii_count
     }
 
-    fn flush(&self, _gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn flush(&self, _gl: &glow::Context) -> Result<(), Error> {
         Ok(()) // static atlas has no pending glyphs
     }
 
@@ -203,13 +199,13 @@ impl Atlas for StaticFontAtlas {
     /// # Returns
     /// * `Ok(())` - Texture successfully recreated
     /// * `Err(Error)` - Failed to create texture
-    fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         // Delete old texture if it exists (may be invalid after context loss)
         self.texture.delete(gl);
 
         // Recreate texture from retained atlas data
         self.texture =
-            crate::gl::texture::Texture::from_font_atlas_data(gl, GL::RGBA, &self.atlas_data)?;
+            crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &self.atlas_data)?;
 
         Ok(())
     }
@@ -264,15 +260,11 @@ impl Atlas for StaticFontAtlas {
         atlas::STATIC_ATLAS_LOOKUP_MASK
     }
 
-    fn delete(&self, gl: &WebGl2RenderingContext) {
+    fn delete(&self, gl: &glow::Context) {
         self.texture.delete(gl);
     }
 
-    fn update_pixel_ratio(
-        &mut self,
-        _gl: &WebGl2RenderingContext,
-        pixel_ratio: f32,
-    ) -> Result<f32, Error> {
+    fn update_pixel_ratio(&mut self, _gl: &glow::Context, pixel_ratio: f32) -> Result<f32, Error> {
         // Static atlas doesn't need to do anything - cell scaling is handled by the grid
         Ok(pixel_ratio)
     }

@@ -6,10 +6,9 @@ use std::{
 
 use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
-use web_sys::WebGl2RenderingContext;
 
 use super::{
-    GL, atlas,
+    atlas,
     atlas::{Atlas, GlyphSlot, GlyphTracker, SlotId},
     canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph},
     glyph_cache::{ASCII_SLOTS, GlyphCache},
@@ -70,13 +69,13 @@ impl DynamicFontAtlas {
     /// Creates a new dynamic font atlas with the specified font settings.
     ///
     /// # Arguments
-    /// * `gl` - WebGL2 rendering context
+    /// * `gl` - glow rendering context
     /// * `font_family` - CSS font-family string (e.g., "'JetBrains Mono', monospace")
     /// * `font_size` - Base font size in logical pixels (before pixel ratio scaling)
     /// * `pixel_ratio` - Device pixel ratio for HiDPI rendering
     /// * `debug_space_pattern` - Optional checkered pattern for space glyph (for pixel-perfect validation)
     pub(crate) fn new(
-        gl: &web_sys::WebGl2RenderingContext,
+        gl: &glow::Context,
         font_family: &[CompactString],
         font_size: f32,
         pixel_ratio: f32,
@@ -96,7 +95,8 @@ impl DynamicFontAtlas {
             physical_cell_size.0 + FontAtlasData::PADDING * 2,
             physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        let texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
+        let texture =
+            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
 
         let atlas = Self {
             texture,
@@ -122,7 +122,7 @@ impl DynamicFontAtlas {
     /// Rasterizes and uploads glyphs in batches sized to fit the canvas height.
     /// Double-width glyphs (emoji, CJK) are split into left/right halves
     /// and uploaded to two consecutive slots.
-    fn upload_pending_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+    fn upload_pending_glyphs(&self, gl: &glow::Context) -> Result<(), Error> {
         use super::canvas_rasterizer::RasterizedGlyph;
 
         if self.glyphs_pending_upload.is_empty() {
@@ -146,7 +146,7 @@ impl DynamicFontAtlas {
         Ok(())
     }
 
-    fn upload_ascii_glyphs(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+    fn upload_ascii_glyphs(&self, gl: &glow::Context) -> Result<(), Error> {
         let batch_size = self.rasterizer.max_batch_size();
 
         let all_pending: Vec<PendingGlyph> = (0x20u8..=0x7Eu8)
@@ -176,7 +176,7 @@ impl DynamicFontAtlas {
 
     fn upload_glyphs(
         &self,
-        gl: &WebGl2RenderingContext,
+        gl: &glow::Context,
         pending: Vec<PendingGlyph>,
         rasterized: Vec<RasterizedGlyph>,
     ) -> Result<(), Error> {
@@ -251,7 +251,7 @@ impl Atlas for DynamicFontAtlas {
         self.physical_cell_size
     }
 
-    fn bind(&self, gl: &WebGl2RenderingContext, texture_unit: u32) {
+    fn bind(&self, gl: &glow::Context, texture_unit: u32) {
         self.texture.bind(gl, texture_unit);
     }
 
@@ -297,7 +297,7 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow().len() as u32
     }
 
-    fn flush(&self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
         while !self.glyphs_pending_upload.is_empty() {
             self.upload_pending_glyphs(gl)?;
         }
@@ -305,14 +305,15 @@ impl Atlas for DynamicFontAtlas {
         Ok(())
     }
 
-    fn recreate_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.texture.delete(gl);
 
         let padded_cell_size = (
             self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
             self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
+        self.texture =
+            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
 
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
@@ -363,15 +364,11 @@ impl Atlas for DynamicFontAtlas {
         atlas::DYNAMIC_ATLAS_LOOKUP_MASK
     }
 
-    fn delete(&self, gl: &WebGl2RenderingContext) {
+    fn delete(&self, gl: &glow::Context) {
         self.texture.delete(gl);
     }
 
-    fn update_pixel_ratio(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        pixel_ratio: f32,
-    ) -> Result<f32, Error> {
+    fn update_pixel_ratio(&mut self, gl: &glow::Context, pixel_ratio: f32) -> Result<f32, Error> {
         // Skip if ratio hasn't changed
         if (self.pixel_ratio - pixel_ratio).abs() < f32::EPSILON {
             return Ok(pixel_ratio);
@@ -393,7 +390,8 @@ impl Atlas for DynamicFontAtlas {
             self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
             self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        self.texture = Texture::for_dynamic_font_atlas(gl, GL::RGBA, padded_cell_size, NUM_LAYERS)?;
+        self.texture =
+            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
 
         // Clear cache, lookups, and missing glyph tracker, then re-upload ASCII glyphs
         self.cache.borrow_mut().clear();

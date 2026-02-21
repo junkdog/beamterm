@@ -20,7 +20,7 @@ pub(crate) trait Atlas {
     fn cell_size(&self) -> (i32, i32);
 
     /// Binds the font atlas texture to the specified texture unit.
-    fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32);
+    fn bind(&self, gl: &glow::Context, texture_unit: u32);
 
     /// Returns the underline configuration
     fn underline(&self) -> beamterm_data::LineDecoration;
@@ -52,12 +52,12 @@ pub(crate) trait Atlas {
     ///
     /// # Errors
     /// Returns an error if texture upload fails.
-    fn flush(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error>;
+    fn flush(&self, gl: &glow::Context) -> Result<(), Error>;
 
     /// Recreates the GPU texture after a WebGL context loss.
     ///
     /// This clears the cache - glyphs will be re-rasterized on next access.
-    fn recreate_texture(&mut self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error>;
+    fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error>;
 
     /// Iterates over all glyph ID to symbol mappings.
     ///
@@ -98,7 +98,7 @@ pub(crate) trait Atlas {
     ///
     /// This method must be called before dropping the atlas to properly clean up
     /// WebGL resources. Failing to call this will leak GPU memory.
-    fn delete(&self, gl: &web_sys::WebGl2RenderingContext);
+    fn delete(&self, gl: &glow::Context);
 
     /// Updates the pixel ratio for HiDPI rendering.
     ///
@@ -107,11 +107,7 @@ pub(crate) trait Atlas {
     ///
     /// - **Static atlas**: Returns exact ratio, no internal work needed
     /// - **Dynamic atlas**: Returns exact ratio, reinitializes with scaled font size
-    fn update_pixel_ratio(
-        &mut self,
-        gl: &web_sys::WebGl2RenderingContext,
-        pixel_ratio: f32,
-    ) -> Result<f32, Error>;
+    fn update_pixel_ratio(&mut self, gl: &glow::Context, pixel_ratio: f32) -> Result<f32, Error>;
 
     /// Returns the cell scale factor for layout calculations at the given DPR.
     ///
@@ -175,7 +171,7 @@ impl FontAtlas {
         self.inner.cell_size()
     }
 
-    pub(crate) fn bind(&self, gl: &web_sys::WebGl2RenderingContext, texture_unit: u32) {
+    pub(crate) fn bind(&self, gl: &glow::Context, texture_unit: u32) {
         self.inner.bind(gl, texture_unit)
     }
 
@@ -203,10 +199,7 @@ impl FontAtlas {
         self.inner.glyph_count()
     }
 
-    pub(crate) fn recreate_texture(
-        &mut self,
-        gl: &web_sys::WebGl2RenderingContext,
-    ) -> Result<(), Error> {
+    pub(crate) fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.recreate_texture(gl)
     }
 
@@ -218,7 +211,7 @@ impl FontAtlas {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
 
-    pub(crate) fn flush(&self, gl: &web_sys::WebGl2RenderingContext) -> Result<(), Error> {
+    pub(crate) fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.flush(gl)
     }
 
@@ -232,7 +225,7 @@ impl FontAtlas {
     }
 
     /// Deletes the GPU texture resources associated with this atlas.
-    pub(crate) fn delete(&self, gl: &web_sys::WebGl2RenderingContext) {
+    pub(crate) fn delete(&self, gl: &glow::Context) {
         self.inner.delete(gl)
     }
 
@@ -241,7 +234,7 @@ impl FontAtlas {
     /// Returns the effective pixel ratio to use for viewport scaling.
     pub(crate) fn update_pixel_ratio(
         &mut self,
-        gl: &web_sys::WebGl2RenderingContext,
+        gl: &glow::Context,
         pixel_ratio: f32,
     ) -> Result<f32, Error> {
         self.inner.update_pixel_ratio(gl, pixel_ratio)

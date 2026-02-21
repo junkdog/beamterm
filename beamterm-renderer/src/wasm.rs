@@ -64,7 +64,6 @@ pub struct Size {
 #[derive(Debug)]
 pub struct Batch {
     terminal_grid: Rc<RefCell<TerminalGrid>>,
-    gl: web_sys::WebGl2RenderingContext,
 }
 
 /// Selection mode for text selection in the terminal
@@ -852,9 +851,8 @@ impl BeamtermRenderer {
     /// Create a new render batch
     #[wasm_bindgen(js_name = "batch")]
     pub fn new_render_batch(&mut self) -> Batch {
-        let gl = self.renderer.gl().clone();
         let terminal_grid = self.terminal_grid.clone();
-        Batch { terminal_grid, gl }
+        Batch { terminal_grid }
     }
 
     /// Get the terminal dimensions in cells

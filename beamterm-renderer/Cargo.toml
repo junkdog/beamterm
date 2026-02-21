@@ -30,6 +30,7 @@ js-sys = { workspace = true }
 unicode-width.workspace = true
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = "0.4.54"
+glow = "0.16"
 
 [dependencies.unicode-segmentation]
 workspace = true
