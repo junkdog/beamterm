@@ -1,11 +1,12 @@
-## beamterm - A WebGL2 Terminal Renderer
+## beamterm - A GPU-Accelerated Terminal Renderer
 
 [![Crate Badge]][Crate] [![NPM Badge]][NPM] [![API Badge]][API] [![Deps.rs
-Badge]][Deps.rs] 
+Badge]][Deps.rs]
 
-A high-performance terminal rendering system for web browsers, targeting sub-millisecond render 
-times. **beamterm** is a terminal renderer, not a full terminal emulator - it handles the display
-layer while you provide the terminal logic.
+A high-performance terminal rendering system targeting sub-millisecond render times. The GL backend
+is abstracted via [glow](https://github.com/grovesNL/glow), supporting both **WebGL2** (browsers)
+and **OpenGL 3.3** (native desktop). **beamterm** is a terminal renderer, not a full terminal
+emulator - it handles the display layer while you provide the terminal logic.
 
 ### [Live Demos][demos]
 
@@ -14,6 +15,7 @@ integrations.
 
 ## Key Features
 
+- **Cross-Platform GL** - Single rendering core targeting WebGL2 (WASM) and OpenGL 3.3 (native) via glow
 - **Single Draw Call** - Renders entire terminal (e.g., 200×80 cells) in one instanced draw
 - **Flexible Font Atlases** - Static pre-generated atlases or dynamic on-demand rasterization with LRU caching
 - **Unicode and Emoji Support** - Complete Unicode support with grapheme clustering
@@ -44,7 +46,7 @@ maintaining sub-millisecond render times on 2019-era hardware (i9-9900K / RTX 20
 
 ## System Architecture
 
-The renderer consists of three crates:
+The renderer consists of four crates:
 
 **`beamterm-atlas`** - Generates GPU-optimized static font atlases from TTF/OTF files. Automatically
 calculates cell dimensions, supports font styles (normal/bold/italic), and outputs packed
@@ -53,8 +55,15 @@ texture data.
 **`beamterm-data`** - Provides shared data structures and efficient binary serialization. Features
 versioned format with header validation and cross-platform encoding.
 
-**`beamterm-renderer`** - The WebGL2 rendering engine. Implements instanced rendering with optimized
-buffer management and state tracking for consistent sub-millisecond performance.
+**`beamterm-core`** - Platform-agnostic GL rendering engine using [glow](https://github.com/grovesNL/glow).
+Contains all GPU resource management (`TerminalGrid`), buffer handling, shader programs, static atlas
+implementation, and the `Drawable`/`RenderContext` abstractions. The GL target is determined
+automatically by the compilation target: `wasm32` builds use WebGL2 (`#version 300 es`), while
+native builds use OpenGL 3.3 (`#version 330 core`).
+
+**`beamterm-renderer`** - WASM/browser integration layer. Wraps beamterm-core with the `Terminal`
+builder API, JavaScript bindings (`js-api` feature), dynamic font atlas via browser Canvas API,
+mouse selection with clipboard integration, and WebGL context loss recovery.
 
 ## Architecture Overview
 
@@ -148,9 +157,9 @@ characters (0-127) use direct bit manipulation (`char_code | style_bits`) for ze
 lookup; non-ASCII characters fall back to a HashMap. Because glyphs are fixed at build time, HiDPI
 scaling uses discrete steps to preserve sharpness.
 
-**Dynamic Atlas** rasterizes glyphs on first use via the browser's Canvas API. ASCII characters
-in Normal style bypass the cache; styled ASCII and all non-ASCII characters go through
-an LRU cache. When slots fill up, least-recently-used glyphs are evicted and re-rasterized on
+**Dynamic Atlas** (WebGL2/WASM only) rasterizes glyphs on first use via the browser's Canvas API.
+ASCII characters in Normal style bypass the cache; styled ASCII and all non-ASCII characters go
+through an LRU cache. When slots fill up, least-recently-used glyphs are evicted and re-rasterized on
 next access. Glyphs are re-rasterized at the new resolution whenever the device pixel ratio changes.
 
 ```rust
@@ -172,7 +181,7 @@ terminal.replace_with_static_atlas(new_atlas_data)?;
 
 ### Texture Array Layout
 
-Both atlas types use a WebGL 2D texture array where each layer contains a 1×32 grid of glyphs.
+Both atlas types use a GL 2D texture array where each layer contains a 1×32 grid of glyphs.
 
 ### Static Atlas: Style-Encoded Glyph IDs
 
@@ -362,9 +371,9 @@ Performs the core rendering logic with efficient 2D array texture lookups:
 - Blends foreground/background colors with glyph alpha for anti-aliasing
 
 
-### WebGL2 Feature Dependencies
+### OpenGL Feature Dependencies
 
-The renderer requires WebGL2 for:
+The renderer requires OpenGL 3.3+ / WebGL2 for:
 - **2D Texture Arrays** (`TEXTURE_2D_ARRAY`, `texStorage3D`, `texSubImage3D`)
 - **Instanced Rendering** (`drawElementsInstanced`, `vertexAttribDivisor`)
 - **Advanced Buffers** (`UNIFORM_BUFFER`, `vertexAttribIPointer`)

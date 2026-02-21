@@ -4,7 +4,7 @@ use compact_str::{CompactString, ToCompactString};
 ///
 /// A `Glyph` contains the metadata needed to locate and identify a character
 /// within a font atlas texture. Each glyph has a unique ID that maps
-/// to its coordinates in a WebGL `TEXTURE_2D_ARRAY`.
+/// to its coordinates in a GL `TEXTURE_2D_ARRAY`.
 ///
 /// # ASCII Optimization
 /// For ASCII characters, the glyph ID directly corresponds to the character's

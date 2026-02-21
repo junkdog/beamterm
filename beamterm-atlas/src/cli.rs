@@ -9,7 +9,7 @@ use crate::font_discovery::{FontDiscovery, FontFamily};
 #[derive(Parser, Debug)]
 #[command(
     name = "beamterm-atlas",
-    about = "Font atlas generator for beamterm WebGL terminal renderer",
+    about = "Font atlas generator for beamterm terminal renderer",
     long_about = "Generates GPU-optimized texture arrays from TTF/OTF fonts for high-performance terminal rendering"
 )]
 pub struct Cli {

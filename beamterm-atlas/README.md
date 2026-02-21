@@ -1,6 +1,6 @@
 # beamterm-atlas
 
-A static font atlas generator for WebGL terminal renderers, optimized for GPU texture memory and
+A static font atlas generator for GPU terminal renderers, optimized for texture memory and
 rendering efficiency.
 
 ## Overview
