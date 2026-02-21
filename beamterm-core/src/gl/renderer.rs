@@ -12,7 +12,11 @@ pub trait Drawable {
     ///
     /// This method should set up all necessary OpenGL state, bind shaders,
     /// textures, and vertex data required for rendering.
-    fn prepare(&self, context: &mut RenderContext);
+    ///
+    /// # Errors
+    /// May return an error if GPU resource preparation fails (e.g., dynamic
+    /// atlas glyph upload).
+    fn prepare(&self, context: &mut RenderContext) -> Result<(), crate::Error>;
 
     /// Performs the actual rendering.
     ///

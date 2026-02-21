@@ -318,7 +318,7 @@ impl Terminal {
             .flush_cells(self.renderer.gl())?;
 
         self.renderer.begin_frame();
-        self.renderer.render(&*self.grid.borrow());
+        self.renderer.render(&*self.grid.borrow())?;
         self.renderer.end_frame();
         Ok(())
     }

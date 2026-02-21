@@ -50,32 +50,6 @@ impl Error {
         Self::Initialization("Failed to retrieve canvas rendering context".to_string())
     }
 
-    // Shader errors
-    pub(crate) fn shader_creation_failed(detail: &str) -> Self {
-        Self::Shader(format!("Shader creation failed: {detail}"))
-    }
-
-    pub(crate) fn shader_program_creation_failed() -> Self {
-        Self::Shader("Shader program creation failed".to_string())
-    }
-
-    pub(crate) fn shader_link_failed(log: String) -> Self {
-        Self::Shader(format!("Shader linking failed: {log}"))
-    }
-
-    // Resource errors
-    pub(crate) fn buffer_creation_failed(buffer_type: &str) -> Self {
-        Self::Resource(format!("Failed to create {buffer_type} buffer"))
-    }
-
-    pub(crate) fn vertex_array_creation_failed() -> Self {
-        Self::Resource("Failed to create vertex array object".to_string())
-    }
-
-    pub(crate) fn texture_creation_failed() -> Self {
-        Self::Resource("Failed to create texture".to_string())
-    }
-
     pub(crate) fn rasterizer_canvas_creation_failed(detail: impl std::fmt::Display) -> Self {
         Self::Rasterization(format!("Failed to create offscreen canvas: {detail}"))
     }
@@ -112,10 +86,6 @@ impl Error {
             "Reference glyph rasterization produced no pixels; cannot determine cell size"
                 .to_string(),
         )
-    }
-
-    pub(crate) fn uniform_location_failed(name: &str) -> Self {
-        Self::Resource(format!("Failed to get uniform location: {name}"))
     }
 }
 

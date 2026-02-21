@@ -905,7 +905,7 @@ impl BeamtermRenderer {
         let _ = grid.flush_cells(self.renderer.gl());
 
         self.renderer.begin_frame();
-        self.renderer.render(&*grid);
+        let _ = self.renderer.render(&*grid);
         self.renderer.end_frame();
     }
 

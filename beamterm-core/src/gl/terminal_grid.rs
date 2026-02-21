@@ -826,7 +826,7 @@ fn enable_vertex_attrib(
 }
 
 impl Drawable for TerminalGrid {
-    fn prepare(&self, context: &mut RenderContext) {
+    fn prepare(&self, context: &mut RenderContext) -> Result<(), crate::Error> {
         let gl = context.gl;
 
         self.gpu.shader.use_program(gl);
@@ -834,10 +834,12 @@ impl Drawable for TerminalGrid {
         unsafe { gl.bind_vertex_array(Some(self.gpu.buffers.vao)) };
 
         self.atlas.bind(gl, 0);
-        self.atlas.flush(gl).unwrap(); // fixme: handle error
+        self.atlas.flush(gl)?;
         self.gpu.ubo_vertex.bind(context.gl);
         self.gpu.ubo_fragment.bind(context.gl);
         unsafe { gl.uniform_1_i32(Some(&self.gpu.sampler_loc), 0) };
+
+        Ok(())
     }
 
     fn draw(&self, context: &mut RenderContext) {

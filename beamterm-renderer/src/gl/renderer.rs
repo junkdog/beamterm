@@ -110,12 +110,13 @@ impl Renderer {
     }
 
     /// Renders a drawable object.
-    pub fn render(&mut self, drawable: &impl Drawable) {
+    pub fn render(&mut self, drawable: &impl Drawable) -> Result<(), crate::Error> {
         let mut context = RenderContext { gl: &self.gl, state: &mut self.state };
 
-        drawable.prepare(&mut context);
+        drawable.prepare(&mut context)?;
         drawable.draw(&mut context);
         drawable.cleanup(&mut context);
+        Ok(())
     }
 
     /// Ends the current rendering frame.

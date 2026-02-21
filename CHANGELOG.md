@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - *(renderer)* Replace web_sys WebGL2 calls with glow
+- *(atlas)* [**breaking**] Propagate atlas flush errors instead of panicking
 
 ## [beamterm-v0.15.0] - 2026-02-17
 

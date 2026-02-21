@@ -198,7 +198,8 @@ impl ApplicationHandler for App {
 
                 let mut ctx = RenderContext { gl: &state.gl, state: &mut state.gl_state };
 
-                state.grid.prepare(&mut ctx);
+                state.grid.prepare(&mut ctx)
+                    .expect("failed to prepare grid");
                 state.grid.draw(&mut ctx);
                 state.grid.cleanup(&mut ctx);
 

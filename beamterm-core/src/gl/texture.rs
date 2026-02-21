@@ -75,7 +75,7 @@ impl Texture {
             );
         }
 
-        Self::setup_mipmap(gl);
+        Self::setup_sampling(gl);
 
         let (width, height, layers) = atlas.texture_dimensions;
         Ok(Self {
@@ -146,7 +146,7 @@ impl Texture {
             );
         }
 
-        Self::setup_mipmap(gl);
+        Self::setup_sampling(gl);
 
         Ok(Self {
             gl_texture,
@@ -216,9 +216,8 @@ impl Texture {
         }
     }
 
-    fn setup_mipmap(gl: &glow::Context) {
+    fn setup_sampling(gl: &glow::Context) {
         unsafe {
-            gl.generate_mipmap(glow::TEXTURE_2D_ARRAY);
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D_ARRAY,
                 glow::TEXTURE_MIN_FILTER,
@@ -229,7 +228,6 @@ impl Texture {
                 glow::TEXTURE_MAG_FILTER,
                 glow::NEAREST as i32,
             );
-            gl.tex_parameter_i32(glow::TEXTURE_2D_ARRAY, glow::TEXTURE_BASE_LEVEL, 0);
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D_ARRAY,
                 glow::TEXTURE_WRAP_S,
