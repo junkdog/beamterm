@@ -15,22 +15,12 @@ use beamterm_core::{
     CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, RenderContext,
     StaticFontAtlas, TerminalGrid,
 };
-use glutin::{
-    config::{ConfigTemplateBuilder, GlConfig},
-    context::{
-        ContextApi, ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext, Version,
-    },
-    display::{GetGlDisplay, GlDisplay},
-    surface::{GlSurface, Surface, SwapInterval, WindowSurface},
-};
-use glutin_winit::DisplayBuilder;
-use raw_window_handle::HasWindowHandle;
+use glutin::surface::GlSurface;
 use winit::{
     application::ApplicationHandler,
-    dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
-    window::{Window, WindowAttributes, WindowId},
+    window::WindowId,
 };
 
 fn main() {
@@ -47,10 +37,7 @@ struct App {
 }
 
 struct AppState {
-    window: Window,
-    gl_context: PossiblyCurrentContext,
-    gl_surface: Surface<WindowSurface>,
-    gl: glow::Context,
+    win: GlWindow,
     gl_state: GlState,
     grid: TerminalGrid,
 }
@@ -61,90 +48,29 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let window_attrs = WindowAttributes::default()
-            .with_title("beamterm - native OpenGL 3.3")
-            .with_inner_size(LogicalSize::new(960, 600));
+        // --- windowing + GL context (see GlWindow below) ---
+        let win = GlWindow::new(event_loop, "beamterm - native OpenGL 3.3", (960, 600));
+        let gl_state = GlState::new(&win.gl);
 
-        let config_template = ConfigTemplateBuilder::new().with_alpha_size(8);
-
-        let (window, gl_config) =
-            DisplayBuilder::new()
-                .with_window_attributes(Some(window_attrs))
-                .build(event_loop, config_template, |configs| {
-                    configs
-                        .reduce(|accum, config| {
-                            if config.num_samples() > accum.num_samples() { config } else { accum }
-                        })
-                        .unwrap()
-                })
-                .expect("failed to build display");
-
-        let window = window.expect("failed to create window");
-        let gl_display = gl_config.display();
-
-        // Request OpenGL 3.3 Core
-        let context_attrs = ContextAttributesBuilder::new()
-            .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
-            .build(Some(
-                window
-                    .window_handle()
-                    .expect("failed to get window handle")
-                    .into(),
-            ));
-
-        let not_current_context = unsafe { gl_display.create_context(&gl_config, &context_attrs) }
-            .expect("failed to create GL context");
-
-        let size = window.inner_size();
-        let surface_attrs = glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
-            .build(
-                window
-                    .window_handle()
-                    .expect("failed to get window handle")
-                    .into(),
-                NonZeroU32::new(size.width).unwrap(),
-                NonZeroU32::new(size.height).unwrap(),
-            );
-
-        let gl_surface = unsafe { gl_display.create_window_surface(&gl_config, &surface_attrs) }
-            .expect("failed to create GL surface");
-
-        let gl_context = not_current_context
-            .make_current(&gl_surface)
-            .expect("failed to make GL context current");
-
-        // Try vsync, but don't fail if unsupported
-        let _ = gl_surface
-            .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
-
-        // Create glow context from glutin's GL loader
-        let gl = unsafe {
-            glow::Context::from_loader_function_cstr(|name| gl_display.get_proc_address(name))
-        };
-
-        let gl_state = GlState::new(&gl);
-
-        // Load the default embedded font atlas
+        // --- beamterm setup ---
         let atlas_data = FontAtlasData::default();
-        let atlas = StaticFontAtlas::load(&gl, atlas_data).expect("failed to load font atlas");
-
-        let pixel_ratio = window.scale_factor() as f32;
-        let physical_size = (size.width as i32, size.height as i32);
+        let atlas = StaticFontAtlas::load(&win.gl, atlas_data)
+            .expect("failed to load font atlas");
 
         let mut grid = TerminalGrid::new(
-            &gl,
+            &win.gl,
             atlas.into(),
-            physical_size,
-            pixel_ratio,
+            win.physical_size(),
+            win.pixel_ratio(),
             &GlslVersion::Gl330,
         )
         .expect("failed to create terminal grid");
 
-        populate_demo_content(&mut grid, &gl);
-        grid.flush_cells(&gl)
+        populate_demo_content(&mut grid, &win.gl);
+        grid.flush_cells(&win.gl)
             .expect("failed to flush cells");
 
-        self.state = Some(AppState { window, gl_context, gl_surface, gl, gl_state, grid });
+        self.state = Some(AppState { win, gl_state, grid });
     }
 
     fn window_event(
@@ -163,50 +89,38 @@ impl ApplicationHandler for App {
             },
             WindowEvent::Resized(new_size) => {
                 if new_size.width > 0 && new_size.height > 0 {
-                    state.gl_surface.resize(
-                        &state.gl_context,
-                        NonZeroU32::new(new_size.width).unwrap(),
-                        NonZeroU32::new(new_size.height).unwrap(),
-                    );
+                    state.win.resize_surface(new_size);
 
-                    let pixel_ratio = state.window.scale_factor() as f32;
                     let _ = state.grid.resize(
-                        &state.gl,
+                        &state.win.gl,
                         (new_size.width as i32, new_size.height as i32),
-                        pixel_ratio,
+                        state.win.pixel_ratio(),
                     );
 
-                    populate_demo_content(&mut state.grid, &state.gl);
-                    state
-                        .grid
-                        .flush_cells(&state.gl)
+                    populate_demo_content(&mut state.grid, &state.win.gl);
+                    state.grid.flush_cells(&state.win.gl)
                         .expect("failed to flush cells");
-                    state.window.request_redraw();
+                    state.win.window.request_redraw();
                 }
             },
             WindowEvent::RedrawRequested => {
                 let (w, h) = state.grid.canvas_size();
-                state.gl_state.viewport(&state.gl, 0, 0, w, h);
-                state
-                    .gl_state
-                    .clear_color(&state.gl, 0.0, 0.0, 0.0, 1.0);
+                state.gl_state.viewport(&state.win.gl, 0, 0, w, h);
+                state.gl_state.clear_color(&state.win.gl, 0.0, 0.0, 0.0, 1.0);
 
                 unsafe {
                     use glow::HasContext;
-                    state.gl.clear(glow::COLOR_BUFFER_BIT);
+                    state.win.gl.clear(glow::COLOR_BUFFER_BIT);
                 }
 
-                let mut ctx = RenderContext { gl: &state.gl, state: &mut state.gl_state };
+                let mut ctx = RenderContext { gl: &state.win.gl, state: &mut state.gl_state };
 
                 state.grid.prepare(&mut ctx)
                     .expect("failed to prepare grid");
                 state.grid.draw(&mut ctx);
                 state.grid.cleanup(&mut ctx);
 
-                state
-                    .gl_surface
-                    .swap_buffers(&state.gl_context)
-                    .expect("failed to swap buffers");
+                state.win.swap_buffers();
             },
             _ => {},
         }
@@ -214,10 +128,12 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(state) = self.state.as_ref() {
-            state.window.request_redraw();
+            state.win.window.request_redraw();
         }
     }
 }
+
+// ── demo content ─────────────────────────────────────────────────────
 
 /// Populates the terminal grid with colorful demo content.
 fn populate_demo_content(grid: &mut TerminalGrid, gl: &glow::Context) {
@@ -424,4 +340,112 @@ fn char_at(
     bg: u32,
 ) -> CellData<'static> {
     CellData::new(&text[index..index + 1], style, effect, fg, bg)
+}
+
+// ── glutin / winit boilerplate ───────────────────────────────────────
+
+use glutin::{
+    config::{ConfigTemplateBuilder, GlConfig},
+    context::{
+        ContextApi, ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext, Version,
+    },
+    display::{GetGlDisplay, GlDisplay},
+    surface::{Surface, SwapInterval, WindowSurface},
+};
+use glutin_winit::DisplayBuilder;
+use raw_window_handle::HasWindowHandle;
+use winit::{dpi::LogicalSize, window::{Window, WindowAttributes}};
+
+struct GlWindow {
+    window: Window,
+    gl_context: PossiblyCurrentContext,
+    gl_surface: Surface<WindowSurface>,
+    gl: glow::Context,
+}
+
+impl GlWindow {
+    fn new(event_loop: &ActiveEventLoop, title: &str, size: (u32, u32)) -> Self {
+        let window_attrs = WindowAttributes::default()
+            .with_title(title)
+            .with_inner_size(LogicalSize::new(size.0, size.1));
+
+        let config_template = ConfigTemplateBuilder::new().with_alpha_size(8);
+
+        let (window, gl_config) =
+            DisplayBuilder::new()
+                .with_window_attributes(Some(window_attrs))
+                .build(event_loop, config_template, |configs| {
+                    configs
+                        .reduce(|accum, config| {
+                            if config.num_samples() > accum.num_samples() { config } else { accum }
+                        })
+                        .unwrap()
+                })
+                .expect("failed to build display");
+
+        let window = window.expect("failed to create window");
+        let gl_display = gl_config.display();
+
+        let context_attrs = ContextAttributesBuilder::new()
+            .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
+            .build(Some(
+                window
+                    .window_handle()
+                    .expect("failed to get window handle")
+                    .into(),
+            ));
+
+        let not_current_context = unsafe { gl_display.create_context(&gl_config, &context_attrs) }
+            .expect("failed to create GL context");
+
+        let inner = window.inner_size();
+        let surface_attrs = glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
+            .build(
+                window
+                    .window_handle()
+                    .expect("failed to get window handle")
+                    .into(),
+                NonZeroU32::new(inner.width).unwrap(),
+                NonZeroU32::new(inner.height).unwrap(),
+            );
+
+        let gl_surface = unsafe { gl_display.create_window_surface(&gl_config, &surface_attrs) }
+            .expect("failed to create GL surface");
+
+        let gl_context = not_current_context
+            .make_current(&gl_surface)
+            .expect("failed to make GL context current");
+
+        let _ = gl_surface
+            .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
+
+        let gl = unsafe {
+            glow::Context::from_loader_function_cstr(|name| gl_display.get_proc_address(name))
+        };
+
+        Self { window, gl_context, gl_surface, gl }
+    }
+
+    fn physical_size(&self) -> (i32, i32) {
+        let s = self.window.inner_size();
+        (s.width as i32, s.height as i32)
+    }
+
+    fn pixel_ratio(&self) -> f32 {
+        self.window.scale_factor() as f32
+    }
+
+    fn resize_surface(&self, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.gl_surface.resize(
+            &self.gl_context,
+            NonZeroU32::new(new_size.width).unwrap(),
+            NonZeroU32::new(new_size.height).unwrap(),
+        );
+    }
+
+    fn swap_buffers(&self) {
+        self.gl_surface
+            .swap_buffers(&self.gl_context)
+            .expect("failed to swap buffers");
+    }
 }
