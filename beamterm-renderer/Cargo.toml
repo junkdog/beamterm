@@ -22,6 +22,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bitflags.workspace = true
+beamterm-core = { path = "../beamterm-core", version = "0.15.0" }
 beamterm-data = { path = "../beamterm-data", version = "0.15.0" }
 compact_str = { workspace = true }
 console_error_panic_hook = { workspace = true }
@@ -35,15 +36,6 @@ glow = "0.16"
 [dependencies.unicode-segmentation]
 workspace = true
 optional = true
-
-[dependencies.emojis]
-workspace = true
-
-[dependencies.lru]
-version = "0.16"
-
-[dependencies.rustc-hash]
-version = "2.1.1"
 
 [dependencies.serde]
 optional = true

@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) struct UniformBufferObject {
+pub(crate) struct UniformBufferObject {
     buffer: glow::Buffer,
     binding_point: u32,
 }

@@ -2,14 +2,14 @@ use std::{cell::RefCell, collections::HashSet, fmt::Debug};
 
 use compact_str::CompactString;
 
-use crate::{DynamicFontAtlas, Error, StaticFontAtlas};
+use crate::Error;
 
-pub(super) type SlotId = u16;
-pub(super) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
-pub(super) const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
+pub type SlotId = u16;
+pub(crate) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
+pub const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 
 /// Trait defining the interface for font atlases.
-pub(crate) trait Atlas {
+pub trait Atlas {
     /// Returns the glyph identifier for the given key and style bits
     fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16>;
 
@@ -54,7 +54,7 @@ pub(crate) trait Atlas {
     /// Returns an error if texture upload fails.
     fn flush(&self, gl: &glow::Context) -> Result<(), Error>;
 
-    /// Recreates the GPU texture after a WebGL context loss.
+    /// Recreates the GPU texture after a context loss.
     ///
     /// This clears the cache - glyphs will be re-rasterized on next access.
     fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error>;
@@ -97,7 +97,7 @@ pub(crate) trait Atlas {
     /// Deletes the GPU texture resources associated with this atlas.
     ///
     /// This method must be called before dropping the atlas to properly clean up
-    /// WebGL resources. Failing to call this will leak GPU memory.
+    /// GPU resources. Failing to call this will leak GPU memory.
     fn delete(&self, gl: &glow::Context);
 
     /// Updates the pixel ratio for HiDPI rendering.
@@ -137,7 +137,7 @@ pub(crate) trait Atlas {
     fn texture_cell_size(&self) -> (i32, i32);
 }
 
-pub(crate) struct FontAtlas {
+pub struct FontAtlas {
     inner: Box<dyn Atlas>,
 }
 
@@ -155,84 +155,84 @@ impl Debug for FontAtlas {
 }
 
 impl FontAtlas {
-    pub(super) fn new(inner: impl Atlas + 'static) -> Self {
+    pub fn new(inner: impl Atlas + 'static) -> Self {
         Self { inner: Box::new(inner) }
     }
 
-    pub(crate) fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
+    pub fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
         self.inner.get_glyph_id(key, style_bits)
     }
 
-    pub(crate) fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+    pub fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
         self.inner.get_base_glyph_id(key)
     }
 
-    pub(crate) fn cell_size(&self) -> (i32, i32) {
+    pub fn cell_size(&self) -> (i32, i32) {
         self.inner.cell_size()
     }
 
-    pub(crate) fn bind(&self, gl: &glow::Context, texture_unit: u32) {
+    pub fn bind(&self, gl: &glow::Context, texture_unit: u32) {
         self.inner.bind(gl, texture_unit)
     }
 
-    pub(crate) fn underline(&self) -> beamterm_data::LineDecoration {
+    pub fn underline(&self) -> beamterm_data::LineDecoration {
         self.inner.underline()
     }
 
-    pub(crate) fn strikethrough(&self) -> beamterm_data::LineDecoration {
+    pub fn strikethrough(&self) -> beamterm_data::LineDecoration {
         self.inner.strikethrough()
     }
 
-    pub(crate) fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
+    pub fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.inner.get_symbol(glyph_id)
     }
 
-    pub(crate) fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
+    pub fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
         self.inner.get_ascii_char(glyph_id)
     }
 
-    pub(crate) fn glyph_tracker(&self) -> &GlyphTracker {
+    pub fn glyph_tracker(&self) -> &GlyphTracker {
         self.inner.glyph_tracker()
     }
 
-    pub(crate) fn glyph_count(&self) -> u32 {
+    pub fn glyph_count(&self) -> u32 {
         self.inner.glyph_count()
     }
 
-    pub(crate) fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
+    pub fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.recreate_texture(gl)
     }
 
-    pub(crate) fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
+    pub fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
         self.inner.for_each_symbol(f)
     }
 
-    pub(crate) fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+    pub fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
 
-    pub(crate) fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
+    pub fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.flush(gl)
     }
 
-    pub(super) fn base_lookup_mask(&self) -> u32 {
+    pub(crate) fn base_lookup_mask(&self) -> u32 {
         self.inner.base_lookup_mask()
     }
 
-    pub(super) fn space_glyph_id(&self) -> u16 {
+    pub(crate) fn space_glyph_id(&self) -> u16 {
         self.get_glyph_id(" ", 0x0)
             .expect("space glyph exists in every font atlas")
     }
 
     /// Deletes the GPU texture resources associated with this atlas.
-    pub(crate) fn delete(&self, gl: &glow::Context) {
+    pub fn delete(&self, gl: &glow::Context) {
         self.inner.delete(gl)
     }
 
     /// Updates the pixel ratio for HiDPI rendering.
     ///
     /// Returns the effective pixel ratio to use for viewport scaling.
-    pub(crate) fn update_pixel_ratio(
+    pub fn update_pixel_ratio(
         &mut self,
         gl: &glow::Context,
         pixel_ratio: f32,
@@ -241,18 +241,18 @@ impl FontAtlas {
     }
 
     /// Returns the cell scale factor for layout calculations.
-    pub(crate) fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
+    pub fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
         self.inner.cell_scale_for_dpr(pixel_ratio)
     }
 
     /// Returns the texture cell size in physical pixels.
-    pub(crate) fn texture_cell_size(&self) -> (i32, i32) {
+    pub fn texture_cell_size(&self) -> (i32, i32) {
         self.inner.texture_cell_size()
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum GlyphSlot {
+pub enum GlyphSlot {
     Normal(SlotId),
     Wide(SlotId),
     Emoji(SlotId),
@@ -282,38 +282,38 @@ impl GlyphSlot {
 
 /// Tracks glyphs that were requested but not found in the font atlas.
 #[derive(Debug, Default)]
-pub(crate) struct GlyphTracker {
+pub struct GlyphTracker {
     missing: RefCell<HashSet<CompactString>>,
 }
 
 impl GlyphTracker {
     /// Creates a new empty glyph tracker.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { missing: RefCell::new(HashSet::new()) }
     }
 
     /// Records a glyph as missing.
-    pub(crate) fn record_missing(&self, glyph: &str) {
+    pub fn record_missing(&self, glyph: &str) {
         self.missing.borrow_mut().insert(glyph.into());
     }
 
     /// Returns a copy of all missing glyphs.
-    pub(crate) fn missing_glyphs(&self) -> HashSet<CompactString> {
+    pub fn missing_glyphs(&self) -> HashSet<CompactString> {
         self.missing.borrow().clone()
     }
 
     /// Clears all tracked missing glyphs.
-    pub(crate) fn clear(&self) {
+    pub fn clear(&self) {
         self.missing.borrow_mut().clear();
     }
 
     /// Returns the number of unique missing glyphs.
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.missing.borrow().len()
     }
 
     /// Returns true if no glyphs are missing.
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.missing.borrow().is_empty()
     }
 }
@@ -331,17 +331,17 @@ mod tests {
         assert_eq!(tracker.len(), 0);
 
         // Record some missing glyphs
-        tracker.record_missing("🎮");
-        tracker.record_missing("🎯");
-        tracker.record_missing("🎮"); // Duplicate
+        tracker.record_missing("\u{1F3AE}");
+        tracker.record_missing("\u{1F3AF}");
+        tracker.record_missing("\u{1F3AE}"); // Duplicate
 
         assert!(!tracker.is_empty());
         assert_eq!(tracker.len(), 2); // Only unique glyphs
 
         // Check the missing glyphs
         let missing = tracker.missing_glyphs();
-        assert!(missing.contains(&CompactString::new("🎮")));
-        assert!(missing.contains(&CompactString::new("🎯")));
+        assert!(missing.contains(&CompactString::new("\u{1F3AE}")));
+        assert!(missing.contains(&CompactString::new("\u{1F3AF}")));
 
         // Clear and verify
         tracker.clear();

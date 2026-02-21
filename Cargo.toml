@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "beamterm-atlas",
+    "beamterm-core",
     "beamterm-data",
     "beamterm-renderer",
 ]

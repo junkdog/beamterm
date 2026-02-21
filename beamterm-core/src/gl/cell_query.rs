@@ -9,9 +9,9 @@ use crate::gl::TerminalGrid;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CellQuery {
     pub(crate) mode: SelectionMode,
-    pub(super) start: Option<(u16, u16)>,
-    pub(super) end: Option<(u16, u16)>,
-    pub(super) trim_trailing_whitespace: bool,
+    pub(crate) start: Option<(u16, u16)>,
+    pub(crate) end: Option<(u16, u16)>,
+    pub(crate) trim_trailing_whitespace: bool,
     /// Hash of the selected content when selection was completed.
     /// Used to detect if underlying content has changed.
     pub(crate) content_hash: Option<u64>,
@@ -70,16 +70,6 @@ pub struct LinearCellIterator {
 }
 
 /// Creates a new cell query with the specified selection mode.
-///
-/// # Example
-/// ```
-/// use beamterm_renderer::{select, SelectionMode};
-///
-/// let query = select(SelectionMode::Block)
-///     .start((0, 0))
-///     .end((10, 5))
-///     .trim_trailing_whitespace(true);
-/// ```
 pub fn select(mode: SelectionMode) -> CellQuery {
     CellQuery { mode, ..CellQuery::default() }
 }
@@ -196,7 +186,7 @@ impl Iterator for LinearCellIterator {
         // Check if we need a newline before this cell (except for the first cell)
         let is_row_start = idx.is_multiple_of(self.cols as usize);
         let is_first_cell = idx == self.current_idx;
-        let needs_newline_before = is_row_start && !is_first_cell;
+        let _needs_newline_before = is_row_start && !is_first_cell;
 
         self.current_idx += 1;
         if self.current_idx > self.end_idx {

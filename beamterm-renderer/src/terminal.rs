@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
+use beamterm_core::GlslVersion;
 use beamterm_data::{DebugSpacePattern, FontAtlasData};
 use compact_str::{CompactString, ToCompactString};
-use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
         TerminalMouseHandler,
     },
-    url::find_url_at_cursor,
 };
 
 /// High-performance WebGL2 terminal renderer.
@@ -107,9 +106,10 @@ impl Terminal {
         &mut self,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
-        self.grid
+        Ok(self
+            .grid
             .borrow_mut()
-            .update_cells(self.renderer.gl(), cells)
+            .update_cells(self.renderer.gl(), cells)?)
     }
 
     /// Updates terminal cell content efficiently.
@@ -123,18 +123,20 @@ impl Terminal {
         &mut self,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
     ) -> Result<(), Error> {
-        self.grid
+        Ok(self
+            .grid
             .borrow_mut()
-            .update_cells_by_position(cells)
+            .update_cells_by_position(cells)?)
     }
 
     pub fn update_cells_by_index<'a>(
         &mut self,
         cells: impl Iterator<Item = (usize, CellData<'a>)>,
     ) -> Result<(), Error> {
-        self.grid
+        Ok(self
+            .grid
             .borrow_mut()
-            .update_cells_by_index(cells)
+            .update_cells_by_index(cells)?)
     }
 
     /// Returns the glow rendering context.
@@ -281,7 +283,7 @@ impl Terminal {
     /// multiple lines are not supported.
     pub fn find_url_at(&self, cursor: CursorPosition) -> Option<UrlMatch> {
         let grid = self.grid.borrow();
-        find_url_at_cursor(cursor, &grid)
+        beamterm_core::find_url_at_cursor(cursor, &grid)
     }
 
     /// Renders the current terminal state to the canvas.
@@ -380,7 +382,9 @@ impl Terminal {
         self.grid
             .borrow_mut()
             .recreate_atlas_texture(gl)?;
-        self.grid.borrow_mut().recreate_resources(gl)?;
+        self.grid
+            .borrow_mut()
+            .recreate_resources(gl, &GlslVersion::Es300)?;
         self.grid.borrow_mut().flush_cells(gl)?;
 
         if let Some(handler) = &self.context_loss_handler {
@@ -711,7 +715,8 @@ impl TerminalBuilder {
 
         // create terminal grid with physical canvas size
         let canvas_size = renderer.physical_size();
-        let mut grid = TerminalGrid::new(gl, atlas, canvas_size, raw_pixel_ratio)?;
+        let mut grid =
+            TerminalGrid::new(gl, atlas, canvas_size, raw_pixel_ratio, &GlslVersion::Es300)?;
         if let Some(fallback) = self.fallback_glyph {
             grid.set_fallback_glyph(&fallback)
         };
@@ -795,29 +800,6 @@ impl TerminalBuilder {
 enum InputHandler {
     Mouse(MouseEventCallback),
     CopyOnSelect(MouseSelectOptions),
-}
-
-/// Checks if a grapheme is an emoji-presentation-by-default character.
-///
-/// Text-presentation-by-default characters (e.g., `▶`, `⏭`, `⏹`, `▪`) are
-/// recognized by the `emojis` crate but should only be treated as emoji when
-/// explicitly followed by the variation selector `\u{FE0F}`. Without it, they
-/// are regular text glyphs.
-pub(crate) fn is_emoji(s: &str) -> bool {
-    match emojis::get(s) {
-        Some(emoji) => {
-            // If the canonical form contains FE0F, the base character is
-            // text-presentation-by-default and should only be emoji when
-            // the caller explicitly includes the variant selector.
-            if emoji.as_str().contains('\u{FE0F}') { s.contains('\u{FE0F}') } else { true }
-        },
-        None => false,
-    }
-}
-
-/// Checks if a grapheme is double-width (emoji or fullwidth character).
-pub(crate) fn is_double_width(grapheme: &str) -> bool {
-    grapheme.len() > 1 && (is_emoji(grapheme) || grapheme.width() == 2)
 }
 
 /// Debug API exposed to browser console for terminal inspection.
@@ -947,79 +929,5 @@ impl From<web_sys::HtmlCanvasElement> for CanvasSource {
 impl<'a> From<&'a web_sys::HtmlCanvasElement> for CanvasSource {
     fn from(value: &'a web_sys::HtmlCanvasElement) -> Self {
         value.clone().into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_emoji() {
-        // Emoji-presentation-by-default: always emoji
-        assert!(is_emoji("🚀"));
-        assert!(is_emoji("😀"));
-        assert!(is_emoji("⏩"));
-        assert!(is_emoji("⏪"));
-
-        // Text-presentation-by-default with FE0F: emoji
-        assert!(is_emoji("▶\u{FE0F}"));
-
-        // Text-presentation-by-default without FE0F: NOT emoji
-        assert!(!is_emoji("▶"));
-        assert!(!is_emoji("◀"));
-        assert!(!is_emoji("⏭"));
-        assert!(!is_emoji("⏹"));
-        assert!(!is_emoji("⏮"));
-        assert!(!is_emoji("▪"));
-        assert!(!is_emoji("▫"));
-        assert!(!is_emoji("◼"));
-
-        // Not recognized by emojis crate at all
-        assert!(!is_emoji("A"));
-        assert!(!is_emoji("█"));
-    }
-
-    #[test]
-    fn test_is_double_width() {
-        // emoji-presentation-by-default
-        assert!(is_double_width("😀"));
-        assert!(is_double_width("👨‍👩‍👧")); // ZWJ sequence
-
-        [
-            "⌚", "⌛", "⏩", "⏳", "☔", "☕", "♈", "♓", "♿", "⚓", "⚡", "⚪", "⚫", "⚽",
-            "⚾", "⛄", "⛅", "⛎", "⛔", "⛪", "⛲", "⛳", "⛵", "⛺", "⛽", "◾", "⬛", "⬜",
-            "⭐", "⭕", "〰", "〽", "㊗", "㊙",
-        ]
-        .iter()
-        .for_each(|s| {
-            assert!(is_double_width(s), "Failed for emoji: {}", s);
-        });
-
-        // text-presentation-by-default with FE0F: double-width
-        assert!(is_double_width("▶\u{FE0F}"));
-        assert!(is_double_width("◀\u{FE0F}"));
-
-        // text-presentation-by-default without FE0F: single-width
-        assert!(!is_double_width("⏸"));
-        assert!(!is_double_width("⏺"));
-        assert!(!is_double_width("▪"));
-        assert!(!is_double_width("▫"));
-        assert!(!is_double_width("▶"));
-        assert!(!is_double_width("◀"));
-        assert!(!is_double_width("◻"));
-        assert!(!is_double_width("⤴"));
-        assert!(!is_double_width("⤵"));
-        assert!(!is_double_width("⬅"));
-        assert!(!is_double_width("⬇"));
-        assert!(!is_double_width("⛈"));
-
-        // CJK
-        assert!(is_double_width("中"));
-        assert!(is_double_width("日"));
-
-        // single-width
-        assert!(!is_double_width("A"));
-        assert!(!is_double_width("→"));
     }
 }

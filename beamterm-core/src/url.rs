@@ -51,7 +51,7 @@ fn is_trailing_punctuation(ch: char) -> bool {
 /// to find the URL end. Handles trailing punctuation and unbalanced parentheses.
 ///
 /// Returns `None` if no URL is found at the cursor position.
-pub(super) fn find_url_at_cursor(cursor: CursorPosition, grid: &TerminalGrid) -> Option<UrlMatch> {
+pub fn find_url_at_cursor(cursor: CursorPosition, grid: &TerminalGrid) -> Option<UrlMatch> {
     let cols = grid.terminal_size().0;
 
     // Find scheme start by scanning left

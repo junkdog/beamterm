@@ -119,6 +119,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "beamterm-core"
+version = "0.15.0"
+dependencies = [
+ "beamterm-data",
+ "bitflags",
+ "compact_str",
+ "emojis",
+ "glow",
+ "lru",
+ "rustc-hash 2.1.1",
+ "thiserror",
+ "unicode-width",
+]
+
+[[package]]
 name = "beamterm-data"
 version = "0.15.0"
 dependencies = [
@@ -130,15 +145,13 @@ dependencies = [
 name = "beamterm-renderer"
 version = "0.15.0"
 dependencies = [
+ "beamterm-core",
  "beamterm-data",
  "bitflags",
  "compact_str",
  "console_error_panic_hook",
- "emojis",
  "glow",
  "js-sys",
- "lru",
- "rustc-hash 2.1.1",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

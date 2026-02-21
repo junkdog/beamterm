@@ -1,7 +1,3 @@
-#version 300 es
-
-precision mediump float;
-
 // uniforms
 uniform mediump sampler2DArray u_sampler;
 layout(std140) uniform FragUbo {

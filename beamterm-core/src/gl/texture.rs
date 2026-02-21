@@ -1,22 +1,44 @@
-use beamterm_data::{FontAtlasData, FontStyle, Glyph};
+use beamterm_data::FontAtlasData;
 use glow::HasContext;
 
-use super::canvas_rasterizer::RasterizedGlyph;
 use crate::error::Error;
 
 /// Number of glyphs stored per texture layer (1x32 vertical grid)
 const GLYPHS_PER_LAYER: i32 = 32;
 
+/// Platform-agnostic rasterized glyph data for texture upload.
+#[derive(Debug, Clone)]
+pub struct RasterizedGlyph {
+    pub pixels: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl RasterizedGlyph {
+    pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
+        Self { pixels, width, height }
+    }
+
+    /// Returns true if the glyph produced no visible pixels.
+    pub fn is_empty(&self) -> bool {
+        self.pixels
+            .iter()
+            .skip(3)
+            .step_by(4)
+            .all(|&a| a == 0)
+    }
+}
+
 #[derive(Debug)]
-pub(super) struct Texture {
+pub struct Texture {
     gl_texture: glow::Texture,
-    pub(super) format: u32,
+    pub format: u32,
     /// Texture dimensions (width, height, layers)
     dimensions: (i32, i32, i32),
 }
 
 impl Texture {
-    pub(super) fn from_font_atlas_data(
+    pub fn from_font_atlas_data(
         gl: &glow::Context,
         format: u32,
         atlas: &FontAtlasData,
@@ -77,7 +99,7 @@ impl Texture {
     /// * `format` - Texture format
     /// * `cell_size` - (width, height) of each glyph cell in pixels
     /// * `initial_layers` - Number of texture layers to allocate initially
-    pub(super) fn for_dynamic_font_atlas(
+    pub fn for_dynamic_font_atlas(
         gl: &glow::Context,
         format: u32,
         cell_size: (i32, i32),
@@ -136,14 +158,14 @@ impl Texture {
     /// Uploads a rasterized glyph to the texture at the position determined by its ID.
     ///
     /// Glyph positions follow the layout: layer = id / 32, y = (id % 32) * cell_height
-    pub(super) fn upload_glyph(
+    pub fn upload_glyph(
         &self,
         gl: &glow::Context,
         glyph_id: u16,
         padded_cell_size: (i32, i32),
         rasterized: &RasterizedGlyph,
     ) -> Result<(), Error> {
-        let (cell_w, cell_h) = padded_cell_size;
+        let (_cell_w, cell_h) = padded_cell_size;
 
         // Calculate position in texture array
         let layer = (glyph_id as i32) / GLYPHS_PER_LAYER;
@@ -176,7 +198,7 @@ impl Texture {
     }
 
     /// Returns the texture dimensions (width, height, layers)
-    pub(super) fn dimensions(&self) -> (i32, i32, i32) {
+    pub fn dimensions(&self) -> (i32, i32, i32) {
         self.dimensions
     }
 

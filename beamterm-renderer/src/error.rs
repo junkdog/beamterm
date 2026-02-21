@@ -119,6 +119,16 @@ impl Error {
     }
 }
 
+impl From<beamterm_core::Error> for Error {
+    fn from(err: beamterm_core::Error) -> Self {
+        match err {
+            beamterm_core::Error::Shader(msg) => Error::Shader(msg),
+            beamterm_core::Error::Resource(msg) => Error::Resource(msg),
+            beamterm_core::Error::Data(msg) => Error::Data(msg),
+        }
+    }
+}
+
 impl From<Error> for wasm_bindgen::JsValue {
     fn from(err: Error) -> Self {
         wasm_bindgen::JsValue::from_str(&err.to_string())

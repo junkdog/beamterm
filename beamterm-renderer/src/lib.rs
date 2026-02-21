@@ -1,7 +1,5 @@
 mod error;
 mod gl;
-mod mat4;
-mod position;
 mod terminal;
 
 pub(crate) mod js;
@@ -10,13 +8,14 @@ pub(crate) mod js;
 pub mod wasm;
 
 pub mod mouse;
-mod url;
 
-pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect};
-pub use beamterm_data::FontStyle;
-pub use position::CursorPosition;
+// Re-export platform-agnostic types from beamterm-core
+pub use ::beamterm_data::{DebugSpacePattern, GlyphEffect};
+pub use beamterm_core::{
+    CursorPosition, FontAtlasData, FontStyle, GlslVersion, UrlMatch, find_url_at_cursor,
+    is_double_width, is_emoji,
+};
 pub use terminal::*;
-pub use url::UrlMatch;
 
 pub use crate::{error::Error, gl::*};
 

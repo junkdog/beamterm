@@ -1,8 +1,8 @@
 use glow::HasContext;
 
-/// Manages simple WebGL state to reduce redundant state changes
+/// Manages simple GL state to reduce redundant state changes
 #[derive(Debug)]
-pub(super) struct GlState {
+pub struct GlState {
     // Viewport dimensions
     viewport: [i32; 4], // [x, y, width, height]
 
@@ -20,7 +20,7 @@ pub(super) struct GlState {
 }
 
 impl GlState {
-    /// Create a new GLState object with WebGL defaults
+    /// Create a new GLState object with GL defaults
     pub fn new(gl: &glow::Context) -> Self {
         // Get max vertex attributes
         let max_vertex_attribs = unsafe { gl.get_parameter_i32(glow::MAX_VERTEX_ATTRIBS) as usize };
@@ -89,7 +89,7 @@ impl GlState {
         self
     }
 
-    /// Reset all tracked state to WebGL defaults
+    /// Reset all tracked state to GL defaults
     pub fn reset(&mut self, gl: &glow::Context) {
         // Reset blend function
         if self.blend_func != (glow::ONE, glow::ZERO) {

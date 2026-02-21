@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
+use beamterm_core::GlslVersion;
 use beamterm_data::{FontAtlasData, Glyph};
 use compact_str::{CompactString, ToCompactString};
 use serde_wasm_bindgen::from_value;
@@ -9,6 +10,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::console;
 
 use crate::{
+    CursorPosition,
     gl::{
         CellData, CellQuery as RustCellQuery, ContextLossHandler, DynamicFontAtlas, Renderer,
         SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
@@ -18,8 +20,6 @@ use crate::{
         DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
         TerminalMouseEvent, TerminalMouseHandler,
     },
-    position::CursorPosition,
-    url::find_url_at_cursor,
 };
 
 /// JavaScript wrapper for the terminal renderer
@@ -559,9 +559,14 @@ impl BeamtermRenderer {
             .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
 
         let canvas_size = renderer.physical_size();
-        let terminal_grid =
-            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
-                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let terminal_grid = TerminalGrid::new(
+            gl,
+            atlas.into(),
+            canvas_size,
+            current_pixel_ratio,
+            &GlslVersion::Es300,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
 
@@ -633,9 +638,14 @@ impl BeamtermRenderer {
             .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
 
         let canvas_size = renderer.physical_size();
-        let terminal_grid =
-            TerminalGrid::new(gl, atlas.into(), canvas_size, current_pixel_ratio)
-                .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let terminal_grid = TerminalGrid::new(
+            gl,
+            atlas.into(),
+            canvas_size,
+            current_pixel_ratio,
+            &GlslVersion::Es300,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
 
         let terminal_grid = Rc::new(RefCell::new(terminal_grid));
 
@@ -800,7 +810,7 @@ impl BeamtermRenderer {
         let cursor = CursorPosition::new(col, row);
         let grid = self.terminal_grid.borrow();
 
-        find_url_at_cursor(cursor, &grid).map(|m| UrlMatch {
+        beamterm_core::find_url_at_cursor(cursor, &grid).map(|m| UrlMatch {
             url: m.url.to_string(),
             query: CellQuery { inner: m.query },
         })
@@ -930,7 +940,7 @@ impl BeamtermRenderer {
 
         self.terminal_grid
             .borrow_mut()
-            .recreate_resources(gl)
+            .recreate_resources(gl, &GlslVersion::Es300)
             .map_err(|e| JsValue::from_str(&format!("Failed to recreate grid resources: {e}")))?;
 
         self.terminal_grid

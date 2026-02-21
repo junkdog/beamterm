@@ -1,28 +1,28 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
-use beamterm_data::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use beamterm_data::{FontAtlasData, FontStyle, Glyph};
 use compact_str::{CompactString, ToCompactString};
 
 use super::{
     atlas,
-    atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker},
+    atlas::{Atlas, GlyphSlot, GlyphTracker},
 };
 use crate::error::Error;
 
-/// A texture atlas containing font glyphs for efficient WebGL text rendering.
+/// A texture atlas containing font glyphs for efficient GL text rendering.
 ///
-/// `StaticFontAtlas` manages a WebGL 2D texture array where each layer contains a single
+/// `StaticFontAtlas` manages a GL 2D texture array where each layer contains a single
 /// character glyph. This design enables efficient instanced rendering of text by
 /// allowing the GPU to select the appropriate character layer for each rendered cell.
 ///
 /// # Architecture
-/// The atlas uses a **WebGL 2D texture array** where:
+/// The atlas uses a **GL 2D texture array** where:
 /// - Each layer contains one character glyph
 /// - ASCII characters use their ASCII value as the layer index
 /// - Non-ASCII characters are stored in a hash map for layer lookup
 /// - All glyphs have uniform cell dimensions for consistent spacing
 #[derive(Debug)]
-pub(crate) struct StaticFontAtlas {
+pub struct StaticFontAtlas {
     /// The underlying texture
     texture: crate::gl::texture::Texture,
     /// Symbol to 3d texture index
@@ -53,11 +53,11 @@ impl StaticFontAtlas {
     }
 
     /// Creates a TextureAtlas from a grid of equal-sized cells
-    pub(crate) fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
+    pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &config)?;
         let num_slices = config.texture_dimensions.2;
 
-        let texture_layers = config
+        let _texture_layers = config
             .glyphs
             .iter()
             .map(|g| g.id as i32)
@@ -187,18 +187,11 @@ impl Atlas for StaticFontAtlas {
         Ok(()) // static atlas has no pending glyphs
     }
 
-    /// Recreates the GPU texture after a WebGL context loss.
+    /// Recreates the GPU texture after a context loss.
     ///
     /// This method rebuilds the texture from the retained atlas data. All glyph
     /// mappings and other CPU-side state are preserved; only the GPU texture
     /// handle is recreated.
-    ///
-    /// # Parameters
-    /// * `gl` - The new WebGL2 rendering context
-    ///
-    /// # Returns
-    /// * `Ok(())` - Texture successfully recreated
-    /// * `Err(Error)` - Failed to create texture
     fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         // Delete old texture if it exists (may be invalid after context loss)
         self.texture.delete(gl);

@@ -1,15 +1,14 @@
-use std::{borrow::Cow, cmp::min, fmt::Debug, ops::Index};
+use std::{cmp::min, fmt::Debug};
 
 use beamterm_data::{FontAtlasData, FontStyle, Glyph, GlyphEffect};
-use compact_str::{CompactString, CompactStringExt};
+use compact_str::CompactString;
 use glow::HasContext;
-use web_sys::console;
 
 use crate::{
     CursorPosition,
     error::Error,
     gl::{
-        CellIterator, CellQuery, Drawable, RenderContext, ShaderProgram, StaticFontAtlas,
+        CellIterator, CellQuery, Drawable, RenderContext, ShaderProgram,
         atlas::{FontAtlas, GlyphSlot},
         buffer_upload_array,
         selection::SelectionTracker,
@@ -20,7 +19,7 @@ use crate::{
 
 /// A high-performance terminal grid renderer using instanced rendering.
 ///
-/// `TerminalGrid` renders a grid of terminal cells using WebGL2 instanced drawing.
+/// `TerminalGrid` renders a grid of terminal cells using GL instanced drawing.
 /// Each cell can display a character from a font atlas with customizable foreground
 /// and background colors. The renderer uses a 2D texture array to efficiently
 /// store glyph data and supports real-time updates of cell content.
@@ -46,12 +45,12 @@ pub struct TerminalGrid {
     cells_pending_flush: bool,
 }
 
-/// GPU resources that need to be recreated after a WebGL context loss.
+/// GPU resources that need to be recreated after a context loss.
 ///
-/// This struct encapsulates all WebGL-dependent resources: shader program,
+/// This struct encapsulates all GL-dependent resources: shader program,
 /// vertex buffers, uniform buffer objects, and uniform locations. These
 /// resources become invalid after a context loss and must be recreated
-/// with a fresh WebGL context.
+/// with a fresh GL context.
 #[derive(Debug)]
 struct GpuResources {
     /// Shader program for rendering the terminal cells.
@@ -83,6 +82,7 @@ impl GpuResources {
         cell_pos: &[CellStatic],
         cell_data: &[CellDynamic],
         cell_size: (i32, i32),
+        glsl_version: &crate::GlslVersion,
     ) -> Result<Self, Error> {
         // Create and setup the Vertex Array Object
         let vao = unsafe { gl.create_vertex_array() }
@@ -95,8 +95,14 @@ impl GpuResources {
         // Unbind VAO to prevent accidental modification
         unsafe { gl.bind_vertex_array(None) };
 
-        // Setup shader and uniform data
-        let shader = ShaderProgram::create(gl, Self::VERTEX_GLSL, Self::FRAGMENT_GLSL)?;
+        // Setup shader and uniform data with version-injected sources
+        let vertex_source = format!("{}{}", glsl_version.vertex_preamble(), Self::VERTEX_GLSL);
+        let fragment_source = format!(
+            "{}{}",
+            glsl_version.fragment_preamble(),
+            Self::FRAGMENT_GLSL
+        );
+        let shader = ShaderProgram::create(gl, &vertex_source, &fragment_source)?;
         shader.use_program(gl);
 
         let ubo_vertex = UniformBufferObject::new(gl, CellVertexUbo::BINDING_POINT)?;
@@ -165,11 +171,12 @@ impl TerminalBuffers {
 }
 
 impl TerminalGrid {
-    pub(crate) fn new(
+    pub fn new(
         gl: &glow::Context,
         atlas: FontAtlas,
         screen_size: (i32, i32),
         pixel_ratio: f32,
+        glsl_version: &crate::GlslVersion,
     ) -> Result<Self, Error> {
         let cell_scale = atlas.cell_scale_for_dpr(pixel_ratio);
         let base_cell_size = atlas.cell_size();
@@ -184,7 +191,7 @@ impl TerminalGrid {
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         let grid = Self {
-            gpu: GpuResources::new(gl, &cell_pos, &cell_data, cell_size)?,
+            gpu: GpuResources::new(gl, &cell_pos, &cell_data, cell_size, glsl_version)?,
             terminal_size: (cols as u16, rows as u16),
             canvas_size_px: screen_size,
             pixel_ratio,
@@ -226,11 +233,7 @@ impl TerminalGrid {
     /// 2. Resolving the corresponding glyph slot in the new atlas
     /// 3. Updating double-width glyphs (emoji, wide chars) across both cells
     /// 4. Resizing the grid if cell dimensions changed
-    ///
-    /// # Parameters
-    /// * `gl` - WebGL2 rendering context
-    /// * `atlas` - The new font atlas to use
-    pub(crate) fn replace_atlas(&mut self, gl: &glow::Context, atlas: FontAtlas) {
+    pub fn replace_atlas(&mut self, gl: &glow::Context, atlas: FontAtlas) {
         let glyph_mask = self.atlas.base_lookup_mask() as u16;
         let style_mask = !glyph_mask;
 
@@ -296,17 +299,17 @@ impl TerminalGrid {
     }
 
     /// Returns the [`FontAtlas`] used by this terminal grid.
-    pub(crate) fn atlas(&self) -> &FontAtlas {
+    pub fn atlas(&self) -> &FontAtlas {
         &self.atlas
     }
 
     /// Returns a mutable reference to the font atlas.
-    pub(crate) fn atlas_mut(&mut self) -> &mut FontAtlas {
+    pub fn atlas_mut(&mut self) -> &mut FontAtlas {
         &mut self.atlas
     }
 
     /// Returns the canvas size in pixels.
-    pub(crate) fn canvas_size(&self) -> (i32, i32) {
+    pub fn canvas_size(&self) -> (i32, i32) {
         self.canvas_size_px
     }
 
@@ -328,13 +331,12 @@ impl TerminalGrid {
     }
 
     /// Returns the active selection state of the terminal grid.
-    pub(crate) fn selection_tracker(&self) -> SelectionTracker {
+    pub fn selection_tracker(&self) -> SelectionTracker {
         self.selection.clone()
     }
 
     /// Returns the symbols in the specified block range as a `CompactString`.
-    pub(super) fn get_symbols(&self, selection: CellIterator) -> CompactString {
-        let (cols, rows) = self.terminal_size;
+    pub(crate) fn get_symbols(&self, selection: CellIterator) -> CompactString {
         let mut text = CompactString::new("");
 
         for (idx, require_newline_after) in selection {
@@ -355,7 +357,7 @@ impl TerminalGrid {
     ///
     /// Returns `None` for non-ASCII characters or out-of-bounds positions.
     /// This is an optimized path for URL detection that avoids string allocation.
-    pub(crate) fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
+    pub fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
         let idx = cursor.row as usize * self.terminal_size.0 as usize + cursor.col as usize;
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
@@ -365,7 +367,7 @@ impl TerminalGrid {
         }
     }
 
-    pub(crate) fn hash_cells(&self, selection: CellQuery) -> u64 {
+    pub fn hash_cells(&self, selection: CellQuery) -> u64 {
         use std::hash::{Hash, Hasher};
 
         use rustc_hash::FxHasher;
@@ -391,13 +393,6 @@ impl TerminalGrid {
     }
 
     /// Uploads uniform buffer data for screen and cell dimensions.
-    ///
-    /// This method updates the shader uniform buffers with the current screen
-    /// size and cell dimensions. Must be called when the screen size changes
-    /// or when initializing the grid.
-    ///
-    /// # Parameters
-    /// * `gl` - WebGL2 rendering context
     fn upload_ubo_data(&self, gl: &glow::Context) {
         let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.effective_cell_size());
         self.gpu.ubo_vertex.upload_data(gl, &vertex_ubo);
@@ -414,21 +409,9 @@ impl TerminalGrid {
     }
 
     /// Updates the content of terminal cells with new data.
-    ///
-    /// This method efficiently updates the dynamic instance buffer with new
-    /// cell data. The iterator must provide exactly the same number of cells
-    /// as the grid contains, in row-major order.
-    ///
-    /// # Parameters
-    /// * `gl` - WebGL2 rendering context
-    /// * `cells` - Iterator providing `CellData` for each cell in the grid
-    ///
-    /// # Returns
-    /// * `Ok(())` - Successfully updated cell data
-    /// * `Err(Error)` - Failed to update buffer or other WebGL error
     pub fn update_cells<'a>(
         &mut self,
-        gl: &glow::Context,
+        _gl: &glow::Context,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
         // update instance buffer with new cell data
@@ -465,7 +448,7 @@ impl TerminalGrid {
         Ok(())
     }
 
-    pub(crate) fn update_cells_by_position<'a>(
+    pub fn update_cells_by_position<'a>(
         &mut self,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
     ) -> Result<(), Error> {
@@ -475,7 +458,7 @@ impl TerminalGrid {
         self.update_cells_by_index(cells_by_index)
     }
 
-    pub(crate) fn update_cells_by_index<'a>(
+    pub fn update_cells_by_index<'a>(
         &mut self,
         cells: impl Iterator<Item = (usize, CellData<'a>)>,
     ) -> Result<(), Error> {
@@ -526,22 +509,18 @@ impl TerminalGrid {
         Ok(())
     }
 
-    pub(crate) fn update_cell(&mut self, x: u16, y: u16, cell_data: CellData) -> Result<(), Error> {
+    pub fn update_cell(&mut self, x: u16, y: u16, cell_data: CellData) -> Result<(), Error> {
         let (cols, _) = self.terminal_size;
         let idx = y as usize * cols as usize + x as usize;
         self.update_cell_by_index(idx, cell_data)
     }
 
-    pub(crate) fn update_cell_by_index(
-        &mut self,
-        idx: usize,
-        cell_data: CellData,
-    ) -> Result<(), Error> {
+    pub fn update_cell_by_index(&mut self, idx: usize, cell_data: CellData) -> Result<(), Error> {
         self.update_cells_by_index(std::iter::once((idx, cell_data)))
     }
 
     /// Flushes pending cell updates to the GPU.
-    pub(crate) fn flush_cells(&mut self, gl: &glow::Context) -> Result<(), Error> {
+    pub fn flush_cells(&mut self, gl: &glow::Context) -> Result<(), Error> {
         if !self.cells_pending_flush {
             return Ok(()); // no pending updates to flush
         }
@@ -588,20 +567,6 @@ impl TerminalGrid {
     }
 
     /// Resizes the terminal grid to fit the new canvas dimensions.
-    ///
-    /// This method recalculates the terminal dimensions based on the canvas size and cell
-    /// dimensions, then recreates the necessary GPU buffers if the grid size changed.
-    /// Existing cell content is preserved where possible during resizing.
-    ///
-    /// # Parameters
-    ///
-    /// * `gl` - WebGL2 rendering context
-    /// * `canvas_size` - New canvas dimensions in pixels as `(width, height)`
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - Successfully resized the terminal
-    /// * `Err(Error)` - Failed to recreate buffers or other WebGL error
     pub fn resize(
         &mut self,
         gl: &glow::Context,
@@ -655,29 +620,18 @@ impl TerminalGrid {
         Ok(())
     }
 
-    /// Recreates all GPU resources after a WebGL context loss.
-    ///
-    /// This method rebuilds all GPU-side resources (VAO, buffers, shaders, UBOs)
-    /// while preserving the current cell data and terminal state. Call this after
-    /// obtaining a new WebGL context following a context loss event.
-    ///
-    /// # Parameters
-    /// * `gl` - The new WebGL2 rendering context
-    ///
-    /// # Returns
-    /// * `Ok(())` - All resources successfully recreated
-    /// * `Err(Error)` - Failed to recreate one or more resources
-    ///
-    /// # Note
-    /// The font atlas texture must be recreated separately via
-    /// [`StaticFontAtlas::recreate_texture`] before calling this method.
-    pub fn recreate_resources(&mut self, gl: &glow::Context) -> Result<(), Error> {
+    /// Recreates all GPU resources after a context loss.
+    pub fn recreate_resources(
+        &mut self,
+        gl: &glow::Context,
+        glsl_version: &crate::GlslVersion,
+    ) -> Result<(), Error> {
         let cell_size = self.effective_cell_size();
         let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         // Recreate all GPU resources
-        self.gpu = GpuResources::new(gl, &cell_pos, &self.cells, cell_size)?;
+        self.gpu = GpuResources::new(gl, &cell_pos, &self.cells, cell_size, glsl_version)?;
 
         // Upload UBO data
         self.upload_ubo_data(gl);
@@ -688,10 +642,7 @@ impl TerminalGrid {
         Ok(())
     }
 
-    /// Recreates the font atlas texture after a WebGL context loss.
-    ///
-    /// This is a convenience method that delegates to [`StaticFontAtlas::recreate_texture`].
-    /// Call this before [`recreate_resources`] when recovering from context loss.
+    /// Recreates the font atlas texture after a context loss.
     pub fn recreate_atlas_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.atlas.recreate_texture(gl)
     }
@@ -931,43 +882,11 @@ pub struct CellData<'a> {
 
 impl<'a> CellData<'a> {
     /// Creates new cell data with the specified character and colors.
-    ///
-    /// # Parameters
-    /// * `symbol` - Character to display (should be a single character)
-    /// * `style` - Font style for the character (e.g. bold, italic)
-    /// * `effect` - Optional glyph effect (e.g. underline, strikethrough)
-    /// * `fg` - Foreground color as RGB value (0xRRGGBB)
-    /// * `bg` - Background color as RGB value (0xRRGGBB)
-    ///
-    /// # Returns
-    /// New `CellData` instance
     pub fn new(symbol: &'a str, style: FontStyle, effect: GlyphEffect, fg: u32, bg: u32) -> Self {
         Self::new_with_style_bits(symbol, style.style_mask() | effect as u16, fg, bg)
     }
 
     /// Creates new cell data with pre-encoded style bits.
-    ///
-    /// This is a lower-level constructor that accepts pre-encoded style bits rather than
-    /// separate `FontStyle` and `GlyphEffect` parameters. Use this when you have already
-    /// combined the style flags or when working directly with the bit representation.
-    ///
-    /// # Parameters
-    /// * `symbol` - Character to display
-    /// * `style_bits` - Pre-encoded style flags. Must not overlap with base glyph ID bits (0x01FF).
-    ///   Valid bits include:
-    ///   - `0x0200` - Bold
-    ///   - `0x0400` - Italic
-    ///   - `0x0800` - Emoji (set automatically by the renderer for emoji glyphs)
-    ///   - `0x1000` - Underline
-    ///   - `0x2000` - Strikethrough
-    /// * `fg` - Foreground color as RGB value (0xRRGGBB)
-    /// * `bg` - Background color as RGB value (0xRRGGBB)
-    ///
-    /// # Returns
-    /// New `CellData` instance
-    ///
-    /// # Panics
-    /// Debug builds will panic if `style_bits` contains any invalid bits.
     pub fn new_with_style_bits(symbol: &'a str, style_bits: u16, fg: u32, bg: u32) -> Self {
         // emoji and glyph base mask should not intersect with style bits
         debug_assert!(
@@ -979,25 +898,6 @@ impl<'a> CellData<'a> {
 }
 
 /// Static instance data for terminal cell positioning.
-///
-/// `CellStatic` represents the unchanging positional data for each terminal cell
-/// in the grid. This data is uploaded once during initialization and remains
-/// constant throughout the lifetime of the terminal grid. Each instance
-/// corresponds to one cell position in the terminal grid.
-///
-/// # Memory Layout
-/// This struct uses `#[repr(C, align(4))]` to ensure:
-/// - C-compatible memory layout for GPU buffer uploads
-/// - 4-byte alignment for efficient GPU access
-/// - Predictable field ordering (grid_xy at offset 0)
-///
-/// # GPU Usage
-/// This data is used as per-instance vertex attributes in the vertex shader,
-/// allowing the same cell geometry to be rendered at different grid positions
-/// using instanced drawing.
-///
-/// # Buffer Upload
-/// Uploaded to GPU using `glow::STATIC_DRAW` since positions don't change.
 #[repr(C, align(4))]
 struct CellStatic {
     /// Grid position as (x, y) coordinates in cell units.
@@ -1007,30 +907,13 @@ struct CellStatic {
 /// Dynamic instance data for terminal cell appearance.
 ///
 /// `CellDynamic` contains the frequently-changing visual data for each terminal
-/// cell, including the character glyph and colors. This data is updated whenever
-/// cell content changes and is efficiently uploaded to the GPU using dynamic
-/// buffer updates.
+/// cell, including the character glyph and colors.
 ///
 /// # Memory Layout
 /// The 8-byte data array is packed as follows:
 /// - Bytes 0-1: Glyph depth/layer index (u16, little-endian)
 /// - Bytes 2-4: Foreground color RGB (3 bytes)
 /// - Bytes 5-7: Background color RGB (3 bytes)
-///
-/// This compact layout minimizes GPU memory usage and allows efficient
-/// instanced rendering of the entire terminal grid.
-///
-/// # Color Format
-/// Colors are stored as RGB bytes (no alpha channel in the instance data).
-/// The alpha channel is handled separately in the shader based on glyph
-/// transparency from the texture atlas.
-///
-/// # GPU Usage
-/// Uploaded as instance attributes and accessed in both vertex and fragment
-/// shaders for character selection and color application.
-///
-/// # Buffer Upload
-/// Uploaded to GPU using `glow::DYNAMIC_DRAW` for efficient updates.
 #[derive(Debug, Clone, Copy, Hash)]
 #[repr(C, align(4))]
 pub struct CellDynamic {
@@ -1092,7 +975,7 @@ impl CellDynamic {
         self.data[..2].copy_from_slice(&glyph_id.to_le_bytes());
     }
 
-    /// Sets the foreground color of the cell.
+    /// Swaps foreground and background colors.
     pub fn flip_colors(&mut self) {
         // swap foreground and background colors
         let fg = [self.data[2], self.data[3], self.data[4]];
@@ -1212,7 +1095,7 @@ impl CellFragmentUbo {
 
 fn create_terminal_cell_data(cols: i32, rows: i32, fill_glyph: u16) -> Vec<CellDynamic> {
     (0..cols * rows)
-        .map(|i| CellDynamic::new(fill_glyph, 0x00ff_ffff, 0x0000_0000))
+        .map(|_i| CellDynamic::new(fill_glyph, 0x00ff_ffff, 0x0000_0000))
         .collect()
 }
 

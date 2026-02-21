@@ -4,16 +4,15 @@ use std::{
     ops::Not,
 };
 
-use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
-use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
-
-use super::{
-    atlas,
-    atlas::{Atlas, GlyphSlot, GlyphTracker, SlotId},
-    canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph},
+use beamterm_core::gl::{
+    atlas::{self, Atlas, GlyphSlot, GlyphTracker, SlotId},
     glyph_cache::{ASCII_SLOTS, GlyphCache},
     texture::Texture,
 };
+use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
+use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
+
+use super::canvas_rasterizer::{CanvasRasterizer, RasterizedGlyph};
 use crate::error::Error;
 
 /// Glyphs per layer (1x32 vertical grid)
@@ -123,8 +122,6 @@ impl DynamicFontAtlas {
     /// Double-width glyphs (emoji, CJK) are split into left/right halves
     /// and uploaded to two consecutive slots.
     fn upload_pending_glyphs(&self, gl: &glow::Context) -> Result<(), Error> {
-        use super::canvas_rasterizer::RasterizedGlyph;
-
         if self.glyphs_pending_upload.is_empty() {
             return Ok(());
         }
@@ -297,15 +294,16 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow().len() as u32
     }
 
-    fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
+    fn flush(&self, gl: &glow::Context) -> Result<(), beamterm_core::Error> {
         while !self.glyphs_pending_upload.is_empty() {
-            self.upload_pending_glyphs(gl)?;
+            self.upload_pending_glyphs(gl)
+                .map_err(|e| beamterm_core::Error::Resource(e.to_string()))?;
         }
 
         Ok(())
     }
 
-    fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
+    fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), beamterm_core::Error> {
         self.texture.delete(gl);
 
         let padded_cell_size = (
@@ -318,7 +316,8 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
 
-        self.upload_ascii_glyphs(gl)?;
+        self.upload_ascii_glyphs(gl)
+            .map_err(|e| beamterm_core::Error::Resource(e.to_string()))?;
 
         Ok(())
     }
@@ -368,7 +367,11 @@ impl Atlas for DynamicFontAtlas {
         self.texture.delete(gl);
     }
 
-    fn update_pixel_ratio(&mut self, gl: &glow::Context, pixel_ratio: f32) -> Result<f32, Error> {
+    fn update_pixel_ratio(
+        &mut self,
+        gl: &glow::Context,
+        pixel_ratio: f32,
+    ) -> Result<f32, beamterm_core::Error> {
         // Skip if ratio hasn't changed
         if (self.pixel_ratio - pixel_ratio).abs() < f32::EPSILON {
             return Ok(pixel_ratio);
@@ -378,11 +381,12 @@ impl Atlas for DynamicFontAtlas {
 
         // Recreate rasterizer with new effective font size
         let effective_font_size = self.base_font_size * pixel_ratio;
-        self.rasterizer =
-            CanvasRasterizer::new(self.rasterizer.font_family(), effective_font_size)?;
+        self.rasterizer = CanvasRasterizer::new(self.rasterizer.font_family(), effective_font_size)
+            .map_err(|e| beamterm_core::Error::Resource(e.to_string()))?;
 
         // Recalculate cell size from new rasterizer
-        self.physical_cell_size = Self::measure_cell_size(&self.rasterizer)?;
+        self.physical_cell_size = Self::measure_cell_size(&self.rasterizer)
+            .map_err(|e| beamterm_core::Error::Resource(e.to_string()))?;
 
         // Recreate texture with new dimensions
         self.texture.delete(gl);
@@ -397,7 +401,8 @@ impl Atlas for DynamicFontAtlas {
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
         self.glyph_tracker.clear();
-        self.upload_ascii_glyphs(gl)?;
+        self.upload_ascii_glyphs(gl)
+            .map_err(|e| beamterm_core::Error::Resource(e.to_string()))?;
 
         Ok(pixel_ratio)
     }
@@ -497,13 +502,11 @@ fn generate_checkered_glyph(
 /// The input glyph should be 2× cell_w wide. Each half will be cell_w × cell_h.
 /// Each half gets padding on its inner edge (where the split occurs).
 fn split_double_width_glyph(
-    glyph: &super::canvas_rasterizer::RasterizedGlyph,
+    glyph: &RasterizedGlyph,
     cell_w: u32,
     cell_h: u32,
 ) -> (RasterizedGlyph, RasterizedGlyph) {
     use beamterm_data::FontAtlasData;
-
-    use super::canvas_rasterizer::RasterizedGlyph;
 
     let bytes_per_pixel = 4usize;
     let padding = FontAtlasData::PADDING as usize;

@@ -1,0 +1,25 @@
+[package]
+name = "beamterm-core"
+description = "Platform-agnostic OpenGL terminal renderer using glow"
+readme = "../README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+beamterm-data = { path = "../beamterm-data", version = "0.15.0" }
+compact_str = { workspace = true }
+thiserror = { workspace = true }
+unicode-width.workspace = true
+emojis.workspace = true
+glow = "0.16"
+lru = "0.16"
+rustc-hash = "2.1.1"
+
+[lints]
+workspace = true

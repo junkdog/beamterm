@@ -36,7 +36,7 @@ use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 
-use crate::{error::Error, terminal::is_double_width};
+use crate::error::Error;
 
 // padding around glyphs matches StaticFontAtlas to unify texture packing.
 const PADDING: u32 = FontAtlasData::PADDING as u32;
@@ -56,31 +56,8 @@ pub(super) struct CellMetrics {
     ascent: f64,
 }
 
-/// Pixel data from a rasterized glyph.
-#[derive(Debug, Clone)]
-pub(crate) struct RasterizedGlyph {
-    /// RGBA pixel data (4 bytes per pixel, row-major order)
-    pub pixels: Vec<u8>,
-    /// Width of the rasterized glyph in pixels
-    pub width: u32,
-    /// Height of the rasterized glyph in pixels
-    pub height: u32,
-}
-
-impl RasterizedGlyph {
-    /// Returns true if the glyph produced no visible pixels.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.pixels
-            .iter()
-            .skip(3)
-            .step_by(4)
-            .all(|&a| a == 0)
-    }
-
-    pub(crate) fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
-        Self { pixels, width, height }
-    }
-}
+/// Re-export core's RasterizedGlyph for use within the renderer.
+pub(crate) use beamterm_core::gl::texture::RasterizedGlyph;
 
 /// Canvas-based glyph rasterizer using OffscreenCanvas.
 ///
@@ -190,7 +167,7 @@ impl CanvasRasterizer {
         for (i, &(grapheme, style)) in symbols.iter().enumerate() {
             // emoji always uses normal style (no bold/italic variants)
             let effective_style =
-                if crate::terminal::is_emoji(grapheme) { FontStyle::Normal } else { style };
+                if beamterm_core::is_emoji(grapheme) { FontStyle::Normal } else { style };
 
             // update font if style changed
             if current_style != Some(effective_style) {
@@ -230,7 +207,8 @@ impl CanvasRasterizer {
         let mut results = Vec::with_capacity(symbols.len());
 
         for (i, &(grapheme, _)) in symbols.iter().enumerate() {
-            let padded_width = if is_double_width(grapheme) { cell_w * 2 } else { cell_w };
+            let padded_width =
+                if beamterm_core::is_double_width(grapheme) { cell_w * 2 } else { cell_w };
 
             let glyph_start = i * glyph_stride;
             let mut pixels = Vec::with_capacity((padded_width * cell_h) as usize * bytes_per_pixel);

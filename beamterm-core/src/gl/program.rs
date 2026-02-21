@@ -10,7 +10,7 @@ pub(crate) struct ShaderProgram {
 }
 
 impl ShaderProgram {
-    pub(super) fn create(
+    pub(crate) fn create(
         gl: &glow::Context,
         vertex_source: &str,
         fragment_source: &str,
