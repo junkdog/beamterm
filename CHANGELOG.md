@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(core)* Abstract GL backend with glow for OpenGL 3.3 + WebGL2
+- *(example)* Add native OpenGL 3.3 example with glutin/winit in core
+
+### 🚜 Refactor
+
+- *(renderer)* Replace web_sys WebGL2 calls with glow
+
 ## [beamterm-v0.15.0] - 2026-02-17
 
 ### 🚀 Features
@@ -24,6 +35,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(atlas)* Expand emoji set for default atlas
+- Release beamterm 0.15.0
 
 ## [beamterm-v0.14.0] - 2026-01-27
 
