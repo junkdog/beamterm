@@ -10,6 +10,11 @@ All notable changes to this project will be documented in this file.
 - *(example)* Add native OpenGL 3.3 example with glutin/winit in core
 - *(core)* Add `TerminalGrid::set_bg_alpha()`
 
+### 💼 Other
+
+- *(core)* Add `native-terminal` example
+- *(core)* Add `game-console` example showing a rotating cube behind a terminal
+
 ### 🐛 Bug Fixes
 
 - *(renderer)* `TerminalGrid::cleanup()` now unbinds the shader program

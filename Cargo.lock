@@ -779,6 +779,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
+name = "game-console"
+version = "0.1.0"
+dependencies = [
+ "beamterm-core",
+ "glow",
+ "glutin",
+ "glutin-winit",
+ "raw-window-handle",
+ "winit",
+]
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

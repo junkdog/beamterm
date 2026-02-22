@@ -42,6 +42,13 @@ struct AppState {
     grid: TerminalGrid,
 }
 
+impl AppState {
+    fn refresh(&mut self) {
+        populate_demo_content(&mut self.grid, &self.win.gl);
+        self.grid.flush_cells(&self.win.gl).expect("failed to flush cells");
+    }
+}
+
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
@@ -56,7 +63,7 @@ impl ApplicationHandler for App {
         let atlas_data = FontAtlasData::default();
         let atlas = StaticFontAtlas::load(&win.gl, atlas_data).expect("failed to load font atlas");
 
-        let mut grid = TerminalGrid::new(
+        let grid = TerminalGrid::new(
             &win.gl,
             atlas.into(),
             win.physical_size(),
@@ -65,11 +72,8 @@ impl ApplicationHandler for App {
         )
         .expect("failed to create terminal grid");
 
-        populate_demo_content(&mut grid, &win.gl);
-        grid.flush_cells(&win.gl)
-            .expect("failed to flush cells");
-
         self.state = Some(AppState { win, gl_state, grid });
+        self.state.as_mut().unwrap().refresh();
     }
 
     fn window_event(
@@ -96,11 +100,7 @@ impl ApplicationHandler for App {
                         state.win.pixel_ratio(),
                     );
 
-                    populate_demo_content(&mut state.grid, &state.win.gl);
-                    state
-                        .grid
-                        .flush_cells(&state.win.gl)
-                        .expect("failed to flush cells");
+                    state.refresh();
                     state.win.window.request_redraw();
                 }
             },
@@ -138,6 +138,12 @@ impl ApplicationHandler for App {
     }
 }
 
+// ── color scheme ─────────────────────────────────────────────────────
+
+const BG: u32 = 0x00_28_2a_36; // dracula background
+const FG: u32 = 0x00_f8_f8_f2; // dracula foreground
+const BORDER_FG: u32 = 0x00_62_72_a4; // dracula comment
+
 // ── demo content ─────────────────────────────────────────────────────
 
 /// Populates the terminal grid with colorful demo content.
@@ -154,79 +160,28 @@ fn populate_demo_content(grid: &mut TerminalGrid, gl: &glow::Context) {
 }
 
 fn build_cell(row: usize, col: usize, cols: usize, rows: usize) -> CellData<'static> {
-    let bg = 0x00_28_2a_36; // dracula background
-
     match row {
         // Title bar
         0 => {
             let title = " beamterm - native OpenGL 3.3 ";
-            if col < title.len() {
-                char_at(
-                    title,
-                    col,
-                    FontStyle::Bold,
-                    GlyphEffect::None,
-                    0x00_f8_f8_f2,
-                    0x00_44_47_5a,
-                )
-            } else {
-                space(bg)
-            }
+            text_or_space(title, col, FontStyle::Bold, GlyphEffect::None, FG, 0x00_44_47_5a)
         },
-        1 => space(bg),
+        1 => space(BG),
 
         // Color palette
         2 => color_palette_cell(col),
-        3 => space(bg),
+        3 | 5 | 12 => space(BG),
 
         // Gradient bar
         4 => gradient_cell(col, cols),
-        5 => space(bg),
 
         // Style demos
-        6 => style_demo(
-            col,
-            "Normal text  ",
-            FontStyle::Normal,
-            GlyphEffect::None,
-            0x00_f8_f8_f2,
-        ),
-        7 => style_demo(
-            col,
-            "Bold text    ",
-            FontStyle::Bold,
-            GlyphEffect::None,
-            0x00_ff_b8_6c,
-        ),
-        8 => style_demo(
-            col,
-            "Italic text  ",
-            FontStyle::Italic,
-            GlyphEffect::None,
-            0x00_8b_e9_fd,
-        ),
-        9 => style_demo(
-            col,
-            "Bold+Italic  ",
-            FontStyle::BoldItalic,
-            GlyphEffect::None,
-            0x00_ff_79_c6,
-        ),
-        10 => style_demo(
-            col,
-            "Underlined   ",
-            FontStyle::Normal,
-            GlyphEffect::Underline,
-            0x00_50_fa_7b,
-        ),
-        11 => style_demo(
-            col,
-            "Strikethrough",
-            FontStyle::Normal,
-            GlyphEffect::Strikethrough,
-            0x00_62_72_a4,
-        ),
-        12 => space(bg),
+        6  => style_demo(col, "Normal text  ", FontStyle::Normal,    GlyphEffect::None,          FG),
+        7  => style_demo(col, "Bold text    ", FontStyle::Bold,      GlyphEffect::None,          0x00_ff_b8_6c),
+        8  => style_demo(col, "Italic text  ", FontStyle::Italic,    GlyphEffect::None,          0x00_8b_e9_fd),
+        9  => style_demo(col, "Bold+Italic  ", FontStyle::BoldItalic,GlyphEffect::None,          0x00_ff_79_c6),
+        10 => style_demo(col, "Underlined   ", FontStyle::Normal,    GlyphEffect::Underline,     0x00_50_fa_7b),
+        11 => style_demo(col, "Strikethrough", FontStyle::Normal,    GlyphEffect::Strikethrough, BORDER_FG),
 
         // Border + checkerboard fill
         _ => border_or_fill(row, col, cols, rows),
@@ -241,13 +196,7 @@ fn gradient_cell(col: usize, cols: usize) -> CellData<'static> {
     let r = (t * 255.0) as u32;
     let g = ((1.0 - t) * 200.0) as u32;
     let b = 180_u32;
-    CellData::new(
-        ch,
-        FontStyle::Normal,
-        GlyphEffect::None,
-        (r << 16) | (g << 8) | b,
-        0x00_28_2a_36,
-    )
+    cell(ch, (r << 16) | (g << 8) | b, BG)
 }
 
 const PALETTE: &[(u32, &str)] = &[
@@ -264,33 +213,18 @@ const PALETTE: &[(u32, &str)] = &[
 fn color_palette_cell(col: usize) -> CellData<'static> {
     let label = " Dracula palette: ";
     if col < label.len() {
-        char_at(
-            label,
-            col,
-            FontStyle::Normal,
-            GlyphEffect::None,
-            0x00_62_72_a4,
-            0x00_28_2a_36,
-        )
-    } else {
-        let offset = col - label.len();
-        let block_width = 8;
-        let idx = offset / block_width;
-        let pos = offset % block_width;
+        return char_at(label, col, FontStyle::Normal, GlyphEffect::None, BORDER_FG, BG);
+    }
 
-        if idx < PALETTE.len() {
-            let (color, name) = PALETTE[idx];
-            char_at(
-                name,
-                pos,
-                FontStyle::Bold,
-                GlyphEffect::None,
-                0x00_28_2a_36,
-                color,
-            )
-        } else {
-            space(0x00_28_2a_36)
-        }
+    let offset = col - label.len();
+    let idx = offset / 8;
+    let pos = offset % 8;
+
+    if idx < PALETTE.len() {
+        let (color, name) = PALETTE[idx];
+        char_at(name, pos, FontStyle::Bold, GlyphEffect::None, BG, color)
+    } else {
+        space(BG)
     }
 }
 
@@ -301,41 +235,34 @@ fn style_demo(
     effect: GlyphEffect,
     fg: u32,
 ) -> CellData<'static> {
-    let prefix_len = 2;
-    if col < prefix_len {
-        space(0x00_28_2a_36)
+    if col < 2 {
+        space(BG)
     } else {
-        let text_col = col - prefix_len;
-        if text_col < text.len() {
-            char_at(text, text_col, style, effect, fg, 0x00_28_2a_36)
-        } else {
-            space(0x00_28_2a_36)
-        }
+        text_or_space(text, col - 2, style, effect, fg, BG)
     }
 }
 
 fn border_or_fill(row: usize, col: usize, _cols: usize, rows: usize) -> CellData<'static> {
-    let border_fg = 0x00_62_72_a4;
-    let bg = 0x00_28_2a_36;
-
-    if col == 0 && row == rows - 1 {
-        CellData::new("└", FontStyle::Normal, GlyphEffect::None, border_fg, bg)
-    } else if col == 0 {
-        CellData::new("│", FontStyle::Normal, GlyphEffect::None, border_fg, bg)
-    } else if row == rows - 1 {
-        CellData::new("─", FontStyle::Normal, GlyphEffect::None, border_fg, bg)
-    } else {
-        // Subtle checkerboard
-        let dark = (col + row).is_multiple_of(2);
-        space(if dark { 0x00_28_2a_36 } else { 0x00_2c_2e_3a })
+    match (col, row) {
+        (0, r) if r == rows - 1 => cell("└", BORDER_FG, BG),
+        (0, _)                  => cell("│", BORDER_FG, BG),
+        (_, r) if r == rows - 1 => cell("─", BORDER_FG, BG),
+        _ => {
+            // Subtle checkerboard
+            let dark = (col + row).is_multiple_of(2);
+            space(if dark { BG } else { 0x00_2c_2e_3a })
+        },
     }
 }
 
-fn space(bg: u32) -> CellData<'static> {
-    CellData::new(" ", FontStyle::Normal, GlyphEffect::None, 0x00_f8_f8_f2, bg)
+fn cell(ch: &'static str, fg: u32, bg: u32) -> CellData<'static> {
+    CellData::new(ch, FontStyle::Normal, GlyphEffect::None, fg, bg)
 }
 
-/// Returns a CellData for a single ASCII character at `index` within `text`.
+fn space(bg: u32) -> CellData<'static> {
+    cell(" ", FG, bg)
+}
+
 fn char_at(
     text: &'static str,
     index: usize,
@@ -345,6 +272,21 @@ fn char_at(
     bg: u32,
 ) -> CellData<'static> {
     CellData::new(&text[index..index + 1], style, effect, fg, bg)
+}
+
+fn text_or_space(
+    text: &'static str,
+    index: usize,
+    style: FontStyle,
+    effect: GlyphEffect,
+    fg: u32,
+    bg: u32,
+) -> CellData<'static> {
+    if index < text.len() {
+        char_at(text, index, style, effect, fg, bg)
+    } else {
+        space(bg)
+    }
 }
 
 // ── glutin / winit boilerplate ───────────────────────────────────────

@@ -5,6 +5,7 @@ members = [
     "beamterm-core",
     "beamterm-data",
     "beamterm-renderer",
+    "examples/game-console",
     "examples/native-terminal",
 ]
 exclude = [
