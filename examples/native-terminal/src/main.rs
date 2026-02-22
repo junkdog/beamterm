@@ -45,7 +45,9 @@ struct AppState {
 impl AppState {
     fn refresh(&mut self) {
         populate_demo_content(&mut self.grid, &self.win.gl);
-        self.grid.flush_cells(&self.win.gl).expect("failed to flush cells");
+        self.grid
+            .flush_cells(&self.win.gl)
+            .expect("failed to flush cells");
     }
 }
 
@@ -164,7 +166,14 @@ fn build_cell(row: usize, col: usize, cols: usize, rows: usize) -> CellData<'sta
         // Title bar
         0 => {
             let title = " beamterm - native OpenGL 3.3 ";
-            text_or_space(title, col, FontStyle::Bold, GlyphEffect::None, FG, 0x00_44_47_5a)
+            text_or_space(
+                title,
+                col,
+                FontStyle::Bold,
+                GlyphEffect::None,
+                FG,
+                0x00_44_47_5a,
+            )
         },
         1 => space(BG),
 
@@ -176,12 +185,48 @@ fn build_cell(row: usize, col: usize, cols: usize, rows: usize) -> CellData<'sta
         4 => gradient_cell(col, cols),
 
         // Style demos
-        6  => style_demo(col, "Normal text  ", FontStyle::Normal,    GlyphEffect::None,          FG),
-        7  => style_demo(col, "Bold text    ", FontStyle::Bold,      GlyphEffect::None,          0x00_ff_b8_6c),
-        8  => style_demo(col, "Italic text  ", FontStyle::Italic,    GlyphEffect::None,          0x00_8b_e9_fd),
-        9  => style_demo(col, "Bold+Italic  ", FontStyle::BoldItalic,GlyphEffect::None,          0x00_ff_79_c6),
-        10 => style_demo(col, "Underlined   ", FontStyle::Normal,    GlyphEffect::Underline,     0x00_50_fa_7b),
-        11 => style_demo(col, "Strikethrough", FontStyle::Normal,    GlyphEffect::Strikethrough, BORDER_FG),
+        6 => style_demo(
+            col,
+            "Normal text  ",
+            FontStyle::Normal,
+            GlyphEffect::None,
+            FG,
+        ),
+        7 => style_demo(
+            col,
+            "Bold text    ",
+            FontStyle::Bold,
+            GlyphEffect::None,
+            0x00_ff_b8_6c,
+        ),
+        8 => style_demo(
+            col,
+            "Italic text  ",
+            FontStyle::Italic,
+            GlyphEffect::None,
+            0x00_8b_e9_fd,
+        ),
+        9 => style_demo(
+            col,
+            "Bold+Italic  ",
+            FontStyle::BoldItalic,
+            GlyphEffect::None,
+            0x00_ff_79_c6,
+        ),
+        10 => style_demo(
+            col,
+            "Underlined   ",
+            FontStyle::Normal,
+            GlyphEffect::Underline,
+            0x00_50_fa_7b,
+        ),
+        11 => style_demo(
+            col,
+            "Strikethrough",
+            FontStyle::Normal,
+            GlyphEffect::Strikethrough,
+            BORDER_FG,
+        ),
 
         // Border + checkerboard fill
         _ => border_or_fill(row, col, cols, rows),
@@ -213,7 +258,14 @@ const PALETTE: &[(u32, &str)] = &[
 fn color_palette_cell(col: usize) -> CellData<'static> {
     let label = " Dracula palette: ";
     if col < label.len() {
-        return char_at(label, col, FontStyle::Normal, GlyphEffect::None, BORDER_FG, BG);
+        return char_at(
+            label,
+            col,
+            FontStyle::Normal,
+            GlyphEffect::None,
+            BORDER_FG,
+            BG,
+        );
     }
 
     let offset = col - label.len();
@@ -245,7 +297,7 @@ fn style_demo(
 fn border_or_fill(row: usize, col: usize, _cols: usize, rows: usize) -> CellData<'static> {
     match (col, row) {
         (0, r) if r == rows - 1 => cell("└", BORDER_FG, BG),
-        (0, _)                  => cell("│", BORDER_FG, BG),
+        (0, _) => cell("│", BORDER_FG, BG),
         (_, r) if r == rows - 1 => cell("─", BORDER_FG, BG),
         _ => {
             // Subtle checkerboard

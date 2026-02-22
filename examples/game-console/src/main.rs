@@ -8,8 +8,7 @@
 //! cargo run -p game-console
 //! ```
 
-use std::num::NonZeroU32;
-use std::time::Instant;
+use std::{num::NonZeroU32, time::Instant};
 
 use beamterm_core::{
     CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, RenderContext,
@@ -590,9 +589,9 @@ fn render_cell(
 
 fn hline(col: usize, cols: usize, left: &'static str, right: &'static str) -> CellData<'static> {
     match col {
-        0                    => cell(left, BORDER, BG),
-        c if c == cols - 1   => cell(right, BORDER, BG),
-        _                    => cell("─", BORDER, BG),
+        0 => cell(left, BORDER, BG),
+        c if c == cols - 1 => cell(right, BORDER, BG),
+        _ => cell("─", BORDER, BG),
     }
 }
 
@@ -621,7 +620,9 @@ fn render_input_line<'a>(col: usize, cols: usize, console: &'a GameConsole) -> C
 
     match inner {
         i if i < prompt_len => text_or_space("> ", i, FontStyle::Bold, PROMPT),
-        i if i < input_end  => text_or_space(&console.input, i - prompt_len, FontStyle::Normal, INPUT_FG),
+        i if i < input_end => {
+            text_or_space(&console.input, i - prompt_len, FontStyle::Normal, INPUT_FG)
+        },
         i if i == input_end && console.cursor_visible => cell("█", CURSOR_FG, BG),
         _ => space(),
     }
@@ -653,12 +654,17 @@ fn render_log_line<'a>(
     // Layout: [HH:MM:SS] LEVEL message
     //          0123456789...
     match inner {
-        0      => cell("[", TIMESTAMP, BG),
-        1..=8  => text_or_space(&entry.timestamp, inner - 1, FontStyle::Normal, TIMESTAMP),
-        9      => cell("]", TIMESTAMP, BG),
-        11..=15 => text_or_space(entry.level.label(), inner - 11, FontStyle::Bold, entry.level.color()),
-        17..   => text_or_space(&entry.message, inner - 17, FontStyle::Normal, TEXT_FG),
-        _      => space(), // gaps at columns 10, 16
+        0 => cell("[", TIMESTAMP, BG),
+        1..=8 => text_or_space(&entry.timestamp, inner - 1, FontStyle::Normal, TIMESTAMP),
+        9 => cell("]", TIMESTAMP, BG),
+        11..=15 => text_or_space(
+            entry.level.label(),
+            inner - 11,
+            FontStyle::Bold,
+            entry.level.color(),
+        ),
+        17.. => text_or_space(&entry.message, inner - 17, FontStyle::Normal, TEXT_FG),
+        _ => space(), // gaps at columns 10, 16
     }
 }
 
@@ -853,7 +859,10 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if state.console.tick() {
                     render_console(&mut state.grid, &state.win.gl, &state.console);
-                    state.grid.flush_cells(&state.win.gl).expect("failed to flush cells");
+                    state
+                        .grid
+                        .flush_cells(&state.win.gl)
+                        .expect("failed to flush cells");
                 }
 
                 let (win_w, win_h) = state.window_size;
