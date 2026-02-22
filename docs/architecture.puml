@@ -1,0 +1,140 @@
+@startuml architecture
+
+' ============================================================================
+' GRUVBOX DARK THEME
+' ============================================================================
+
+skinparam backgroundColor #282828
+skinparam defaultFontColor #ebdbb2
+skinparam defaultFontName monospace
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam linetype polyline
+
+skinparam note {
+  BackgroundColor #3c3836
+  BorderColor #504945
+  FontColor #d5c4a1
+}
+
+skinparam arrow {
+  Color #83a598
+  FontColor #a89984
+}
+
+skinparam package {
+  BackgroundColor #32302f
+  BorderColor #83a598
+  FontColor #fabd2f
+  StereotypeFontColor #8ec07c
+}
+
+skinparam rectangle {
+  BackgroundColor #3c3836
+  BorderColor #504945
+  FontColor #ebdbb2
+}
+
+skinparam component {
+  BackgroundColor #32302f
+  BorderColor #83a598
+  FontColor #fabd2f
+  StereotypeFontColor #8ec07c
+  BorderThickness 2
+}
+
+' ============================================================================
+' TITLE
+' ============================================================================
+
+title <font color="#fabd2f" size="22">beamterm Architecture</font>\n<font color="#d5c4a1" size="14">GPU-Accelerated Terminal Renderer</font>
+
+' ============================================================================
+' EXTERNAL SYSTEMS (top)
+' ============================================================================
+
+[<color:#fe8019><b>Browser</b></color>\nCanvas, WebGL2, DOM] as browser
+[<color:#fe8019><b>Native Desktop</b></color>\nglutin + winit, OpenGL 3.3] as native
+[<color:#fe8019><b>NPM Package</b></color>\n@beamterm renderer] as npm
+
+' ============================================================================
+' CRATES
+' ============================================================================
+
+package "beamterm-renderer" <<WASM Integration>> {
+  [Terminal Builder\nterminal.rs] as builder
+  [WASM Bindings\nwasm.rs] as wasm
+  [DynamicFontAtlas\nCanvas rasterizer] as dynamic_atlas
+  [Mouse Selection\nclipboard] as selection
+  [HiDPI Handler\nauto re-layout] as hidpi
+}
+
+package "beamterm-core" <<GL Engine>> {
+  [TerminalGrid\nGPU buffers, VAO] as grid
+  [GlState\nGL deduplication] as glstate
+  [StaticFontAtlas\npre-built atlas] as static_atlas
+  [Shaders\ncell.vert, cell.frag] as shaders
+  [Drawable\nRenderContext] as drawable
+  [glow\nOpenGL 3.3 + WebGL2] as glow
+}
+
+package "beamterm-data" <<Shared>> {
+  [FontAtlasData\nversioned binary] as atlas_data
+  [Glyph Encoding\n16-bit packed IDs] as glyph_enc
+}
+
+package "beamterm-atlas" <<Generator>> {
+  [Atlas CLI\nTTF to .atlas] as atlas_cli
+  [Texture Arrays\n32 glyphs per layer] as tex_arrays
+}
+
+' ============================================================================
+' RELATIONSHIPS
+' ============================================================================
+
+browser --> builder : <color:#fe8019>WebGL2</color>
+npm --> wasm : <color:#fe8019>JS API</color>
+native --> grid : <color:#fe8019>OpenGL 3.3</color>
+
+builder --> grid : <color:#b8bb26>uses</color>
+dynamic_atlas --> static_atlas : <color:#b8bb26>Atlas trait</color>
+wasm --> builder
+
+grid --> glstate : <color:#a89984>min GL calls</color>
+grid --> shaders
+grid --> drawable
+grid --> glow
+
+grid --> atlas_data : <color:#b8bb26>reads</color>
+atlas_cli --> atlas_data : <color:#b8bb26>writes</color>
+
+' ============================================================================
+' NOTES
+' ============================================================================
+
+note right of grid
+  <color:#fabd2f><b>6 GPU Buffers</b></color>
+  ....
+  <color:#8ec07c>Vertex</color>: quad geometry
+  <color:#8ec07c>Index</color>: triangle indices
+  <color:#8ec07c>Instance Pos</color>: grid coords
+  <color:#8ec07c>Instance Cell</color>: glyph + colors
+  <color:#8ec07c>Vertex UBO</color>: projection
+  <color:#8ec07c>Fragment UBO</color>: cell metadata
+  ....
+  <color:#d3869b>1 draw call via instancing</color>
+end note
+
+note bottom of glow
+  <color:#fabd2f><b>Optimizations</b></color>
+  ....
+  <color:#fb4934>*</color> GPU instancing
+  <color:#fb4934>*</color> ASCII fast path
+  <color:#fb4934>*</color> 8-byte packed cells
+  <color:#fb4934>*</color> LRU glyph cache
+  ....
+  <color:#8ec07c>Es300</color> = WebGL2
+  <color:#8ec07c>Gl330</color> = OpenGL 3.3
+end note
+
+@enduml
