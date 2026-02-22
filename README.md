@@ -25,7 +25,8 @@ integrations.
 
 ## Performance
 
-beamterm targets sub-millisecond render times across a wide range of hardware:
+beamterm targets sub-millisecond render times across a wide range of hardware. The following
+measurements were taken in Chrome (WebGL2/WASM):
 
 | Metric                          | Target (Low-end) | Achieved (2019 hardware) |
 |---------------------------------|------------------|--------------------------|
@@ -381,7 +382,7 @@ The renderer requires OpenGL 3.3+ / WebGL2 for:
 
 ## Build and Deployment
 
-### Development Setup
+### Development Setup (WASM)
 ```bash
 # Install Rust toolchain
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -389,6 +390,25 @@ rustup target add wasm32-unknown-unknown
 
 # Install tools
 cargo install wasm-pack trunk
+```
+
+### Running the Examples
+
+**Native OpenGL 3.3** examples run directly with `cargo`:
+
+```bash
+# Simple terminal rendering demo (glutin + winit)
+cargo run -p native-terminal
+
+# Console overlaid on a 3D spinning cube
+cargo run -p game-console
+```
+
+**WASM/browser** examples require [Trunk](https://trunkrs.dev/):
+
+```bash
+# Wave interference effect (ratzilla + tachyonfx)
+cd examples/canvas_waves && trunk serve
 ```
 
 ## Design Decisions

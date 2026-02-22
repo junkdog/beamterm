@@ -599,10 +599,10 @@ fn render_top_border(col: usize, cols: usize) -> CellData<'static> {
     let title = " GAME CONSOLE ";
     let title_start = (cols.saturating_sub(title.len())) / 2;
 
-    if let Some(i) = col.checked_sub(title_start) {
-        if i < title.len() {
-            return char_cell(title, i, FontStyle::Bold, GlyphEffect::None, TITLE, BG);
-        }
+    if let Some(i) = col.checked_sub(title_start)
+        && i < title.len()
+    {
+        return char_cell(title, i, FontStyle::Bold, GlyphEffect::None, TITLE, BG);
     }
     hline(col, cols, "┌", "┐")
 }
