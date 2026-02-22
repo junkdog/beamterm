@@ -352,7 +352,7 @@ impl TerminalGrid {
     }
 
     /// Returns the symbols in the specified block range as a `CompactString`.
-    pub(crate) fn get_symbols(&self, selection: CellIterator) -> CompactString {
+    pub(super) fn get_symbols(&self, selection: CellIterator) -> CompactString {
         let mut text = CompactString::new("");
 
         for (idx, require_newline_after) in selection {
@@ -373,7 +373,7 @@ impl TerminalGrid {
     ///
     /// Returns `None` for non-ASCII characters or out-of-bounds positions.
     /// This is an optimized path for URL detection that avoids string allocation.
-    pub fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
+    pub(crate) fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
         let idx = cursor.row as usize * self.terminal_size.0 as usize + cursor.col as usize;
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
@@ -427,7 +427,6 @@ impl TerminalGrid {
     /// Updates the content of terminal cells with new data.
     pub fn update_cells<'a>(
         &mut self,
-        _gl: &glow::Context,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
         // update instance buffer with new cell data

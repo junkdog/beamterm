@@ -546,7 +546,7 @@ fn mat4_mul(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
 
 // ── console rendering ────────────────────────────────────────────────
 
-fn render_console(grid: &mut TerminalGrid, gl: &glow::Context, console: &GameConsole) {
+fn render_console(grid: &mut TerminalGrid, console: &GameConsole) {
     let (cols, rows) = grid.terminal_size();
     let cols = cols as usize;
     let rows = rows as usize;
@@ -555,13 +555,10 @@ fn render_console(grid: &mut TerminalGrid, gl: &glow::Context, console: &GameCon
         return;
     }
 
-    grid.update_cells(
-        gl,
-        (0..rows).flat_map(|row| {
-            let console_ref = &console;
-            (0..cols).map(move |col| render_cell(row, col, cols, rows, console_ref))
-        }),
-    )
+    grid.update_cells((0..rows).flat_map(|row| {
+        let console_ref = &console;
+        (0..cols).map(move |col| render_cell(row, col, cols, rows, console_ref))
+    }))
     .expect("failed to update cells");
 }
 
@@ -728,7 +725,7 @@ fn console_height(window_height: u32) -> u32 {
 
 impl AppState {
     fn refresh_console(&mut self) {
-        render_console(&mut self.grid, &self.win.gl, &self.console);
+        render_console(&mut self.grid, &self.console);
         self.grid
             .flush_cells(&self.win.gl)
             .expect("failed to flush cells");
@@ -858,7 +855,7 @@ impl ApplicationHandler for App {
             },
             WindowEvent::RedrawRequested => {
                 if state.console.tick() {
-                    render_console(&mut state.grid, &state.win.gl, &state.console);
+                    render_console(&mut state.grid, &state.console);
                     state
                         .grid
                         .flush_cells(&state.win.gl)

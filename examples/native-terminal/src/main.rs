@@ -44,7 +44,7 @@ struct AppState {
 
 impl AppState {
     fn refresh(&mut self) {
-        populate_demo_content(&mut self.grid, &self.win.gl);
+        populate_demo_content(&mut self.grid);
         self.grid
             .flush_cells(&self.win.gl)
             .expect("failed to flush cells");
@@ -149,13 +149,12 @@ const BORDER_FG: u32 = 0x00_62_72_a4; // dracula comment
 // ── demo content ─────────────────────────────────────────────────────
 
 /// Populates the terminal grid with colorful demo content.
-fn populate_demo_content(grid: &mut TerminalGrid, gl: &glow::Context) {
+fn populate_demo_content(grid: &mut TerminalGrid) {
     let (cols, rows) = grid.terminal_size();
     let cols = cols as usize;
     let rows = rows as usize;
 
     grid.update_cells(
-        gl,
         (0..rows).flat_map(|row| (0..cols).map(move |col| build_cell(row, col, cols, rows))),
     )
     .expect("failed to update cells");

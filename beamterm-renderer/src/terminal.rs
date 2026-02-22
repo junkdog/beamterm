@@ -106,10 +106,7 @@ impl Terminal {
         &mut self,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
-        Ok(self
-            .grid
-            .borrow_mut()
-            .update_cells(self.renderer.gl(), cells)?)
+        Ok(self.grid.borrow_mut().update_cells(cells)?)
     }
 
     /// Updates terminal cell content efficiently.
