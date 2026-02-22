@@ -7,6 +7,7 @@ layout(std140) uniform FragUbo {
     float u_strikethrough_pos;       // strikethrough position (0.0 = top, 1.0 = bottom)
     float u_strikethrough_thickness; // strikethrough thickness as fraction of cell height
     uint u_lookup_mask;      // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
+    float u_bg_alpha;        // background cell opacity (0.0 = transparent, 1.0 = opaque)
 };
 
 flat in uint v_glyph_index;
@@ -60,5 +61,6 @@ void main() {
     float a = max(glyph.a, line_alpha);
     vec3 bg = v_bg_color;
 
-    FragColor = vec4(mix(bg, fg, a), 1.0);
+    float cell_alpha = mix(u_bg_alpha, 1.0, a);
+    FragColor = vec4(mix(bg, fg, a), cell_alpha);
 }

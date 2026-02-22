@@ -43,6 +43,8 @@ pub struct TerminalGrid {
     selection: SelectionTracker,
     /// Indicates whether there are cells pending flush to the GPU.
     cells_pending_flush: bool,
+    /// Background cell opacity (0.0 = fully transparent, 1.0 = fully opaque).
+    bg_alpha: f32,
 }
 
 /// GPU resources that need to be recreated after a context loss.
@@ -200,6 +202,7 @@ impl TerminalGrid {
             fallback_glyph: space_glyph,
             selection: SelectionTracker::new(),
             cells_pending_flush: false,
+            bg_alpha: 1.0,
         };
 
         grid.upload_ubo_data(gl);
@@ -308,6 +311,19 @@ impl TerminalGrid {
         &mut self.atlas
     }
 
+    /// Sets the background opacity for terminal cells.
+    ///
+    /// When less than 1.0, cell backgrounds become semi-transparent, allowing
+    /// content rendered behind the terminal grid to show through. Text remains
+    /// fully opaque regardless of this setting.
+    ///
+    /// The change takes effect on the next call to [`resize`](Self::resize) or
+    /// when the UBO data is next uploaded.
+    pub fn set_bg_alpha(&mut self, gl: &glow::Context, alpha: f32) {
+        self.bg_alpha = alpha.clamp(0.0, 1.0);
+        self.upload_ubo_data(gl);
+    }
+
     /// Returns the canvas size in pixels.
     pub fn canvas_size(&self) -> (i32, i32) {
         self.canvas_size_px
@@ -397,7 +413,7 @@ impl TerminalGrid {
         let vertex_ubo = CellVertexUbo::new(self.canvas_size_px, self.effective_cell_size());
         self.gpu.ubo_vertex.upload_data(gl, &vertex_ubo);
 
-        let fragment_ubo = CellFragmentUbo::new(&self.atlas);
+        let fragment_ubo = CellFragmentUbo::new(&self.atlas, self.bg_alpha);
         self.gpu
             .ubo_fragment
             .upload_data(gl, &fragment_ubo);
@@ -1056,7 +1072,7 @@ struct CellFragmentUbo {
     pub strikethrough_pos: f32,       // strikethrough position (0.0 = top, 1.0 = bottom)
     pub strikethrough_thickness: f32, // strikethrough thickness as fraction of cell height
     pub texture_lookup_mask: u32,     // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
-    pub _padding: f32,
+    pub bg_alpha: f32,                // background cell opacity (0.0 = transparent, 1.0 = opaque)
 }
 
 impl CellVertexUbo {
@@ -1076,7 +1092,7 @@ impl CellVertexUbo {
 impl CellFragmentUbo {
     pub const BINDING_POINT: u32 = 1;
 
-    fn new(atlas: &FontAtlas) -> Self {
+    fn new(atlas: &FontAtlas, bg_alpha: f32) -> Self {
         // Use texture cell size for padding calculation (physical pixels in texture)
         let texture_cell_size = atlas.texture_cell_size();
         let underline = atlas.underline();
@@ -1092,7 +1108,7 @@ impl CellFragmentUbo {
             strikethrough_pos: strikethrough.position,
             strikethrough_thickness: strikethrough.thickness,
             texture_lookup_mask: atlas.base_lookup_mask(),
-            _padding: 0.0, // padding to ensure proper alignment
+            bg_alpha,
         }
     }
 }

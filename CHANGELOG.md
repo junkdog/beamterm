@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - *(core)* Abstract GL backend with glow for OpenGL 3.3 + WebGL2
 - *(example)* Add native OpenGL 3.3 example with glutin/winit in core
+- *(core)* Add `TerminalGrid::set_bg_alpha()`
 
 ### 🐛 Bug Fixes
 
