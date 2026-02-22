@@ -68,6 +68,8 @@ mouse selection with clipboard integration, and WebGL context loss recovery.
 
 ## Architecture Overview
 
+[View architecture diagram](docs/architecture.png)
+
 The architecture leverages GPU instancing to reuse a single quad geometry across all terminal cells,
 with per-instance data providing position, character, and color information. All rendering state is
 encapsulated in a Vertex Array Object (VAO), enabling single-draw-call rendering with minimal CPU
@@ -285,6 +287,8 @@ no HashMap lookup for mapping. All other characters and styles are dynamically m
 
 
 ## GPU Buffer Architecture
+
+[View buffer architecture diagram](docs/buffer_architecture.png)
 
 The renderer uses six buffers managed through a Vertex Array Object (VAO) to achieve
 single-draw-call rendering. Each buffer serves a specific purpose in the instanced
