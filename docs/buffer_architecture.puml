@@ -1,0 +1,259 @@
+@startuml buffer_architecture
+
+' ============================================================================
+' GRUVBOX DARK THEME FOR PLANTUML
+' ============================================================================
+
+' -- Base Settings --
+skinparam backgroundColor #282828
+skinparam defaultFontColor #ebdbb2
+skinparam defaultFontName monospace
+
+skinparam linetype ortho
+skinparam roundcorner 8
+skinparam shadowing false
+
+' -- Class/Entity Styling --
+skinparam class {
+  BackgroundColor #32302f
+  HeaderBackgroundColor #3c3836
+  BorderColor #83a598
+  FontColor #fabd2f
+  AttributeFontColor #ebdbb2
+  StereotypeFontColor #8ec07c
+  BorderThickness 2
+}
+
+' -- Note Styling --
+skinparam note {
+  BackgroundColor #3c3836
+  BorderColor #504945
+  FontColor #d5c4a1
+}
+
+' -- Arrow/Relationship Styling --
+skinparam arrow {
+  Color #83a598
+  FontColor #a89984
+}
+
+' -- Package/Component Styling --
+skinparam package {
+  BackgroundColor #32302f
+  BorderColor #83a598
+  FontColor #fabd2f
+  StereotypeFontColor #8ec07c
+}
+
+' -- Rectangle/Box Styling --
+skinparam rectangle {
+  BackgroundColor #32302f
+  BorderColor #83a598
+  FontColor #fabd2f
+  StereotypeFontColor #8ec07c
+}
+
+' ============================================================================
+' DIAGRAM TITLE
+' ============================================================================
+
+title <font color="#fabd2f" size="20">beamterm Buffer Architecture</font>\n<font color="#d5c4a1" size="12">GPU Instanced Rendering Pipeline</font>
+
+' ============================================================================
+' CPU SIDE
+' ============================================================================
+
+package "CPU (TerminalGrid)" as cpu #282828 {
+
+  class "update_cells()" as update <<Phase 1>> #32302f {
+    <color:#8ec07c>Glyph resolution via Atlas</color>
+    <color:#8ec07c>ASCII fast path (0-127)</color>
+    ..
+    <color:#83a598>cells</color> : <color:#8ec07c>Vec<CellDynamic></color>
+    <color:#83a598>cells_pending_flush</color> : <color:#8ec07c>bool</color>
+  }
+
+  class "flush_cells()" as flush <<Phase 2>> #32302f {
+    <color:#8ec07c>Selection color inversion</color>
+    <color:#8ec07c>glBufferData(DYNAMIC_DRAW)</color>
+    ..
+    <color:#fb4934>RAM → GPU VRAM</color>
+  }
+}
+
+' ============================================================================
+' VAO - GPU BUFFERS
+' ============================================================================
+
+package "VAO (Vertex Array Object)" as vao #282828 {
+
+  class "Vertex Buffer" as vbuf <<STATIC_DRAW>> #32302f {
+    <color:#fe8019>64 bytes total</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>a_pos</color> : <color:#8ec07c>vec2 (f32×2)</color> <color:#fe8019>loc=0</color>
+    <color:#fb4934>*</color><color:#83a598>a_tex_coord</color> : <color:#8ec07c>vec2 (f32×2)</color> <color:#fe8019>loc=1</color>
+    --
+    <color:#d3869b>4 vertices × 16 bytes</color>
+    <color:#d3869b>stride=16, divisor=0</color>
+  }
+
+  class "Index Buffer" as ibuf <<STATIC_DRAW>> #32302f {
+    <color:#fe8019>6 bytes total</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>indices</color> : <color:#8ec07c>[u8; 6]</color>
+    --
+    <color:#d3869b>[0,1,2, 0,3,1]</color>
+    <color:#d3869b>2 triangles per quad</color>
+  }
+
+  class "Instance Position" as posbuf <<STATIC_DRAW>> #32302f {
+    <color:#fe8019>4 bytes/cell</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>a_instance_pos</color> : <color:#8ec07c>uvec2 (u16×2)</color> <color:#fe8019>loc=2</color>
+    --
+    <color:#d3869b>CellStatic { grid_xy: [u16; 2] }</color>
+    <color:#d3869b>stride=4, divisor=1</color>
+    <color:#b8bb26>Update: on resize</color>
+  }
+
+  class "Instance Cell" as cellbuf <<DYNAMIC_DRAW>> #32302f {
+    <color:#fe8019>8 bytes/cell</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>a_packed_data</color> : <color:#8ec07c>uvec2 (u32×2)</color> <color:#fe8019>loc=3</color>
+    --
+    <color:#d3869b>CellDynamic layout:</color>
+    <color:#83a598>bytes 0-1</color> : <color:#8ec07c>glyph_id (u16)</color>
+    <color:#83a598>bytes 2-4</color> : <color:#8ec07c>fg_color (RGB)</color>
+    <color:#83a598>bytes 5-7</color> : <color:#8ec07c>bg_color (RGB)</color>
+    --
+    <color:#d3869b>stride=8, divisor=1</color>
+    <color:#fb4934>Update: every frame</color>
+  }
+}
+
+' ============================================================================
+' UNIFORM BUFFER OBJECTS
+' ============================================================================
+
+package "Uniform Buffer Objects" as ubos #282828 {
+
+  class "Vertex UBO" as vubo <<binding=0>> #32302f {
+    <color:#fe8019>80 bytes (std140)</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>u_projection</color> : <color:#8ec07c>mat4 (f32×16)</color>
+    <color:#fb4934>*</color><color:#83a598>u_cell_size</color> : <color:#8ec07c>vec2 (f32×2)</color>
+    <color:#83a598>_padding</color> : <color:#8ec07c>f32×2</color>
+    --
+    <color:#b8bb26>Update: on resize</color>
+  }
+
+  class "Fragment UBO" as fubo <<binding=1>> #32302f {
+    <color:#fe8019>48 bytes (std140)</color>
+    ..
+    <color:#fb4934>*</color><color:#83a598>u_padding_frac</color> : <color:#8ec07c>vec2</color>
+    <color:#fb4934>*</color><color:#83a598>u_underline_pos</color> : <color:#8ec07c>f32</color>
+    <color:#fb4934>*</color><color:#83a598>u_underline_thickness</color> : <color:#8ec07c>f32</color>
+    <color:#fb4934>*</color><color:#83a598>u_strikethrough_pos</color> : <color:#8ec07c>f32</color>
+    <color:#fb4934>*</color><color:#83a598>u_strikethrough_thickness</color> : <color:#8ec07c>f32</color>
+    <color:#fb4934>*</color><color:#83a598>u_lookup_mask</color> : <color:#8ec07c>uint</color>
+    <color:#fb4934>*</color><color:#83a598>u_bg_alpha</color> : <color:#8ec07c>f32</color>
+    --
+    <color:#b8bb26>Update: on atlas change</color>
+  }
+}
+
+' ============================================================================
+' SHADERS
+' ============================================================================
+
+package "Shader Program" as shaders #282828 {
+
+  class "cell.vert" as vert <<Vertex Shader>> #32302f {
+    <color:#8ec07c>Unpack glyph_id from bits 0-15</color>
+    <color:#8ec07c>Extract fg/bg RGB via byte ops</color>
+    <color:#8ec07c>Position = proj × (a_pos + grid_offset)</color>
+    ..
+    <color:#83a598>out</color> : <color:#8ec07c>v_tex_coord, v_glyph_index</color>
+    <color:#83a598>out</color> : <color:#8ec07c>v_fg_color, v_bg_color</color>
+  }
+
+  class "cell.frag" as frag <<Fragment Shader>> #32302f {
+    <color:#8ec07c>layer = (glyph & mask) >> 5</color>
+    <color:#8ec07c>slot  = glyph & 0x1F</color>
+    ..
+    <color:#83a598>bit 12</color> : <color:#8ec07c>emoji (texture color)</color>
+    <color:#83a598>bit 13</color> : <color:#8ec07c>underline effect</color>
+    <color:#83a598>bit 14</color> : <color:#8ec07c>strikethrough effect</color>
+    --
+    <color:#d3869b>texture(u_sampler, vec3(u, v, layer))</color>
+  }
+}
+
+' ============================================================================
+' TEXTURE
+' ============================================================================
+
+class "2D Texture Array" as atlas <<Atlas>> #32302f {
+  <color:#fe8019>u_sampler (unit 0)</color>
+  ..
+  <color:#8ec07c>32 glyphs per layer</color>
+  <color:#8ec07c>Static: pre-rasterized .atlas</color>
+  <color:#8ec07c>Dynamic: Canvas API + LRU cache</color>
+}
+
+' ============================================================================
+' DRAW CALL
+' ============================================================================
+
+class "draw_elements_instanced()" as draw <<Phase 4>> #32302f {
+  <color:#fb4934>Single draw call</color>
+  ..
+  <color:#83a598>mode</color> : <color:#8ec07c>TRIANGLES</color>
+  <color:#83a598>count</color> : <color:#8ec07c>6 indices/instance</color>
+  <color:#83a598>instances</color> : <color:#8ec07c>cols × rows</color>
+}
+
+' ============================================================================
+' RELATIONSHIPS
+' ============================================================================
+
+update -[#b8bb26]-> flush : <color:#b8bb26>cells_pending_flush
+
+flush -[#fb4934]-> cellbuf : <color:#fb4934>glBufferData\n<color:#fb4934>every frame
+
+vbuf -[#83a598]-> vert : <color:#a89984>a_pos, a_tex_coord
+posbuf -[#83a598]-> vert : <color:#a89984>a_instance_pos
+cellbuf -[#83a598]-> vert : <color:#a89984>a_packed_data
+ibuf -[#83a598]-> draw : <color:#a89984>index lookup
+vubo -[#fe8019]-> vert : <color:#a89984>projection, cell_size
+fubo -[#fe8019]-> frag : <color:#a89984>effects, mask, alpha
+atlas -[#d3869b]-> frag : <color:#a89984>glyph textures
+vert -[#83a598]-> frag : <color:#a89984>varyings
+frag -[#83a598]-> draw : <color:#a89984>FragColor
+
+' ============================================================================
+' GLYPH ID ENCODING NOTE
+' ============================================================================
+
+note bottom of cellbuf
+  <color:#fabd2f>Glyph ID Encoding (16-bit)</color>
+  ────────────────────────────────
+  <color:#83a598>bits  0-9</color>  : base glyph (1024)
+  <color:#83a598>bit    10</color>  : <color:#b8bb26>bold</color>   (0x0400)
+  <color:#83a598>bit    11</color>  : <color:#d3869b>italic</color> (0x0800)
+  <color:#83a598>bit    12</color>  : <color:#fe8019>emoji</color>  (0x1000)
+  <color:#83a598>bits 0-12</color>  : emoji ID (8192)
+  <color:#83a598>bit    13</color>  : <color:#fb4934>underline</color>
+  <color:#83a598>bit    14</color>  : <color:#fb4934>strikethrough</color>
+end note
+
+note bottom of draw
+  <color:#fabd2f>160×50 grid example</color>
+  ────────────────────────
+  Instance Cell: <color:#fe8019>64 KB</color>/frame
+  Instance Pos:  <color:#8ec07c>32 KB</color> (resize)
+  Vertex + Index: <color:#8ec07c>70 B</color> (static)
+  UBOs:           <color:#8ec07c>128 B</color> (resize)
+end note
+
+@enduml
