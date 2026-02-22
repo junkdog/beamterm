@@ -1,0 +1,13 @@
+[package]
+name = "game-console"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+beamterm-core = { path = "../../beamterm-core" }
+glow = "0.16"
+glutin = "0.32"
+winit = "0.30"
+glutin-winit = "0.5"
+raw-window-handle = "0.6"
