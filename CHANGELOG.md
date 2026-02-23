@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - *(renderer)* `TerminalGrid::cleanup()` now unbinds the shader program
+- *(core)* `TerminalGrid::cell_data_mut` now sets `cells_pending_flush = true`
 
 ### 🚜 Refactor
 

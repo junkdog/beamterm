@@ -10,7 +10,7 @@ emulator - it handles the display layer while you provide the terminal logic.
 
 ### [Live Demos][demos]
 
-Check out [**interactive examples**][demos] showcasing both pure Rust applications and JavaScript/TypeScript 
+Check out [**interactive examples**][demos] showcasing both pure WASM applications and JavaScript/TypeScript 
 integrations.
 
 ## Key Features
@@ -76,23 +76,100 @@ encapsulated in a Vertex Array Object (VAO), enabling single-draw-call rendering
 overhead. The 2D texture array maximizes cache efficiency by packing related glyphs into vertical
 strips within each layer.
 
-### Buffer Management Strategy
+## Core API (beamterm-core)
 
-The renderer employs several optimization strategies:
+The core crate provides platform-agnostic rendering via [glow](https://github.com/grovesNL/glow),
+usable from both native OpenGL 3.3 and WebGL2 targets. For native desktop applications, this is
+the only crate you need - no browser or WASM dependencies are involved.
 
-1. **VAO Encapsulation**: All vertex state is captured in a single VAO, minimizing state changes
-2. **Separate Static/Dynamic**: Geometry and positions rarely change; only cell content is dynamic
-3. **Aligned Packing**: All structures use explicit alignment for optimal GPU access
-4. **Batch Updates**: Cell updates are batched and uploaded in a single operation
-5. **Immutable Storage**: 2D texture array uses `texStorage3D` for driver optimization hints
+### TerminalGrid
+Main rendering component managing the terminal display. Handles shader programs, cell data, GPU
+buffers, and rendering state.
 
-These strategies combined enable the renderer to achieve consistent sub-millisecond frame times even
-for large terminals (200×80 cells = 16,000 instances).
+### Quick Start (Native OpenGL 3.3)
+
+```rust
+use beamterm_core::{
+    CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion,
+    GlyphEffect, RenderContext, StaticFontAtlas, TerminalGrid,
+};
+
+// 1. Load a font atlas (default embeds Hack Regular)
+let atlas_data = FontAtlasData::default();
+let atlas = StaticFontAtlas::load(&gl, atlas_data)?;
+
+// 2. Create the terminal grid
+let mut grid = TerminalGrid::new(
+    &gl,
+    atlas.into(),
+    (width, height),       // viewport size in physical pixels
+    pixel_ratio,           // e.g. window.scale_factor() as f32
+    &GlslVersion::Gl330,
+)?;
+
+// 3. Update cells and upload to GPU
+let cells = vec![
+    CellData::new("H", FontStyle::Bold, GlyphEffect::None, 0x50fa7b, 0x282a36),
+    CellData::new("i", FontStyle::Normal, GlyphEffect::Underline, 0xf8f8f2, 0x282a36),
+];
+grid.update_cells(cells.into_iter())?;
+grid.flush_cells(&gl)?;
+
+// 4. Render: prepare → draw → cleanup
+let mut gl_state = GlState::new(&gl);
+let mut ctx = RenderContext { gl: &gl, state: &mut gl_state };
+grid.prepare(&mut ctx)?;
+grid.draw(&mut ctx);
+grid.cleanup(&mut ctx);
+```
+
+See [`examples/native-terminal/`](examples/native-terminal/) for a complete glutin + winit
+application and [`examples/game-console/`](examples/game-console/) for compositing a terminal
+overlay on top of 3D content.
+
+### Rendering Lifecycle
+
+`TerminalGrid` implements the `Drawable` trait, which defines a three-phase rendering protocol:
+
+1. **`prepare()`** - Binds shaders, textures, VAO, and UBOs; uploads any pending atlas changes.
+2. **`draw()`** - Issues the instanced draw call.
+3. **`cleanup()`** - Unbinds resources and restores GL state.
+
+This separation lets you composite the terminal with other GL content - render your scene first,
+then call `prepare`/`draw`/`cleanup` on the grid as an overlay (see the `game-console` example).
+
+### Cell Data Structure
+
+Each terminal cell requires:
+- **symbol**: Character or grapheme to display (`&str`)
+- **style**: `FontStyle` enum (Normal, Bold, Italic, BoldItalic)
+- **effect**: `GlyphEffect` enum (None, Underline, Strikethrough)
+- **fg/bg**: Colors as 24-bit RGB values (`0xRRGGBB`)
+
+```rust
+CellData::new("A", FontStyle::BoldItalic, GlyphEffect::Underline, 0xff79c6, 0x282a36)
+```
+
+Colors use `0xRRGGBB` format (the alpha byte is ignored per-cell). To set global background
+transparency, use `grid.set_bg_alpha(&gl, 0.75)` - useful for overlay effects.
+
+### Resize and HiDPI
+
+When the window resizes or moves between displays, recalculate the grid layout:
+
+```rust
+grid.resize(&gl, (new_width, new_height), pixel_ratio)?;
+let (cols, rows) = grid.terminal_size();  // updated grid dimensions
+```
+
+Static atlases use snapped scaling (0.5x, 1x, 2x, 3x...) to preserve pre-rasterized glyph
+sharpness. See [Font Atlas Types](#font-atlas-types) for details on HiDPI handling per atlas type.
 
 
-## Terminal Renderer API
+## Browser API (beamterm-renderer)
 
-The renderer provides a high-level `Terminal` struct that encapsulates the complete rendering system:
+The renderer crate wraps beamterm-core for WASM/browser targets, providing a high-level `Terminal`
+builder API, dynamic font atlas support, and mouse selection with clipboard integration.
 
 ### Quick Start
 
@@ -130,22 +207,9 @@ let terminal = Terminal::builder("#canvas")
 ```
 
 
-### TerminalGrid
-Main rendering component managing the terminal display. Handles shader programs, cell data, GPU
-buffers, and rendering state.
-
-### Cell Data Structure
-
-Each terminal cell requires:
-- **symbol**: Character or grapheme to display (`&str`)
-- **style**: `FontStyle` enum (Normal, Bold, Italic, BoldItalic)
-- **effect**: `GlyphEffect` enum (None, Underline, Strikethrough)
-- **fg/bg**: Colors as 32-bit ARGB values (`0xAARRGGBB`)
-
-
 ## Font Atlas Types
 
-beamterm supports two font atlas strategies with distinct trade-offs:
+beamterm supports two kinds of font atlases:
 
 | Aspect            | Static Atlas                           | Dynamic Atlas                                |
 |-------------------|----------------------------------------|----------------------------------------------|
@@ -334,17 +398,6 @@ This layout enables the GPU to fetch all cell data in a single 64-bit read, with
 ID encoding both the texture coordinate and style information as described in the [Glyph ID Bit
 Layout](#glyph-id-bit-layout-16-bit) section.
 
-### Memory Layout and Performance
-
-For a typical 12×18 pixel font with ~5100 glyphs:
-
-| Component            | Size      | Details                                    |
-|----------------------|-----------|--------------------------------------------|
-| **2D Texture Array** | ~8.7 MB   | 32(12+2)×(18+2)×160 RGBA (32 glyphs/layer) |
-| **Vertex Buffers**   | ~200 KB   | For 200×80 terminal                        |
-| **Cache Efficiency** | Good      | Sequential glyphs in same layer            |
-| **Memory Access**    | Coalesced | 64-bit aligned instance data               |
-
 The 1×32 grid layout ensures that adjacent terminal cells often access the same texture layer,
 maximizing GPU cache hits. ASCII characters (the most common) are packed into the first 4 layers,
 providing optimal memory locality for typical terminal content.
@@ -386,6 +439,16 @@ The renderer requires OpenGL 3.3+ / WebGL2 for:
 
 ## Build and Deployment
 
+### Development Setup (Native)
+
+```toml
+[dependencies]
+beamterm-core = "0.15"
+glow = "0.16"
+```
+
+Any crate that provides a `glow::Context` works - glutin, sdl2, glfw, etc.
+
 ### Development Setup (WASM)
 ```bash
 # Install Rust toolchain
@@ -404,7 +467,7 @@ cargo install wasm-pack trunk
 # Simple terminal rendering demo (glutin + winit)
 cargo run -p native-terminal
 
-# Console overlaid on a 3D spinning cube
+# Semi-transparent terminal overlay on a 3D spinning cube
 cargo run -p game-console
 ```
 
