@@ -12,8 +12,8 @@
 use std::num::NonZeroU32;
 
 use beamterm_core::{
-    CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, RenderContext,
-    StaticFontAtlas, TerminalGrid,
+    CellData, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, StaticFontAtlas,
+    TerminalGrid,
 };
 use glutin::surface::GlSurface;
 use winit::{
@@ -118,14 +118,10 @@ impl ApplicationHandler for App {
                     state.win.gl.clear(glow::COLOR_BUFFER_BIT);
                 }
 
-                let mut ctx = RenderContext { gl: &state.win.gl, state: &mut state.gl_state };
-
                 state
                     .grid
-                    .prepare(&mut ctx)
-                    .expect("failed to prepare grid");
-                state.grid.draw(&mut ctx);
-                state.grid.cleanup(&mut ctx);
+                    .render(&state.win.gl, &mut state.gl_state)
+                    .expect("failed to render grid");
 
                 state.win.swap_buffers();
             },

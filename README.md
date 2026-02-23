@@ -90,8 +90,8 @@ buffers, and rendering state.
 
 ```rust
 use beamterm_core::{
-    CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion,
-    GlyphEffect, RenderContext, StaticFontAtlas, TerminalGrid,
+    CellData, FontAtlasData, FontStyle, GlState, GlslVersion,
+    GlyphEffect, StaticFontAtlas, TerminalGrid,
 };
 
 // 1. Load a font atlas (default embeds Hack Regular)
@@ -115,12 +115,9 @@ let cells = vec![
 grid.update_cells(cells.into_iter())?;
 grid.flush_cells(&gl)?;
 
-// 4. Render: prepare → draw → cleanup
+// 4. Render
 let mut gl_state = GlState::new(&gl);
-let mut ctx = RenderContext { gl: &gl, state: &mut gl_state };
-grid.prepare(&mut ctx)?;
-grid.draw(&mut ctx);
-grid.cleanup(&mut ctx);
+grid.render(&gl, &mut gl_state)?;
 ```
 
 See [`examples/native-terminal/`](examples/native-terminal/) for a complete glutin + winit

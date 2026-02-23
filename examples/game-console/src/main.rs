@@ -11,8 +11,8 @@
 use std::{num::NonZeroU32, time::Instant};
 
 use beamterm_core::{
-    CellData, Drawable, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, RenderContext,
-    StaticFontAtlas, TerminalGrid,
+    CellData, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, StaticFontAtlas,
+    TerminalGrid,
 };
 use glow::HasContext;
 use glutin::surface::GlSurface;
@@ -899,13 +899,10 @@ impl ApplicationHandler for App {
                         .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
                 }
 
-                let mut ctx = RenderContext { gl: &state.win.gl, state: &mut state.gl_state };
                 state
                     .grid
-                    .prepare(&mut ctx)
-                    .expect("failed to prepare grid");
-                state.grid.draw(&mut ctx);
-                state.grid.cleanup(&mut ctx);
+                    .render(&state.win.gl, &mut state.gl_state)
+                    .expect("failed to render grid");
 
                 unsafe {
                     state.win.gl.disable(glow::BLEND);

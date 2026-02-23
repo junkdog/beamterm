@@ -8,7 +8,7 @@ use crate::{
     CursorPosition,
     error::Error,
     gl::{
-        CellIterator, CellQuery, Drawable, RenderContext, ShaderProgram,
+        CellIterator, CellQuery, Drawable, GlState, RenderContext, ShaderProgram,
         atlas::{FontAtlas, GlyphSlot},
         buffer_upload_array,
         selection::SelectionTracker,
@@ -337,6 +337,20 @@ impl TerminalGrid {
     /// Returns the size of the terminal grid in cells.
     pub fn terminal_size(&self) -> (u16, u16) {
         self.terminal_size
+    }
+
+    /// Renders the terminal grid in a single call.
+    ///
+    /// This is a convenience method that constructs a [`RenderContext`] and
+    /// executes the full [`Drawable`] lifecycle (`prepare` → `draw` → `cleanup`).
+    /// For advanced use cases such as compositing with other GL content, use the
+    /// [`Drawable`] trait methods directly.
+    pub fn render(&self, gl: &glow::Context, state: &mut GlState) -> Result<(), crate::Error> {
+        let mut ctx = RenderContext { gl, state };
+        self.prepare(&mut ctx)?;
+        self.draw(&mut ctx);
+        self.cleanup(&mut ctx);
+        Ok(())
     }
 
     /// Returns a mutable reference to the cell data at the specified cell coordinates.
