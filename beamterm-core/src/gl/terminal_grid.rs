@@ -343,6 +343,7 @@ impl TerminalGrid {
     pub fn cell_data_mut(&mut self, x: u16, y: u16) -> Option<&mut CellDynamic> {
         let (cols, _) = self.terminal_size;
         let idx = y as usize * cols as usize + x as usize;
+        self.cells_pending_flush = true;
         self.cells.get_mut(idx)
     }
 
