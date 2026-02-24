@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use compact_str::CompactString;
 
-use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable};
+use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable, SerializationError};
 
 /// Font atlas data for GPU-accelerated terminal rendering.
 ///
@@ -69,8 +69,9 @@ impl FontAtlasData {
     /// Serializes the font atlas to binary format.
     ///
     /// # Returns
-    /// A byte vector containing the serialized font atlas data
-    pub fn to_binary(&self) -> Vec<u8> {
+    /// A byte vector containing the serialized font atlas data, or an error
+    /// if serialization fails (e.g., a string field exceeds 255 bytes)
+    pub fn to_binary(&self) -> Result<Vec<u8>, SerializationError> {
         self.serialize()
     }
 

@@ -10,8 +10,14 @@ pub struct SerializationError {
     pub message: CompactString,
 }
 
+impl SerializationError {
+    pub fn new(message: impl Into<CompactString>) -> Self {
+        Self { message: message.into() }
+    }
+}
+
 pub(crate) trait Serializable {
-    fn serialize(&self) -> Vec<u8>;
+    fn serialize(&self) -> Result<Vec<u8>, SerializationError>;
 
     fn deserialize(deser: &mut Deserializer) -> Result<Self, SerializationError>
     where
@@ -59,10 +65,19 @@ impl Serializer {
         }
     }
 
-    pub fn write_string(&mut self, value: &str) {
+    pub fn write_string(&mut self, value: &str) -> Result<(), SerializationError> {
+        if value.len() > u8::MAX as usize {
+            return Err(SerializationError::new(format!(
+                "String too long: {} bytes (max 255)",
+                value.len()
+            )));
+        }
+
         let length = value.len() as u8;
         self.write_u8(length);
         self.data.extend(value.as_bytes());
+
+        Ok(())
     }
 }
 
@@ -147,10 +162,10 @@ impl<'a> Deserializer<'a> {
 }
 
 impl Serializable for CompactString {
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>, SerializationError> {
         let mut ser = Serializer::new();
-        ser.write_string(self);
-        ser.data
+        ser.write_string(self)?;
+        Ok(ser.data)
     }
 
     fn deserialize(serialized: &mut Deserializer) -> Result<Self, SerializationError> {
@@ -159,15 +174,15 @@ impl Serializable for CompactString {
 }
 
 impl Serializable for Glyph {
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>, SerializationError> {
         let mut ser = Serializer::new();
         ser.write_u16(self.id);
         ser.write_u8(self.style.ordinal() as u8);
         ser.write_u8(self.is_emoji as u8);
         ser.write_i32(self.pixel_coords.0);
         ser.write_i32(self.pixel_coords.1);
-        ser.write_string(&self.symbol);
-        ser.data
+        ser.write_string(&self.symbol)?;
+        Ok(ser.data)
     }
 
     fn deserialize(serialized: &mut Deserializer) -> Result<Self, SerializationError> {
@@ -189,7 +204,7 @@ impl Serializable for Glyph {
 }
 
 impl Serializable for FontAtlasData {
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>, SerializationError> {
         let mut ser = Serializer::new();
         ser.write_u8(ATLAS_HEADER[0]);
         ser.write_u8(ATLAS_HEADER[1]);
@@ -198,7 +213,7 @@ impl Serializable for FontAtlasData {
 
         ser.write_u8(ATLAS_VERSION);
 
-        ser.write_string(&self.font_name);
+        ser.write_string(&self.font_name)?;
         ser.write_f32(self.font_size);
         ser.write_u16(self.max_halfwidth_base_glyph_id);
 
@@ -216,14 +231,15 @@ impl Serializable for FontAtlasData {
 
         // serialize the glyphs
         ser.write_u16(self.glyphs.len() as u16);
-        ser.data
-            .extend(self.glyphs.iter().flat_map(Glyph::serialize));
+        for glyph in &self.glyphs {
+            ser.data.extend(glyph.serialize()?);
+        }
 
         // serialize 3d texture data
         let packed_texture_data = miniz_oxide::deflate::compress_to_vec(&self.texture_data, 9);
         ser.write_u8_slice(&packed_texture_data);
 
-        ser.data
+        Ok(ser.data)
     }
 
     fn deserialize(deser: &mut Deserializer) -> Result<Self, SerializationError> {
@@ -357,7 +373,7 @@ mod tests {
     #[test]
     fn test_compact_string_serialize_empty() {
         let s = CompactString::new("");
-        let serialized = s.serialize();
+        let serialized = s.serialize().unwrap();
 
         assert_eq!(serialized, vec![0]); // Length 0, no data
     }
@@ -365,7 +381,7 @@ mod tests {
     #[test]
     fn test_compact_string_serialize_short() {
         let s = CompactString::from("Hello");
-        let serialized = s.serialize();
+        let serialized = s.serialize().unwrap();
 
         let mut expected = vec![5]; // Length 5
         expected.extend(b"Hello");
@@ -375,7 +391,7 @@ mod tests {
     #[test]
     fn test_compact_string_serialize_max_length() {
         let s = CompactString::from("A".repeat(255));
-        let serialized = s.serialize();
+        let serialized = s.serialize().unwrap();
 
         assert_eq!(serialized[0], 255); // Length byte
         assert_eq!(serialized.len(), 256); // 1 byte for length + 255 bytes for data
@@ -408,7 +424,7 @@ mod tests {
 
         for original in &test_cases {
             let compact_str = CompactString::from(*original);
-            let serialized = compact_str.serialize();
+            let serialized = compact_str.serialize().unwrap();
             let mut serialized_reader = Deserializer::new(&serialized);
             let deserialized = CompactString::deserialize(&mut serialized_reader).unwrap();
 
@@ -504,7 +520,7 @@ mod tests {
         };
 
         // Serialize
-        let serialized = original.serialize();
+        let serialized = original.serialize().unwrap();
 
         // Deserialize
         let mut deserializer = Deserializer::new(&serialized);
