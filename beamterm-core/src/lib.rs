@@ -111,7 +111,7 @@ mod tests {
         ]
         .iter()
         .for_each(|s| {
-            assert!(is_double_width(s), "Failed for emoji: {}", s);
+            assert!(is_double_width(s), "Failed for emoji: {s}");
         });
 
         // text-presentation-by-default with FE0F: double-width

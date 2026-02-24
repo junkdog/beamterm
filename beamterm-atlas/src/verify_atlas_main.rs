@@ -5,7 +5,6 @@ use std::{fmt::Write, fs, path::PathBuf};
 use beamterm_data::{FontAtlasData, Glyph};
 use clap::Parser;
 use colored::Colorize;
-use unicode_width::UnicodeWidthChar;
 
 #[derive(Parser)]
 #[command(name = "verify-atlas")]
@@ -19,7 +18,7 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let data = fs::read(&cli.atlas_path)?;
-    let atlas = FontAtlasData::from_binary(&data).map_err(|e| format!("{:?}", e))?;
+    let atlas = FontAtlasData::from_binary(&data).map_err(|e| format!("{e:?}"))?;
 
     println!("=== Font Atlas Grid Viewer ===");
     println!(
@@ -39,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Display each layer (32 cells vertical, displayed in rows of 8 for readability)
     for layer in 0..=max_slice {
-        println!("\n=== Layer {} ===", layer);
+        println!("\n=== Layer {layer} ===");
         render_layer(&atlas, layer)?;
     }
 
@@ -70,7 +69,7 @@ fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::
         for x in 0..display_width {
             if x % atlas.cell_size.0 as usize == 0 {
                 let col = x / atlas.cell_size.0 as usize;
-                write!(&mut output, "{}", format!("{:X}", col).blue()).ok(); // Hex for 0-F
+                write!(&mut output, "{}", format!("{col:X}").blue()).ok(); // Hex for 0-F
             } else {
                 write!(&mut output, " ").ok();
             }
@@ -168,7 +167,7 @@ fn render_cell(
                     // Check if glyph symbol was double-width; if so, skip this column
                     let is_double_width = find_glyph_symbol(atlas, layer as u16, cell_pos as u16)
                         .and_then(|g| g.symbol.chars().next())
-                        .and_then(|ch| ch.width())
+                        .and_then(unicode_width::UnicodeWidthChar::width)
                         .is_some_and(|w| w > 1);
                     if !is_double_width {
                         write!(output, "-").ok();

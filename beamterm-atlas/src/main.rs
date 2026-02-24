@@ -160,7 +160,7 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
     }
 
     for (font_name, glyphs) in by_font {
-        println!("  From '{}':", font_name);
+        println!("  From '{font_name}':");
 
         // Group by style within each font
         for style in [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic]
@@ -182,7 +182,7 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
                             if ch.is_control() || ch.is_whitespace() { '·' } else { ch }
                         })
                         .collect();
-                    println!("      {}", symbols);
+                    println!("      {symbols}");
                 }
             }
         }
@@ -258,8 +258,8 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
 
             let fmt_diff = |diff: i32| -> String {
                 match diff.cmp(&0) {
-                    std::cmp::Ordering::Greater => format!("+{}", diff),
-                    std::cmp::Ordering::Less => format!("{}", diff),
+                    std::cmp::Ordering::Greater => format!("+{diff}"),
+                    std::cmp::Ordering::Less => format!("{diff}"),
                     std::cmp::Ordering::Equal => "0".to_string(),
                 }
             };
@@ -323,7 +323,7 @@ fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result
             if exact_name != emoji_font {
                 println!("✓ Found emoji font: {exact_name} (matched: {emoji_font})",);
             } else {
-                println!("✓ Found emoji font: {}", exact_name);
+                println!("✓ Found emoji font: {exact_name}");
             }
             exact_name
         },
@@ -343,7 +343,7 @@ fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result
             if !emoji_fonts.is_empty() {
                 eprintln!("\nAvailable emoji fonts:");
                 for font in emoji_fonts {
-                    eprintln!("  - {}", font);
+                    eprintln!("  - {font}");
                 }
             }
 
@@ -389,7 +389,7 @@ fn report_missing_glyphs(
                 // Sort glyphs by symbol for consistent output
                 glyphs.sort_by_key(|g| &g.symbol);
 
-                println!("  {:?}:", style);
+                println!("  {style:?}:");
 
                 // Print 8 glyphs per line
                 for chunk in glyphs.chunks(8) {
@@ -401,15 +401,15 @@ fn report_missing_glyphs(
 
                             let display_symbol =
                                 if first_char.is_control() || first_char.is_whitespace() {
-                                    format!("U+{:04X}", codepoint)
+                                    format!("U+{codepoint:04X}")
                                 } else {
                                     format!("'{}'", glyph.symbol)
                                 };
-                            format!("{} (0x{:04X})", display_symbol, codepoint)
+                            format!("{display_symbol} (0x{codepoint:04X})")
                         })
                         .collect::<Vec<_>>()
                         .join(", ");
-                    println!("    {}", line);
+                    println!("    {line}");
                 }
             }
         }
@@ -419,7 +419,7 @@ fn report_missing_glyphs(
             / missing_report.total_checked as f64)
             * 100.0;
 
-        println!("📊 Font coverage: {:.1}%", success_rate);
+        println!("📊 Font coverage: {success_rate:.1}%");
     }
 
     Ok(())

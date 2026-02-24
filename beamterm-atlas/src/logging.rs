@@ -20,7 +20,6 @@ pub struct LoggingConfig {
     /// Whether to enable JSON formatted logs for structured output
     pub json_format: bool,
     /// Maximum number of log files to keep for rotation
-    #[allow(dead_code)]
     pub max_files: Option<usize>,
     /// Whether this is for a TUI application (disables console logging)
     pub is_tui: bool,

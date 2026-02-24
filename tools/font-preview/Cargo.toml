@@ -14,9 +14,9 @@ homepage = "https://github.com/junkdog/beamterm"
 beamterm-atlas = { path = "../../beamterm-atlas" }
 beamterm-data = { path = "../../beamterm-data" }
 color-eyre = "0.6.5"
-cosmic-text = "0.14.2"
+cosmic-text = "0.16.0"
 crossterm = "0.28"
-emojis = "0.6"
+emojis = "0.8.0"
 ratatui = "0.29"
 tracing = "0.1.41"
 unicode-segmentation = "1.12"

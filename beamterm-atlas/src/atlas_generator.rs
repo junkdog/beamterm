@@ -208,7 +208,7 @@ impl AtlasFontGenerator {
             .face(font_id)
             .and_then(|face| face.families.first())
             .map(|(name, _)| name.clone())
-            .unwrap_or_else(|| format!("Unknown (ID: {:?})", font_id))
+            .unwrap_or_else(|| format!("Unknown (ID: {font_id:?})"))
     }
 
     /// Measures the dimensions of a font by rasterizing the full block character (█).
@@ -1032,8 +1032,7 @@ mod tests {
         // Coverage may be lower due to Latin Extended-A chars, so we accept > 80%
         assert!(
             coverage_percent > 95.0,
-            "Font coverage should be above 95%, got {:.1}%",
-            coverage_percent
+            "Font coverage should be above 95%, got {coverage_percent:.1}%",
         );
     }
 }

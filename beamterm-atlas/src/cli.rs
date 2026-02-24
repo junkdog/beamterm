@@ -82,8 +82,7 @@ fn parse_debug_space_pattern(s: &str) -> Result<DebugSpacePattern, String> {
         "1" | "1px" => Ok(DebugSpacePattern::OnePixel),
         "2" | "2x2" => Ok(DebugSpacePattern::TwoByTwo),
         _ => Err(format!(
-            "Invalid pattern '{}'. Use '1' (or '1px') for 1px checkers, '2' (or '2x2') for 2x2 checkers",
-            s
+            "Invalid pattern '{s}'. Use '1' (or '1px') for 1px checkers, '2' (or '2x2') for 2x2 checkers"
         )),
     }
 }
@@ -225,19 +224,18 @@ impl Cli {
 fn parse_unicode_range(s: &str) -> Result<RangeInclusive<char>, String> {
     if let Some((start_str, end_str)) = s.split_once("..") {
         let start_code = parse_hex(start_str.trim())
-            .map_err(|e| format!("Invalid start value '{}': {}", start_str, e))?;
-        let end_code = parse_hex(end_str.trim())
-            .map_err(|e| format!("Invalid end value '{}': {}", end_str, e))?;
+            .map_err(|e| format!("Invalid start value '{start_str}': {e}"))?;
+        let end_code =
+            parse_hex(end_str.trim()).map_err(|e| format!("Invalid end value '{end_str}': {e}"))?;
 
         let start_char = char::from_u32(start_code)
-            .ok_or_else(|| format!("Invalid Unicode code point: 0x{:x}", start_code))?;
+            .ok_or_else(|| format!("Invalid Unicode code point: 0x{start_code:x}"))?;
         let end_char = char::from_u32(end_code)
-            .ok_or_else(|| format!("Invalid Unicode code point: 0x{:x}", end_code))?;
+            .ok_or_else(|| format!("Invalid Unicode code point: 0x{end_code:x}"))?;
 
         if start_code > end_code {
             return Err(format!(
-                "Start value (0x{:x}) cannot be greater than end value (0x{:x})",
-                start_code, end_code
+                "Start value (0x{start_code:x}) cannot be greater than end value (0x{end_code:x})"
             ));
         }
 
@@ -251,9 +249,9 @@ fn parse_unicode_range(s: &str) -> Result<RangeInclusive<char>, String> {
 
 fn parse_hex(s: &str) -> Result<u32, String> {
     s.strip_prefix("0x")
-        .ok_or_else(|| format!("Expected hexadecimal format (0x...), got: {}", s))
+        .ok_or_else(|| format!("Expected hexadecimal format (0x...), got: {s}"))
         .map(|hex_str| u32::from_str_radix(hex_str, 16))?
-        .map_err(|_| format!("Invalid hexadecimal number: {}", s))
+        .map_err(|_| format!("Invalid hexadecimal number: {s}"))
 }
 
 fn validate_file_exists(s: &str) -> Result<PathBuf, String> {

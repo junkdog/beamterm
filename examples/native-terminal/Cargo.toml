@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 beamterm-core = { path = "../../beamterm-core" }
-glow = "0.16"
+glow.workspace = true
 glutin = "0.32"
 winit = "0.30"
 glutin-winit = "0.5"

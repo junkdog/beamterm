@@ -41,7 +41,6 @@ impl<'a> GlyphRasterizer<'a> {
         self
     }
 
-    #[allow(dead_code)]
     pub fn buffer_size(mut self, width: f32, height: f32) -> Self {
         self.buffer_size = Some((width, height));
         self

@@ -9,6 +9,7 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
+keywords.workspace = true
 
 [dependencies]
 bitflags.workspace = true
@@ -17,7 +18,7 @@ compact_str = { workspace = true }
 thiserror = { workspace = true }
 unicode-width.workspace = true
 emojis.workspace = true
-glow = "0.16"
+glow.workspace = true
 lru = "0.16"
 rustc-hash = "2.1.1"
 

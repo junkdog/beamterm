@@ -28,6 +28,7 @@ bitflags = "2.11"
 compact_str = "0.9.0"
 console_error_panic_hook = "0.1.7"
 emojis = "0.8.0"
+glow = "0.16"
 js-sys = "0.3.81"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
@@ -36,7 +37,6 @@ unicode-segmentation = "1.12.0"
 unicode-width = { version = "0.2", features = ["core"] }
 wasm-bindgen = { version = "0.2.106" }
 web-sys = "0.3.81"
-web-time = "1.1.0"
 
 [workspace.metadata.docs.rs]
 default-target = "wasm32-unknown-unknown"
@@ -45,15 +45,16 @@ default-target = "wasm32-unknown-unknown"
 dead_code = "allow"
 unused_variables = "deny"
 unused_imports = "deny"
-unused_mut = "allow"
-unused_assignments = "allow"
 
 [workspace.lints.clippy]
+cloned_instead_of_copied = "warn"
+flat_map_option = "warn"
+implicit_clone = "warn"
 inefficient_to_string = "warn"
 large_enum_variant = "warn"
 manual_string_new = "warn"
 needless_collect = "warn"
-
 needless_return = "warn"
 redundant_closure_for_method_calls = "warn"
 type_complexity = "warn"
+uninlined_format_args = "warn"

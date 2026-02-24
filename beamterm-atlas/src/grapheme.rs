@@ -70,7 +70,7 @@ impl GraphemeSet {
         glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
         let last_halfwidth_id = glyphs
             .iter()
-            .map(|g| g.base_id())
+            .map(Glyph::base_id)
             .max()
             .unwrap_or(0);
 
@@ -171,7 +171,7 @@ fn flatten_ranges_no_ascii(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<c
     let chars: BTreeSet<char> = ranges
         .iter()
         .cloned()
-        .flat_map(|r| r.into_iter())
+        .flat_map(IntoIterator::into_iter)
         .filter(|&c| !is_ascii_control_char(c))
         .filter(|c| !c.is_ascii())
         .collect();

@@ -10,7 +10,6 @@ pub struct GlyphBounds {
     pub(crate) min_y: i32,
 }
 
-#[allow(dead_code)] // update when tools are moved to their own crates
 impl GlyphBounds {
     /// Creates empty bounds for initialization
     pub(crate) fn empty() -> Self {
