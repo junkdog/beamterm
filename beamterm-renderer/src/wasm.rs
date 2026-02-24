@@ -712,24 +712,7 @@ impl BeamtermRenderer {
     /// Copy text to the system clipboard
     #[wasm_bindgen(js_name = "copyToClipboard")]
     pub fn copy_to_clipboard(&self, text: &str) {
-        use wasm_bindgen_futures::spawn_local;
-        let text = text.to_string();
-
-        spawn_local(async move {
-            if let Some(window) = web_sys::window() {
-                let clipboard = window.navigator().clipboard();
-                match wasm_bindgen_futures::JsFuture::from(clipboard.write_text(&text)).await {
-                    Ok(_) => {
-                        console::log_1(
-                            &format!("Copied {} characters to clipboard", text.len()).into(),
-                        );
-                    },
-                    Err(err) => {
-                        console::error_1(&format!("Failed to copy to clipboard: {err:?}").into());
-                    },
-                }
-            }
-        });
+        crate::js::copy_to_clipboard(text);
     }
 
     /// Clear any active selection

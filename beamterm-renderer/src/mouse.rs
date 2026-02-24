@@ -44,10 +44,7 @@ use std::{
 };
 
 use bitflags::bitflags;
-use compact_str::CompactString;
 use wasm_bindgen::{JsCast, closure::Closure};
-use wasm_bindgen_futures::spawn_local;
-use web_sys::console;
 
 use crate::{
     Error, SelectionMode, TerminalGrid,
@@ -476,7 +473,7 @@ impl DefaultSelectionHandler {
                         active_selection.set_content_hash(grid.hash_cells(query));
 
                         let selected_text = grid.get_text(active_selection.query());
-                        copy_to_clipboard(selected_text);
+                        crate::js::copy_to_clipboard(selected_text);
                     } else {
                         state.clear();
                         active_selection.clear();
@@ -662,27 +659,6 @@ fn create_mouse_event_closure(
         let grid_ref = grid.borrow();
         event_handler.borrow_mut()(terminal_event, &grid_ref);
     }) as Box<dyn FnMut(_)>)
-}
-
-/// Copies text to the system clipboard using the browser's async clipboard API.
-///
-/// Spawns an async task to handle the clipboard write operation. Logs success
-/// or failure to the console.
-///
-/// # Security
-/// Browser may require user gesture or HTTPS for clipboard access.
-fn copy_to_clipboard(text: CompactString) {
-    spawn_local(async move {
-        if let Some(window) = web_sys::window() {
-            let clipboard = window.navigator().clipboard();
-            match wasm_bindgen_futures::JsFuture::from(clipboard.write_text(&text)).await {
-                Ok(_) => {},
-                Err(err) => {
-                    console::error_1(&format!("Failed to copy to clipboard: {err:?}").into());
-                },
-            }
-        }
-    });
 }
 
 impl Drop for TerminalMouseHandler {

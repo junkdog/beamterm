@@ -1,5 +1,6 @@
 use js_sys::wasm_bindgen::JsCast;
-use web_sys::{Document, HtmlCanvasElement};
+use wasm_bindgen_futures::spawn_local;
+use web_sys::{Document, HtmlCanvasElement, console};
 
 use crate::error::Error;
 
@@ -56,4 +57,25 @@ pub(crate) fn device_pixel_ratio() -> f32 {
     web_sys::window()
         .map(|w| w.device_pixel_ratio() as f32)
         .unwrap_or(1.0)
+}
+
+/// Copies text to the system clipboard using the browser's async clipboard API.
+///
+/// Spawns an async task to handle the clipboard write operation.
+/// Logs failure to the console.
+///
+/// # Security
+/// Browser may require user gesture or HTTPS for clipboard access.
+pub(crate) fn copy_to_clipboard(text: impl Into<String>) {
+    let text = text.into();
+    spawn_local(async move {
+        if let Some(window) = web_sys::window() {
+            let clipboard = window.navigator().clipboard();
+            if let Err(err) =
+                wasm_bindgen_futures::JsFuture::from(clipboard.write_text(&text)).await
+            {
+                console::error_1(&format!("Failed to copy to clipboard: {err:?}").into());
+            }
+        }
+    });
 }
