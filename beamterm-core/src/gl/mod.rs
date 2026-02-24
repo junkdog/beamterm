@@ -12,18 +12,17 @@ pub(crate) mod texture;
 mod ubo;
 
 // Primary API re-exports
+// Re-exports for sibling crates (beamterm-renderer)
+pub use atlas::DYNAMIC_ATLAS_LOOKUP_MASK;
 pub use atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker};
 // Crate-internal re-exports
 use buffer::*;
 pub use cell_query::{CellIterator, CellQuery, SelectionMode, select};
 pub use context::GlState;
+pub use glyph_cache::{ASCII_SLOTS, GlyphCache};
 pub(crate) use program::*;
 pub use renderer::{Drawable, RenderContext};
 pub use selection::SelectionTracker;
 pub use static_atlas::StaticFontAtlas;
 pub use terminal_grid::{CellData, CellDynamic, TerminalGrid};
-
-// Re-exports for sibling crates (beamterm-renderer)
-pub use atlas::DYNAMIC_ATLAS_LOOKUP_MASK;
-pub use glyph_cache::{ASCII_SLOTS, GlyphCache};
 pub use texture::{RasterizedGlyph, Texture};

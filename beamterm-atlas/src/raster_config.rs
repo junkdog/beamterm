@@ -76,11 +76,11 @@ mod tests {
     #[test]
     fn layer_count_covers_max_glyph_id() {
         // layer = id >> 5, so layers needed = max_id / 32 + 1
-        assert_eq!(layers_for(&[glyph(0)]),   1); // layer 0
-        assert_eq!(layers_for(&[glyph(31)]),  1); // last slot in layer 0
-        assert_eq!(layers_for(&[glyph(32)]),  2); // first slot in layer 1
-        assert_eq!(layers_for(&[glyph(33)]),  2);
-        assert_eq!(layers_for(&[glyph(64)]),  3); // first slot in layer 2
+        assert_eq!(layers_for(&[glyph(0)]), 1); // layer 0
+        assert_eq!(layers_for(&[glyph(31)]), 1); // last slot in layer 0
+        assert_eq!(layers_for(&[glyph(32)]), 2); // first slot in layer 1
+        assert_eq!(layers_for(&[glyph(33)]), 2);
+        assert_eq!(layers_for(&[glyph(64)]), 3); // first slot in layer 2
 
         // uses max glyph id across all glyphs
         assert_eq!(layers_for(&[glyph(5), glyph(100), glyph(50)]), 4);
