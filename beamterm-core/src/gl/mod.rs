@@ -13,8 +13,7 @@ mod ubo;
 
 // Primary API re-exports
 // Re-exports for sibling crates (beamterm-renderer)
-pub use atlas::DYNAMIC_ATLAS_LOOKUP_MASK;
-pub use atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker};
+pub use atlas::{Atlas, DYNAMIC_ATLAS_LOOKUP_MASK, FontAtlas, GlyphSlot, GlyphTracker};
 // Crate-internal re-exports
 use buffer::*;
 pub use cell_query::{CellIterator, CellQuery, SelectionMode, select};
