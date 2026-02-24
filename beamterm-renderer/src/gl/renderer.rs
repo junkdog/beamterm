@@ -166,8 +166,8 @@ impl Renderer {
         self.gl = gl;
         self.raw_gl = raw_gl;
 
-        // Restore viewport
-        let (width, height) = self.canvas_size();
+        // Restore viewport using physical (device) pixels
+        let (width, height) = self.physical_size();
         self.state.viewport(&self.gl, 0, 0, width, height);
 
         Ok(())

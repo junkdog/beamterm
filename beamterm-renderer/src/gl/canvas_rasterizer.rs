@@ -32,7 +32,6 @@
 
 use beamterm_data::{FontAtlasData, FontStyle};
 use compact_str::CompactString;
-use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 

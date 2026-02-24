@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 mod canvas_rasterizer;
 mod context_loss;
 mod dynamic_atlas;

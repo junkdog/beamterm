@@ -5,7 +5,7 @@ use std::{
 };
 
 use beamterm_core::gl::{
-    atlas::{self, Atlas, GlyphSlot, GlyphTracker, SlotId},
+    atlas::{self, Atlas, GlyphSlot, GlyphTracker},
     glyph_cache::{ASCII_SLOTS, GlyphCache},
     texture::Texture,
 };

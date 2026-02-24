@@ -742,7 +742,7 @@ impl TerminalBuilder {
         note = "Use `mouse_selection_handler` with `MouseSelectOptions` instead"
     )]
     pub fn default_mouse_input_handler(
-        mut self,
+        self,
         selection_mode: SelectionMode,
         trim_trailing_whitespace: bool,
     ) -> Self {
