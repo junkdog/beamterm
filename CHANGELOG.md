@@ -20,11 +20,14 @@ All notable changes to this project will be documented in this file.
 
 - *(renderer)* `TerminalGrid::cleanup()` now unbinds the shader program
 - *(core)* `TerminalGrid::cell_data_mut` now sets `cells_pending_flush = true`
+- *(atlas)* `Serializer::write_string` now rejects strings exceeding 255 bytes.
 
 ### 🚜 Refactor
 
 - *(renderer)* Replace web_sys WebGL2 calls with glow
 - *(atlas)* [**breaking**] Propagate atlas flush errors instead of panicking
+- *(atlas)* Convert panics to Result errors in atlas deserialization and glyph limits
+- *(wasm)* `BeamtermRenderer` delegates to `Terminal`, no more duplicated logic
 
 ## [beamterm-v0.15.0] - 2026-02-17
 

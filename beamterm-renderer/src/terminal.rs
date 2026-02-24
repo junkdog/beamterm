@@ -404,7 +404,7 @@ impl Terminal {
     }
 
     /// Checks if the terminal needs to restore GPU resources after a context loss.
-    fn needs_gl_reinit(&mut self) -> bool {
+    fn needs_gl_reinit(&self) -> bool {
         self.context_loss_handler
             .as_ref()
             .map(ContextLossHandler::context_pending_rebuild)
@@ -424,6 +424,83 @@ impl Terminal {
             let cell_height = phys_height as f32 / self.current_pixel_ratio;
             mouse_input.update_metrics(cols, rows, cell_width, cell_height);
         }
+    }
+
+    /// Returns the current device pixel ratio.
+    pub fn current_pixel_ratio(&self) -> f32 {
+        self.current_pixel_ratio
+    }
+
+    /// Enables mouse-based text selection with the given options.
+    ///
+    /// Replaces any existing mouse handler. Creates a [`DefaultSelectionHandler`]
+    /// and a [`TerminalMouseHandler`] attached to this terminal's canvas.
+    pub fn enable_mouse_selection(&mut self, options: MouseSelectOptions) -> Result<(), Error> {
+        // clean up existing mouse handler if present
+        if let Some(old_handler) = self.mouse_handler.take() {
+            old_handler.cleanup();
+        }
+
+        let selection_tracker = self.grid.borrow().selection_tracker();
+        let handler = DefaultSelectionHandler::new(self.grid.clone(), options);
+
+        let mut mouse_handler = TerminalMouseHandler::new(
+            self.renderer.canvas(),
+            self.grid.clone(),
+            handler.create_event_handler(selection_tracker),
+        )?;
+        mouse_handler.default_input_handler = Some(handler);
+
+        self.update_mouse_metrics(&mut mouse_handler);
+
+        self.mouse_handler = Some(mouse_handler);
+        Ok(())
+    }
+
+    /// Sets a custom mouse event callback.
+    ///
+    /// Replaces any existing mouse handler. The callback receives
+    /// [`TerminalMouseEvent`] and a reference to the [`TerminalGrid`].
+    pub fn set_mouse_callback(
+        &mut self,
+        callback: impl FnMut(TerminalMouseEvent, &TerminalGrid) + 'static,
+    ) -> Result<(), Error> {
+        // clean up existing mouse handler if present
+        if let Some(old_handler) = self.mouse_handler.take() {
+            old_handler.cleanup();
+        }
+
+        let mut mouse_handler =
+            TerminalMouseHandler::new(self.renderer.canvas(), self.grid.clone(), callback)?;
+
+        self.update_mouse_metrics(&mut mouse_handler);
+
+        self.mouse_handler = Some(mouse_handler);
+        Ok(())
+    }
+
+    /// Clears any active text selection.
+    pub fn clear_selection(&self) {
+        self.grid.borrow().selection_tracker().clear();
+    }
+
+    /// Returns whether there is an active text selection.
+    pub fn has_selection(&self) -> bool {
+        self.grid
+            .borrow()
+            .selection_tracker()
+            .get_query()
+            .is_some()
+    }
+
+    /// Updates metrics on an externally-held mouse handler.
+    fn update_mouse_metrics(&self, mouse_handler: &mut TerminalMouseHandler) {
+        let grid = self.grid.borrow();
+        let (cols, rows) = grid.terminal_size();
+        let (phys_w, phys_h) = grid.cell_size();
+        let css_w = phys_w as f32 / self.current_pixel_ratio;
+        let css_h = phys_h as f32 / self.current_pixel_ratio;
+        mouse_handler.update_metrics(cols, rows, css_w, css_h);
     }
 
     /// Exposes this terminal instance to the browser console for debugging.

@@ -1,8 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use beamterm_core::GlslVersion;
 use beamterm_data::{FontAtlasData, Glyph};
-use compact_str::{CompactString, ToCompactString};
+use compact_str::CompactString;
 use serde_wasm_bindgen::from_value;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -10,29 +9,21 @@ use wasm_bindgen::prelude::*;
 use web_sys::console;
 
 use crate::{
-    CursorPosition,
+    CursorPosition, Terminal,
     gl::{
-        CellData, CellQuery as RustCellQuery, ContextLossHandler, DynamicFontAtlas, Renderer,
-        SelectionMode as RustSelectionMode, StaticFontAtlas, TerminalGrid, select,
+        CellData, CellQuery as RustCellQuery, SelectionMode as RustSelectionMode, TerminalGrid,
+        select,
     },
-    js::device_pixel_ratio,
-    mouse::{
-        DefaultSelectionHandler, ModifierKeys as RustModifierKeys, MouseSelectOptions,
-        TerminalMouseEvent, TerminalMouseHandler,
-    },
+    mouse::{ModifierKeys as RustModifierKeys, MouseSelectOptions, TerminalMouseEvent},
 };
 
-/// JavaScript wrapper for the terminal renderer
+/// JavaScript wrapper for the terminal renderer.
+///
+/// Thin `#[wasm_bindgen]` wrapper that delegates to [`Terminal`].
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct BeamtermRenderer {
-    renderer: Renderer,
-    terminal_grid: Rc<RefCell<TerminalGrid>>,
-    mouse_handler: Option<TerminalMouseHandler>,
-    /// Handles WebGL context loss and restoration
-    context_loss_handler: Option<ContextLossHandler>,
-    /// Current device pixel ratio for HiDPI rendering
-    current_pixel_ratio: f32,
+    terminal: Terminal,
 }
 
 /// JavaScript wrapper for cell data
@@ -535,52 +526,26 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let auto_resize = auto_resize_canvas_css.unwrap_or(true);
-
-        // Setup renderer with exact pixel ratio for HiDPI
-        let mut renderer = Renderer::create(canvas_id, auto_resize)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
-        let current_pixel_ratio = crate::js::device_pixel_ratio();
-        renderer.set_pixel_ratio(current_pixel_ratio);
-        let (w, h) = renderer.logical_size();
-        renderer.resize(w, h);
-
-        let gl = renderer.gl();
-        let atlas_config = match atlas_data {
+        let atlas = match atlas_data {
             Some(data) => {
                 let bytes = data.to_vec();
-                FontAtlasData::from_binary(&bytes)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e:?}")))?
+                Some(FontAtlasData::from_binary(&bytes).map_err(|e| {
+                    JsValue::from_str(&format!("Failed to parse atlas data: {e:?}"))
+                })?)
             },
-            None => FontAtlasData::default(),
+            None => None,
         };
 
-        let atlas = StaticFontAtlas::load(gl, atlas_config)
-            .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
+        let mut builder = Terminal::builder(canvas_id)
+            .auto_resize_canvas_css(auto_resize_canvas_css.unwrap_or(true));
 
-        let canvas_size = renderer.physical_size();
-        let terminal_grid = TerminalGrid::new(
-            gl,
-            atlas.into(),
-            canvas_size,
-            current_pixel_ratio,
-            &GlslVersion::Es300,
-        )
-        .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        if let Some(atlas) = atlas {
+            builder = builder.font_atlas(atlas);
+        }
 
-        let terminal_grid = Rc::new(RefCell::new(terminal_grid));
+        let terminal = builder.build()?;
 
-        let context_loss_handler = ContextLossHandler::new(renderer.canvas()).map_err(|e| {
-            JsValue::from_str(&format!("Failed to create context loss handler: {e}"))
-        })?;
-
-        Ok(BeamtermRenderer {
-            renderer,
-            terminal_grid,
-            mouse_handler: None,
-            context_loss_handler: Some(context_loss_handler),
-            current_pixel_ratio,
-        })
+        Ok(BeamtermRenderer { terminal })
     }
 
     /// Create a terminal renderer with a dynamic font atlas using browser fonts.
@@ -613,53 +578,23 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let auto_resize = auto_resize_canvas_css.unwrap_or(true);
-
-        // Setup renderer with exact pixel ratio for HiDPI
-        let mut renderer = Renderer::create(canvas_id, auto_resize)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create renderer: {e}")))?;
-        let current_pixel_ratio = crate::js::device_pixel_ratio();
-        renderer.set_pixel_ratio(current_pixel_ratio);
-        let (w, h) = renderer.logical_size();
-        renderer.resize(w, h);
-
-        let font_families: Vec<CompactString> = font_family
+        let font_families: Vec<String> = font_family
             .iter()
             .filter_map(|v| v.as_string())
-            .map(|s| s.to_compact_string())
             .collect();
 
         if font_families.is_empty() {
             return Err(JsValue::from_str("font_family array cannot be empty"));
         }
 
-        let gl = renderer.gl();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, current_pixel_ratio, None)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
+        let refs: Vec<&str> = font_families.iter().map(String::as_str).collect();
 
-        let canvas_size = renderer.physical_size();
-        let terminal_grid = TerminalGrid::new(
-            gl,
-            atlas.into(),
-            canvas_size,
-            current_pixel_ratio,
-            &GlslVersion::Es300,
-        )
-        .map_err(|e| JsValue::from_str(&format!("Failed to create terminal grid: {e}")))?;
+        let terminal = Terminal::builder(canvas_id)
+            .auto_resize_canvas_css(auto_resize_canvas_css.unwrap_or(true))
+            .dynamic_font_atlas(&refs, font_size)
+            .build()?;
 
-        let terminal_grid = Rc::new(RefCell::new(terminal_grid));
-
-        let context_loss_handler = ContextLossHandler::new(renderer.canvas()).map_err(|e| {
-            JsValue::from_str(&format!("Failed to create context loss handler: {e}"))
-        })?;
-
-        Ok(BeamtermRenderer {
-            renderer,
-            terminal_grid,
-            mouse_handler: None,
-            context_loss_handler: Some(context_loss_handler),
-            current_pixel_ratio,
-        })
+        Ok(BeamtermRenderer { terminal })
     }
 
     /// Enable default mouse selection behavior with built-in copy to clipboard
@@ -669,7 +604,7 @@ impl BeamtermRenderer {
         mode: SelectionMode,
         trim_whitespace: bool,
     ) -> Result<(), JsValue> {
-        self.enable_selection_internal(mode, trim_whitespace, ModifierKeys::default())
+        self.enable_selection_with_options(mode, trim_whitespace, &ModifierKeys::default())
     }
 
     /// Enable mouse selection with full configuration options.
@@ -705,48 +640,17 @@ impl BeamtermRenderer {
         trim_whitespace: bool,
         require_modifiers: &ModifierKeys,
     ) -> Result<(), JsValue> {
-        self.enable_selection_internal(mode, trim_whitespace, *require_modifiers)
-    }
-
-    fn enable_selection_internal(
-        &mut self,
-        mode: SelectionMode,
-        trim_whitespace: bool,
-        require_modifiers: ModifierKeys,
-    ) -> Result<(), JsValue> {
-        // clean up existing mouse handler if present
-        if let Some(old_handler) = self.mouse_handler.take() {
-            old_handler.cleanup();
-        }
-
-        let selection_tracker = self.terminal_grid.borrow().selection_tracker();
         let options = MouseSelectOptions::new()
             .selection_mode(mode.into())
             .trim_trailing_whitespace(trim_whitespace)
-            .require_modifier_keys(require_modifiers.into());
-        let handler = DefaultSelectionHandler::new(self.terminal_grid.clone(), options);
+            .require_modifier_keys((*require_modifiers).into());
 
-        let mut mouse_handler = TerminalMouseHandler::new(
-            self.renderer.canvas(),
-            self.terminal_grid.clone(),
-            handler.create_event_handler(selection_tracker),
-        )
-        .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
-
-        self.update_mouse_metrics(&mut mouse_handler);
-
-        self.mouse_handler = Some(mouse_handler);
-        Ok(())
+        Ok(self.terminal.enable_mouse_selection(options)?)
     }
 
     /// Set a custom mouse event handler
     #[wasm_bindgen(js_name = "setMouseHandler")]
     pub fn set_mouse_handler(&mut self, handler: js_sys::Function) -> Result<(), JsValue> {
-        // Clean up existing mouse handler if present
-        if let Some(old_handler) = self.mouse_handler.take() {
-            old_handler.cleanup();
-        }
-
         let handler_closure = {
             let handler = handler.clone();
             move |event: TerminalMouseEvent, _grid: &TerminalGrid| {
@@ -761,26 +665,15 @@ impl BeamtermRenderer {
             }
         };
 
-        let mut mouse_handler = TerminalMouseHandler::new(
-            self.renderer.canvas(),
-            self.terminal_grid.clone(),
-            handler_closure,
-        )
-        .map_err(|e| JsValue::from_str(&format!("Failed to create mouse handler: {e}")))?;
-
-        self.update_mouse_metrics(&mut mouse_handler);
-
-        self.mouse_handler = Some(mouse_handler);
-        Ok(())
+        Ok(self
+            .terminal
+            .set_mouse_callback(handler_closure)?)
     }
 
     /// Get selected text based on a cell query
     #[wasm_bindgen(js_name = "getText")]
     pub fn get_text(&self, query: &CellQuery) -> String {
-        self.terminal_grid
-            .borrow()
-            .get_text(query.inner)
-            .to_string()
+        self.terminal.get_text(query.inner).to_string()
     }
 
     /// Detects an HTTP/HTTPS URL at or around the given cell position.
@@ -808,12 +701,12 @@ impl BeamtermRenderer {
     #[wasm_bindgen(js_name = "findUrlAt")]
     pub fn find_url_at(&self, col: u16, row: u16) -> Option<UrlMatch> {
         let cursor = CursorPosition::new(col, row);
-        let grid = self.terminal_grid.borrow();
-
-        beamterm_core::find_url_at_cursor(cursor, &grid).map(|m| UrlMatch {
-            url: m.url.to_string(),
-            query: CellQuery { inner: m.query },
-        })
+        self.terminal
+            .find_url_at(cursor)
+            .map(|m| UrlMatch {
+                url: m.url.to_string(),
+                query: CellQuery { inner: m.query },
+            })
     }
 
     /// Copy text to the system clipboard
@@ -842,182 +735,47 @@ impl BeamtermRenderer {
     /// Clear any active selection
     #[wasm_bindgen(js_name = "clearSelection")]
     pub fn clear_selection(&self) {
-        self.terminal_grid
-            .borrow()
-            .selection_tracker()
-            .clear();
+        self.terminal.clear_selection();
     }
 
     /// Check if there is an active selection
     #[wasm_bindgen(js_name = "hasSelection")]
     pub fn has_selection(&self) -> bool {
-        self.terminal_grid
-            .borrow()
-            .selection_tracker()
-            .get_query()
-            .is_some()
+        self.terminal.has_selection()
     }
 
     /// Create a new render batch
     #[wasm_bindgen(js_name = "batch")]
     pub fn new_render_batch(&mut self) -> Batch {
-        let terminal_grid = self.terminal_grid.clone();
-        Batch { terminal_grid }
+        Batch { terminal_grid: self.terminal.grid() }
     }
 
     /// Get the terminal dimensions in cells
     #[wasm_bindgen(js_name = "terminalSize")]
     pub fn terminal_size(&self) -> Size {
-        let (cols, rows) = self.terminal_grid.borrow().terminal_size();
+        let (cols, rows) = self.terminal.terminal_size();
         Size { width: cols, height: rows }
     }
 
     /// Get the cell size in pixels
     #[wasm_bindgen(js_name = "cellSize")]
     pub fn cell_size(&self) -> Size {
-        let (width, height) = self.terminal_grid.borrow().cell_size();
+        let (width, height) = self.terminal.cell_size();
         Size { width: width as u16, height: height as u16 }
     }
 
     /// Render the terminal to the canvas
     #[wasm_bindgen]
     pub fn render(&mut self) {
-        // Check for pending rebuild after context restoration
-        if self.needs_gl_reinit()
-            && let Err(e) = self.restore_context()
-        {
-            console::error_1(&format!("Failed to restore WebGL context: {e:?}").into());
-            return;
+        if let Err(e) = self.terminal.render_frame() {
+            console::error_1(&format!("Render error: {e:?}").into());
         }
-
-        // Skip rendering if context is currently lost (waiting for browser restoration)
-        if self.is_context_lost() {
-            return;
-        }
-
-        // Check for device pixel ratio changes (HiDPI display switching)
-        let raw_dpr = device_pixel_ratio();
-        if (raw_dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
-            let _ = self.handle_pixel_ratio_change(raw_dpr);
-        }
-
-        let mut grid = self.terminal_grid.borrow_mut();
-        let _ = grid.flush_cells(self.renderer.gl());
-
-        self.renderer.begin_frame();
-        let _ = self.renderer.render(&*grid);
-        self.renderer.end_frame();
-    }
-
-    /// Checks if the WebGL context has been lost.
-    fn is_context_lost(&self) -> bool {
-        if let Some(handler) = &self.context_loss_handler {
-            handler.is_context_lost()
-        } else {
-            self.renderer.is_context_lost()
-        }
-    }
-
-    /// Checks if the terminal needs to restore GPU resources after a context loss.
-    fn needs_gl_reinit(&self) -> bool {
-        self.context_loss_handler
-            .as_ref()
-            .is_some_and(ContextLossHandler::context_pending_rebuild)
-    }
-
-    /// Restores all GPU resources after a WebGL context loss.
-    fn restore_context(&mut self) -> Result<(), JsValue> {
-        self.renderer
-            .restore_context()
-            .map_err(|e| JsValue::from_str(&format!("Failed to restore renderer context: {e}")))?;
-
-        let gl = self.renderer.gl();
-
-        self.terminal_grid
-            .borrow_mut()
-            .recreate_atlas_texture(gl)
-            .map_err(|e| JsValue::from_str(&format!("Failed to recreate atlas texture: {e}")))?;
-
-        self.terminal_grid
-            .borrow_mut()
-            .recreate_resources(gl, &GlslVersion::Es300)
-            .map_err(|e| JsValue::from_str(&format!("Failed to recreate grid resources: {e}")))?;
-
-        self.terminal_grid
-            .borrow_mut()
-            .flush_cells(gl)
-            .map_err(|e| JsValue::from_str(&format!("Failed to flush cells: {e}")))?;
-
-        if let Some(handler) = &self.context_loss_handler {
-            handler.clear_context_rebuild_needed();
-        }
-
-        // Re-apply current pixel ratio after context restoration
-        // (display may have changed during context loss)
-        let dpr = device_pixel_ratio();
-        if (dpr - self.current_pixel_ratio).abs() > f32::EPSILON {
-            self.handle_pixel_ratio_change(dpr)?;
-        } else {
-            // Even if DPR unchanged, renderer state was reset - reapply it
-            self.renderer.set_pixel_ratio(dpr);
-            let (w, h) = self.renderer.logical_size();
-            self.renderer.resize(w, h);
-        }
-
-        console::log_1(&"WebGL context restored successfully".into());
-        Ok(())
-    }
-
-    /// Handles a change in device pixel ratio.
-    ///
-    /// Callers should verify the ratio has changed before calling this method.
-    fn handle_pixel_ratio_change(&mut self, raw_pixel_ratio: f32) -> Result<(), JsValue> {
-        self.current_pixel_ratio = raw_pixel_ratio;
-
-        let gl = self.renderer.gl();
-
-        // Update atlas (for dynamic atlas, this re-rasterizes glyphs)
-        self.terminal_grid
-            .borrow_mut()
-            .atlas_mut()
-            .update_pixel_ratio(gl, raw_pixel_ratio)
-            .map_err(|e| JsValue::from_str(&format!("Failed to update pixel ratio: {e}")))?;
-
-        // Always use exact DPR for canvas sizing
-        self.renderer.set_pixel_ratio(raw_pixel_ratio);
-
-        // Resize to apply the new pixel ratio
-        let (w, h) = self.renderer.logical_size();
-        self.resize(w, h)
     }
 
     /// Resize the terminal to fit new canvas dimensions
     #[wasm_bindgen]
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), JsValue> {
-        self.renderer.resize(width, height);
-
-        let gl = self.renderer.gl();
-        let physical_size = self.renderer.physical_size();
-        self.terminal_grid
-            .borrow_mut()
-            .resize(gl, physical_size, self.current_pixel_ratio)
-            .map_err(|e| JsValue::from_str(&format!("Failed to resize: {e}")))?;
-
-        self.update_mouse_handler_metrics();
-
-        Ok(())
-    }
-
-    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
-    fn update_mouse_handler_metrics(&mut self) {
-        if let Some(mouse_handler) = &mut self.mouse_handler {
-            let grid = self.terminal_grid.borrow();
-            let (cols, rows) = grid.terminal_size();
-            let (phys_width, phys_height) = grid.cell_size();
-            let cell_width = phys_width as f32 / self.current_pixel_ratio;
-            let cell_height = phys_height as f32 / self.current_pixel_ratio;
-            mouse_handler.update_metrics(cols, rows, cell_width, cell_height);
-        }
+        Ok(self.terminal.resize(width, height)?)
     }
 
     /// Replace the current font atlas with a new static atlas.
@@ -1038,8 +796,6 @@ impl BeamtermRenderer {
         &mut self,
         atlas_data: Option<js_sys::Uint8Array>,
     ) -> Result<(), JsValue> {
-        let gl = self.renderer.gl();
-
         let atlas_config = match atlas_data {
             Some(data) => {
                 let bytes = data.to_vec();
@@ -1049,16 +805,9 @@ impl BeamtermRenderer {
             None => FontAtlasData::default(),
         };
 
-        let atlas = StaticFontAtlas::load(gl, atlas_config)
-            .map_err(|e| JsValue::from_str(&format!("Failed to load font atlas: {e}")))?;
-
-        self.terminal_grid
-            .borrow_mut()
-            .replace_atlas(gl, atlas.into());
-
-        self.update_mouse_handler_metrics();
-
-        Ok(())
+        Ok(self
+            .terminal
+            .replace_with_static_atlas(atlas_config)?)
     }
 
     /// Replace the current font atlas with a new dynamic atlas.
@@ -1081,37 +830,19 @@ impl BeamtermRenderer {
         font_family: js_sys::Array,
         font_size: f32,
     ) -> Result<(), JsValue> {
-        let font_families: Vec<CompactString> = font_family
+        let font_families: Vec<String> = font_family
             .iter()
             .filter_map(|v| v.as_string())
-            .map(|s| s.to_compact_string())
             .collect();
 
         if font_families.is_empty() {
             return Err(JsValue::from_str("font_family array cannot be empty"));
         }
 
-        let gl = self.renderer.gl();
-        let pixel_ratio = device_pixel_ratio();
-        let atlas = DynamicFontAtlas::new(gl, &font_families, font_size, pixel_ratio, None)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create dynamic atlas: {e}")))?;
-
-        self.terminal_grid
-            .borrow_mut()
-            .replace_atlas(gl, atlas.into());
-
-        self.update_mouse_handler_metrics();
-
-        Ok(())
-    }
-
-    fn update_mouse_metrics(&mut self, mouse_handler: &mut TerminalMouseHandler) {
-        let grid = self.terminal_grid.borrow();
-        let (cols, rows) = grid.terminal_size();
-        let (phys_w, phys_h) = grid.cell_size();
-        let css_w = phys_w as f32 / self.current_pixel_ratio;
-        let css_h = phys_h as f32 / self.current_pixel_ratio;
-        mouse_handler.update_metrics(cols, rows, css_w, css_h);
+        let refs: Vec<&str> = font_families.iter().map(String::as_str).collect();
+        Ok(self
+            .terminal
+            .replace_with_dynamic_atlas(&refs, font_size)?)
     }
 }
 
