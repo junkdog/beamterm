@@ -29,6 +29,10 @@ All notable changes to this project will be documented in this file.
 - *(atlas)* Convert panics to Result errors in atlas deserialization and glyph limits
 - *(wasm)* `BeamtermRenderer` delegates to `Terminal`, no more duplicated logic
 
+### ⚙️ Miscellaneous Tasks
+
+- *(tools)* Remove neglected `font-preview` tool
+
 ## [beamterm-v0.15.0] - 2026-02-17
 
 ### 🚀 Features
