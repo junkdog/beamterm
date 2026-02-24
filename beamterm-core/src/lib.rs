@@ -35,7 +35,7 @@ impl GlslVersion {
 
     pub fn fragment_preamble(&self) -> &'static str {
         match self {
-            Self::Es300 => "#version 300 es\nprecision mediump float;\n",
+            Self::Es300 => "#version 300 es\nprecision mediump float;\nprecision highp int;\n",
             Self::Gl330 => "#version 330 core\n",
         }
     }
