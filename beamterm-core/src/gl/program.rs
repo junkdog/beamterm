@@ -28,12 +28,17 @@ impl ShaderProgram {
             gl.attach_shader(program, fragment_shader);
             gl.link_program(program);
         }
-        check_link_status(gl, program)?;
 
         // delete shaders (no longer needed after linking)
         unsafe {
             gl.delete_shader(vertex_shader);
             gl.delete_shader(fragment_shader);
+        }
+
+        // check link status after cleaning up shaders; delete program on failure
+        if let Err(e) = check_link_status(gl, program) {
+            unsafe { gl.delete_program(program) };
+            return Err(e);
         }
 
         Ok(ShaderProgram { program })
@@ -43,6 +48,11 @@ impl ShaderProgram {
     pub(crate) fn use_program(&self, gl: &glow::Context) {
         unsafe { gl.use_program(Some(self.program)) };
     }
+
+    /// Deletes the shader program, releasing the GPU resource.
+    pub(crate) fn delete(&self, gl: &glow::Context) {
+        unsafe { gl.delete_program(self.program) };
+    }
 }
 
 fn compile_shader(
@@ -50,12 +60,20 @@ fn compile_shader(
     shader_type: ShaderType,
     source: &str,
 ) -> Result<glow::Shader, Error> {
-    let shader = unsafe { gl.create_shader(shader_type.into()) }
+    let gl_shader_type: u32 = shader_type.into();
+    let shader = unsafe { gl.create_shader(gl_shader_type) }
         .map_err(|_| Error::shader_creation_failed("unknown error"))?;
 
     unsafe {
         gl.shader_source(shader, source);
         gl.compile_shader(shader);
+    }
+
+    if !unsafe { gl.get_shader_compile_status(shader) } {
+        let log = unsafe { gl.get_shader_info_log(shader) };
+        unsafe { gl.delete_shader(shader) };
+        let stage = if gl_shader_type == glow::VERTEX_SHADER { "vertex" } else { "fragment" };
+        return Err(Error::shader_compilation_failed(stage, log));
     }
 
     Ok(shader)

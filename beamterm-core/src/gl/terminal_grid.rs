@@ -71,6 +71,13 @@ impl GpuResources {
     const FRAGMENT_GLSL: &'static str = include_str!("../shaders/cell.frag");
     const VERTEX_GLSL: &'static str = include_str!("../shaders/cell.vert");
 
+    fn delete(&self, gl: &glow::Context) {
+        self.shader.delete(gl);
+        self.buffers.delete(gl);
+        self.ubo_vertex.delete(gl);
+        self.ubo_fragment.delete(gl);
+    }
+
     /// Creates all GPU resources for the terminal grid.
     ///
     /// This method creates and initializes:
@@ -135,6 +142,16 @@ struct TerminalBuffers {
 }
 
 impl TerminalBuffers {
+    fn delete(&self, gl: &glow::Context) {
+        unsafe {
+            gl.delete_vertex_array(self.vao);
+            gl.delete_buffer(self.vertices);
+            gl.delete_buffer(self.instance_pos);
+            gl.delete_buffer(self.instance_cell);
+            gl.delete_buffer(self.indices);
+        }
+    }
+
     fn upload_instance_data<T>(&self, gl: &glow::Context, cell_data: &[T]) {
         unsafe {
             gl.bind_vertex_array(Some(self.vao));
@@ -208,6 +225,16 @@ impl TerminalGrid {
         grid.upload_ubo_data(gl);
 
         Ok(grid)
+    }
+
+    /// Deletes all GPU resources owned by this terminal grid.
+    ///
+    /// This must be called before dropping the `TerminalGrid` to avoid GPU
+    /// resource leaks on native OpenGL targets. On WASM, WebGL context teardown
+    /// handles cleanup automatically, but explicit deletion is still recommended.
+    pub fn delete(self, gl: &glow::Context) {
+        self.gpu.delete(gl);
+        self.atlas.delete(gl);
     }
 
     /// Returns the effective cell size for layout (base cell size * cell scale).
@@ -651,6 +678,9 @@ impl TerminalGrid {
     }
 
     /// Recreates all GPU resources after a context loss.
+    ///
+    /// Note: After a context loss, old GL resources are already invalid,
+    /// so we skip explicit deletion and just create fresh resources.
     pub fn recreate_resources(
         &mut self,
         gl: &glow::Context,
@@ -660,7 +690,7 @@ impl TerminalGrid {
         let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
         let cell_pos = CellStatic::create_grid(cols, rows);
 
-        // Recreate all GPU resources
+        // Recreate all GPU resources (old ones are invalid after context loss)
         self.gpu = GpuResources::new(gl, &cell_pos, &self.cells, cell_size, glsl_version)?;
 
         // Upload UBO data

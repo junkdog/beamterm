@@ -51,4 +51,9 @@ impl UniformBufferObject {
         buffer_upload_struct(gl, glow::UNIFORM_BUFFER, data, glow::STATIC_DRAW);
         self.unbind(gl);
     }
+
+    /// Deletes the UBO, releasing the GPU resource.
+    pub(crate) fn delete(&self, gl: &glow::Context) {
+        unsafe { gl.delete_buffer(self.buffer) };
+    }
 }

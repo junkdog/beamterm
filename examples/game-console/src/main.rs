@@ -791,14 +791,19 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        if matches!(event, WindowEvent::CloseRequested) {
+            if let Some(state) = self.state.take() {
+                state.grid.delete(&state.win.gl);
+            }
+            event_loop.exit();
+            return;
+        }
+
         let Some(state) = self.state.as_mut() else {
             return;
         };
 
         match event {
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            },
             WindowEvent::Resized(new_size) => {
                 if new_size.width > 0 && new_size.height > 0 {
                     state.win.resize_surface(new_size);
@@ -821,8 +826,11 @@ impl ApplicationHandler for App {
 
                 let dirty = match &event.logical_key {
                     Key::Named(NamedKey::Escape) => {
+                        if let Some(state) = self.state.take() {
+                            state.grid.delete(&state.win.gl);
+                        }
                         event_loop.exit();
-                        false
+                        return;
                     },
                     Key::Named(NamedKey::Enter) => {
                         state.console.submit_input(&mut state.cube_state);

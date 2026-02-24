@@ -60,9 +60,7 @@ impl Serializer {
 
     pub fn write_u8_slice(&mut self, value: &[u8]) {
         self.write_u32(value.len() as u32);
-        for &v in value {
-            self.write_u8(v);
-        }
+        self.data.extend_from_slice(value);
     }
 
     pub fn write_string(&mut self, value: &str) -> Result<(), SerializationError> {
@@ -126,12 +124,10 @@ impl<'a> Deserializer<'a> {
         let length = self.read_u32()? as usize;
         self.verify_offset_in_bounds(length)?;
 
-        let mut values = Vec::with_capacity(length);
-        for _ in 0..length {
-            values.push(self.read_u8()?);
-        }
+        let slice = &self.data[self.position..self.position + length];
+        self.position += length;
 
-        Ok(values)
+        Ok(slice.to_vec())
     }
 
     pub fn read_i32(&mut self) -> Result<i32, SerializationError> {
