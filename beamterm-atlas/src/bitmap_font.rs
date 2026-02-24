@@ -15,10 +15,7 @@ impl BitmapFont {
     pub fn save(&self, path: &str) -> Result<(), Report> {
         let metadata = &self.atlas_data;
         let mut file = File::create(path)?;
-        Write::write_all(
-            &mut file,
-            &metadata.to_binary()?,
-        )?;
+        Write::write_all(&mut file, &metadata.to_binary()?)?;
 
         Ok(())
     }

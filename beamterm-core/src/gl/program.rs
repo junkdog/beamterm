@@ -16,7 +16,7 @@ impl ShaderProgram {
         fragment_source: &str,
     ) -> Result<Self, Error> {
         let program =
-            unsafe { gl.create_program() }.map_err(|e| Error::shader_program_creation_failed(e))?;
+            unsafe { gl.create_program() }.map_err(Error::shader_program_creation_failed)?;
 
         // compile shaders
         let vertex_shader = compile_shader(gl, ShaderType::Vertex, vertex_source)?;

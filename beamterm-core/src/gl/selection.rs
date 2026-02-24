@@ -42,7 +42,6 @@ impl SelectionTracker {
             .expect("query to be a value due to internal-only usage")
     }
 
-
     /// Returns the current selection query or `None` if no selection is active.
     ///
     /// Safe version that doesn't panic when no selection exists.

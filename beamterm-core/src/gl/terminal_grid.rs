@@ -94,8 +94,8 @@ impl GpuResources {
         glsl_version: &crate::GlslVersion,
     ) -> Result<Self, Error> {
         // Create and setup the Vertex Array Object
-        let vao = unsafe { gl.create_vertex_array() }
-            .map_err(|e| Error::vertex_array_creation_failed(e))?;
+        let vao =
+            unsafe { gl.create_vertex_array() }.map_err(Error::vertex_array_creation_failed)?;
         unsafe { gl.bind_vertex_array(Some(vao)) };
 
         // Create all buffers

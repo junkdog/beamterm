@@ -526,15 +526,16 @@ impl BeamtermRenderer {
     ) -> Result<BeamtermRenderer, JsValue> {
         console_error_panic_hook::set_once();
 
-        let atlas = match atlas_data {
-            Some(data) => {
-                let bytes = data.to_vec();
-                Some(FontAtlasData::from_binary(&bytes).map_err(|e| {
-                    JsValue::from_str(&format!("Failed to parse atlas data: {e}"))
-                })?)
-            },
-            None => None,
-        };
+        let atlas =
+            match atlas_data {
+                Some(data) => {
+                    let bytes = data.to_vec();
+                    Some(FontAtlasData::from_binary(&bytes).map_err(|e| {
+                        JsValue::from_str(&format!("Failed to parse atlas data: {e}"))
+                    })?)
+                },
+                None => None,
+            };
 
         let mut builder = Terminal::builder(canvas_id)
             .auto_resize_canvas_css(auto_resize_canvas_css.unwrap_or(true));

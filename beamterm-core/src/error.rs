@@ -33,7 +33,10 @@ impl Error {
     }
 
     // Resource errors
-    pub(crate) fn buffer_creation_failed(buffer_type: &str, detail: impl std::fmt::Display) -> Self {
+    pub(crate) fn buffer_creation_failed(
+        buffer_type: &str,
+        detail: impl std::fmt::Display,
+    ) -> Self {
         Self::Resource(format!("Failed to create {buffer_type} buffer: {detail}"))
     }
 

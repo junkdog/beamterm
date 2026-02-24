@@ -152,7 +152,7 @@ impl ContextLossHandler {
         let callback = Closure::wrap(Box::new(f) as Box<dyn FnMut(_)>);
         canvas
             .add_event_listener_with_callback(event_type, callback.as_ref().unchecked_ref())
-            .map_err(|_| Error::Callback(format!("Failed to add {} listener", event_type)))?;
+            .map_err(|_| Error::Callback(format!("Failed to add {event_type} listener")))?;
 
         Ok(callback)
     }
