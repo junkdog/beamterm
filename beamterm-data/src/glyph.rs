@@ -122,7 +122,7 @@ impl Glyph {
 
     /// Returns true if this glyph represents a single ASCII character.
     pub fn is_ascii(&self) -> bool {
-        self.symbol.len() == 1 && self.symbol.chars().next().unwrap().is_ascii()
+        self.symbol.len() == 1
     }
 
     /// Returns the base glyph ID without style flags.
