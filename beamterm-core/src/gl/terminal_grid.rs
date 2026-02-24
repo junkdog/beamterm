@@ -643,8 +643,8 @@ impl TerminalGrid {
         // Update the UBO with new screen size
         self.upload_ubo_data(gl);
 
-        let cols = canvas_size.0 / cell_size.0;
-        let rows = canvas_size.1 / cell_size.1;
+        let cols = (canvas_size.0 / cell_size.0).max(1);
+        let rows = (canvas_size.1 / cell_size.1).max(1);
         if self.terminal_size == (cols as u16, rows as u16) {
             return Ok(()); // no change in terminal size
         }
