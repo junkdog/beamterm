@@ -1,9 +1,10 @@
 mod atlas;
 mod glyph;
-mod serialization;
+pub(crate) mod serialization;
 
 pub use atlas::{DebugSpacePattern, FontAtlasData, LineDecoration};
 pub use glyph::{FontStyle, Glyph, GlyphEffect};
+pub use serialization::SerializationError;
 use serialization::*;
 
 #[derive(Debug)]

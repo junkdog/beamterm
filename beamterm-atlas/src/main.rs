@@ -89,7 +89,7 @@ fn main() -> Result<()> {
     };
 
     let additional_symbols = cli.read_symbols_file()?;
-    let (bitmap_font, fallback_stats) = generator.generate(&ranges, &additional_symbols);
+    let (bitmap_font, fallback_stats) = generator.generate(&ranges, &additional_symbols)?;
     bitmap_font.save(&cli.output)?;
 
     let atlas = &bitmap_font.atlas_data;
@@ -133,7 +133,7 @@ fn main() -> Result<()> {
 
     // Check for missing glyphs if requested
     if cli.check_missing {
-        report_missing_glyphs(&mut generator, &ranges, &additional_symbols);
+        report_missing_glyphs(&mut generator, &ranges, &additional_symbols)?;
     }
 
     Ok(())
@@ -359,9 +359,9 @@ fn report_missing_glyphs(
     generator: &mut AtlasFontGenerator,
     ranges: &[std::ops::RangeInclusive<char>],
     additional_symbols: &str,
-) {
+) -> color_eyre::Result<()> {
     println!("\n🔍 Checking for missing glyphs...");
-    let missing_report = generator.check_missing_glyphs(ranges, additional_symbols);
+    let missing_report = generator.check_missing_glyphs(ranges, additional_symbols)?;
 
     if missing_report.missing_glyphs.is_empty() {
         println!(
@@ -421,6 +421,8 @@ fn report_missing_glyphs(
 
         println!("📊 Font coverage: {:.1}%", success_rate);
     }
+
+    Ok(())
 }
 
 fn default_unicode_ranges() -> Vec<std::ops::RangeInclusive<char>> {

@@ -329,7 +329,7 @@ impl Atlas for DynamicFontAtlas {
     }
 
     fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
-        let font_variant = FontStyle::from_u16(style_bits & FontStyle::MASK);
+        let font_variant = FontStyle::from_u16(style_bits & FontStyle::MASK).ok()?;
         let styling = style_bits & (Glyph::STRIKETHROUGH_FLAG | Glyph::UNDERLINE_FLAG);
 
         let mut cache = self.cache.borrow_mut();

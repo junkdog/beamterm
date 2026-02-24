@@ -313,7 +313,7 @@ impl AtlasFontGenerator {
         &mut self,
         unicode_ranges: &[RangeInclusive<char>],
         other_symbols: &str,
-    ) -> (BitmapFont, FallbackGlyphStats) {
+    ) -> Result<(BitmapFont, FallbackGlyphStats), Report> {
         info!(
             font_family = %self.font_family_name,
             "Starting font generation"
@@ -323,7 +323,7 @@ impl AtlasFontGenerator {
         let bounds = self.calculate_optimized_cell_dimensions();
 
         // categorize and allocate IDs
-        let grapheme_set = GraphemeSet::new(unicode_ranges, other_symbols);
+        let grapheme_set = GraphemeSet::new(unicode_ranges, other_symbols)?;
         let halfwidth_glyphs_per_layer = grapheme_set.halfwidth_glyphs_count();
         let glyphs = grapheme_set.into_glyphs(bounds);
 
@@ -440,7 +440,7 @@ impl AtlasFontGenerator {
             "Font generation completed successfully"
         );
 
-        (
+        Ok((
             BitmapFont {
                 atlas_data: FontAtlasData {
                     font_name: self.font_family_name.clone().into(),
@@ -459,7 +459,7 @@ impl AtlasFontGenerator {
                 },
             },
             fallback_stats,
-        )
+        ))
     }
 
     /// Rasterizes a glyph and writes its pixels into the 3D texture at the computed atlas position.
@@ -889,11 +889,11 @@ impl AtlasFontGenerator {
         &mut self,
         ranges: &[RangeInclusive<char>],
         additional_symbols: &str,
-    ) -> MissingGlyphReport {
+    ) -> Result<MissingGlyphReport, Report> {
         // Use the same glyph bounds as the main generation
         let bounds = self.calculate_optimized_cell_dimensions();
 
-        let grapheme_set = GraphemeSet::new(ranges, additional_symbols);
+        let grapheme_set = GraphemeSet::new(ranges, additional_symbols)?;
         let glyphs = grapheme_set.into_glyphs(bounds);
 
         let mut missing_glyphs = Vec::new();
@@ -924,11 +924,11 @@ impl AtlasFontGenerator {
             }
         }
 
-        MissingGlyphReport {
+        Ok(MissingGlyphReport {
             missing_glyphs,
             total_checked,
             font_family_name: self.font_family_name.clone(),
-        }
+        })
     }
 }
 
@@ -1015,7 +1015,9 @@ mod tests {
         // Test with ranges that don't duplicate ASCII
         // Using Latin Extended-A range for non-overlapping chars
         let test_ranges = vec!['\u{0100}'..='\u{0105}']; // Ā-ą (6 chars)
-        let report = generator.check_missing_glyphs(&test_ranges, "");
+        let report = generator
+            .check_missing_glyphs(&test_ranges, "")
+            .unwrap();
 
         // Verify basic properties of the report
         assert_eq!(report.font_family_name, font_family.name);

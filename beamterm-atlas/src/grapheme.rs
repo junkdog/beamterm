@@ -4,6 +4,7 @@ use std::{
 };
 
 use beamterm_data::{FontStyle, Glyph};
+use color_eyre::{Report, eyre::bail};
 use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthChar;
@@ -20,23 +21,33 @@ pub struct GraphemeSet {
 }
 
 impl GraphemeSet {
-    pub fn new(unicode_ranges: &[RangeInclusive<char>], other_symbols: &str) -> Self {
+    pub fn new(
+        unicode_ranges: &[RangeInclusive<char>],
+        other_symbols: &str,
+    ) -> Result<Self, Report> {
         let gs = grapheme_set_from(unicode_ranges, other_symbols);
 
         let non_emoji_glyphs = ASCII_RANGE.size_hint().0 + gs.unicode.len();
         let fullwidth_glyphs = gs.fullwidth_unicode.len();
-        assert!(
-            (non_emoji_glyphs + fullwidth_glyphs * 2) <= 1024,
-            "Too many unique graphemes: halfwidth={non_emoji_glyphs}, fullwidth={fullwidth_glyphs}"
-        );
+        if (non_emoji_glyphs + fullwidth_glyphs * 2) > 1024 {
+            bail!(
+                "Too many unique graphemes (max 1024): \
+                 halfwidth={non_emoji_glyphs}, fullwidth={fullwidth_glyphs} \
+                 (total slots = {total}). Reduce the number of --range entries \
+                 or symbols in the symbols file.",
+                total = non_emoji_glyphs + fullwidth_glyphs * 2,
+            );
+        }
 
         let emoji_glyphs = gs.emoji.len();
-        assert!(
-            emoji_glyphs <= 2048, // each emoji takes two glyph slots
-            "Too many unique graphemes: {emoji_glyphs}"
-        );
+        if emoji_glyphs > 2048 {
+            bail!(
+                "Too many emoji glyphs (max 2048): {emoji_glyphs}. \
+                 Reduce the number of emoji in the symbols file.",
+            );
+        }
 
-        gs
+        Ok(gs)
     }
 
     pub fn halfwidth_glyphs_count(&self) -> u16 {

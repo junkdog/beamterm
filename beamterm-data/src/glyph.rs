@@ -1,5 +1,7 @@
 use compact_str::{CompactString, ToCompactString};
 
+use crate::serialization::SerializationError;
+
 /// Represents a single character glyph in a font atlas texture.
 ///
 /// A `Glyph` contains the metadata needed to locate and identify a character
@@ -188,23 +190,27 @@ impl FontStyle {
     pub const ALL: [FontStyle; 4] =
         [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic];
 
-    pub fn from_u16(v: u16) -> FontStyle {
+    pub fn from_u16(v: u16) -> Result<FontStyle, SerializationError> {
         match v {
-            0x0000 => FontStyle::Normal,
-            0x0400 => FontStyle::Bold,
-            0x0800 => FontStyle::Italic,
-            0x0C00 => FontStyle::BoldItalic,
-            _ => panic!("Invalid font style value: {v}"),
+            0x0000 => Ok(FontStyle::Normal),
+            0x0400 => Ok(FontStyle::Bold),
+            0x0800 => Ok(FontStyle::Italic),
+            0x0C00 => Ok(FontStyle::BoldItalic),
+            _ => Err(SerializationError {
+                message: CompactString::new(format!("Invalid font style value: {v:#06x}")),
+            }),
         }
     }
 
-    pub(super) fn from_ordinal(ordinal: u8) -> FontStyle {
+    pub(super) fn from_ordinal(ordinal: u8) -> Result<FontStyle, SerializationError> {
         match ordinal {
-            0 => FontStyle::Normal,
-            1 => FontStyle::Bold,
-            2 => FontStyle::Italic,
-            3 => FontStyle::BoldItalic,
-            _ => panic!("Invalid font style ordinal: {ordinal}"),
+            0 => Ok(FontStyle::Normal),
+            1 => Ok(FontStyle::Bold),
+            2 => Ok(FontStyle::Italic),
+            3 => Ok(FontStyle::BoldItalic),
+            _ => Err(SerializationError {
+                message: CompactString::new(format!("Invalid font style ordinal: {ordinal}")),
+            }),
         }
     }
 
