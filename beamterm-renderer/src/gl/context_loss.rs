@@ -132,11 +132,6 @@ impl ContextLossHandler {
         self.state.clear_restoration_needed();
     }
 
-    /// Returns the shared context state for checking status.
-    fn state(&self) -> &ContextState {
-        &self.state
-    }
-
     /// Removes all event listeners from the canvas.
     fn cleanup(&self) {
         let _ = self.canvas.remove_event_listener_with_callback(

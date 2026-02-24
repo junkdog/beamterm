@@ -20,8 +20,8 @@ impl Error {
         Self::Shader(format!("Shader creation failed: {detail}"))
     }
 
-    pub(crate) fn shader_program_creation_failed() -> Self {
-        Self::Shader("Shader program creation failed".to_string())
+    pub(crate) fn shader_program_creation_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Shader(format!("Shader program creation failed: {detail}"))
     }
 
     pub(crate) fn shader_compilation_failed(stage: impl std::fmt::Display, log: String) -> Self {
@@ -33,16 +33,16 @@ impl Error {
     }
 
     // Resource errors
-    pub(crate) fn buffer_creation_failed(buffer_type: &str) -> Self {
-        Self::Resource(format!("Failed to create {buffer_type} buffer"))
+    pub(crate) fn buffer_creation_failed(buffer_type: &str, detail: impl std::fmt::Display) -> Self {
+        Self::Resource(format!("Failed to create {buffer_type} buffer: {detail}"))
     }
 
-    pub(crate) fn vertex_array_creation_failed() -> Self {
-        Self::Resource("Failed to create vertex array object".to_string())
+    pub(crate) fn vertex_array_creation_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Resource(format!("Failed to create vertex array object: {detail}"))
     }
 
-    pub(crate) fn texture_creation_failed() -> Self {
-        Self::Resource("Failed to create texture".to_string())
+    pub(crate) fn texture_creation_failed(detail: impl std::fmt::Display) -> Self {
+        Self::Resource(format!("Failed to create texture: {detail}"))
     }
 
     pub(crate) fn uniform_location_failed(name: &str) -> Self {

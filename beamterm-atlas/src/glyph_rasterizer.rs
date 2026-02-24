@@ -41,11 +41,6 @@ impl<'a> GlyphRasterizer<'a> {
         self
     }
 
-    pub fn buffer_size(mut self, width: f32, height: f32) -> Self {
-        self.buffer_size = Some((width, height));
-        self
-    }
-
     pub fn rasterize(
         self,
         font_system: &mut cosmic_text::FontSystem,

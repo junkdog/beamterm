@@ -18,7 +18,7 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let data = fs::read(&cli.atlas_path)?;
-    let atlas = FontAtlasData::from_binary(&data).map_err(|e| format!("{e:?}"))?;
+    let atlas = FontAtlasData::from_binary(&data)?;
 
     println!("=== Font Atlas Grid Viewer ===");
     println!(

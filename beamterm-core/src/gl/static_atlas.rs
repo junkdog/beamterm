@@ -31,8 +31,6 @@ pub struct StaticFontAtlas {
     symbol_lookup: HashMap<u16, CompactString>,
     /// The size of each character cell in pixels
     cell_size: (i32, i32),
-    /// The number of slices in the atlas texture
-    num_slices: u32,
     /// Underline configuration
     underline: beamterm_data::LineDecoration,
     /// Strikethrough configuration
@@ -46,24 +44,9 @@ pub struct StaticFontAtlas {
 }
 
 impl StaticFontAtlas {
-    /// Loads the default embedded font atlas.
-    fn load_default(gl: &glow::Context) -> Result<Self, Error> {
-        let config = FontAtlasData::default();
-        Self::load(gl, config)
-    }
-
     /// Creates a TextureAtlas from a grid of equal-sized cells
     pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &config)?;
-        let num_slices = config.texture_dimensions.2;
-
-        let _texture_layers = config
-            .glyphs
-            .iter()
-            .map(|g| g.id as i32)
-            .max()
-            .unwrap_or(0)
-            + 1;
 
         let (cell_width, cell_height) = config.cell_size;
         let mut layers = HashMap::new();
@@ -88,7 +71,6 @@ impl StaticFontAtlas {
             last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id,
             symbol_lookup,
             cell_size: (cell_width, cell_height),
-            num_slices: num_slices as u32,
             underline: config.underline,
             strikethrough: config.strikethrough,
             glyph_tracker: GlyphTracker::new(),

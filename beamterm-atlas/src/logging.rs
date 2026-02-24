@@ -19,8 +19,6 @@ pub struct LoggingConfig {
     pub log_dir: Option<PathBuf>,
     /// Whether to enable JSON formatted logs for structured output
     pub json_format: bool,
-    /// Maximum number of log files to keep for rotation
-    pub max_files: Option<usize>,
     /// Whether this is for a TUI application (disables console logging)
     pub is_tui: bool,
 }
@@ -38,7 +36,6 @@ impl Default for LoggingConfig {
             console_level: Level::WARN,
             log_dir: Some(Self::default_log_dir()),
             json_format: false,
-            max_files: Some(10),
             is_tui: false,
         }
     }
@@ -111,7 +108,6 @@ impl LoggingConfig {
             console_level: Level::INFO,
             log_dir: Some(Self::default_log_dir()),
             json_format: false, // Human-readable for development
-            max_files: Some(5), // Keep fewer files for development
             is_tui: true,       // Disables console logging to prevent TUI interference
         }
     }

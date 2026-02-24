@@ -17,9 +17,7 @@ impl BitmapFont {
         let mut file = File::create(path)?;
         Write::write_all(
             &mut file,
-            &metadata
-                .to_binary()
-                .map_err(|e| color_eyre::eyre::eyre!(e.message))?,
+            &metadata.to_binary()?,
         )?;
 
         Ok(())

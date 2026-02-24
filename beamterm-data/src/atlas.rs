@@ -62,7 +62,7 @@ impl FontAtlasData {
     pub fn from_binary(serialized: &[u8]) -> Result<Self, FontAtlasDeserializationError> {
         let mut deserializer = Deserializer::new(serialized);
         FontAtlasData::deserialize(&mut deserializer).map_err(|e| FontAtlasDeserializationError {
-            message: format!("Failed to deserialize font atlas: {}", e.message),
+            message: format!("Failed to deserialize font atlas: {e}"),
         })
     }
 

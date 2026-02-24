@@ -5,7 +5,8 @@ use crate::{FontAtlasData, FontStyle, Glyph, LineDecoration};
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
 const ATLAS_VERSION: u8 = 0x03; // dictates the format of the serialized data
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{message}")]
 pub struct SerializationError {
     pub message: CompactString,
 }

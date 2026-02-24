@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use crate::gl::cell_query::{CellQuery, SelectionMode};
+use crate::gl::cell_query::CellQuery;
 
 /// Tracks the active text selection in the terminal grid.
 ///
@@ -42,16 +42,6 @@ impl SelectionTracker {
             .expect("query to be a value due to internal-only usage")
     }
 
-    /// Returns the selection mode of the current query.
-    ///
-    /// Defaults to the default selection mode if no query is active.
-    pub(crate) fn mode(&self) -> SelectionMode {
-        self.inner
-            .borrow()
-            .query
-            .as_ref()
-            .map_or(SelectionMode::default(), |q| q.mode)
-    }
 
     /// Returns the current selection query or `None` if no selection is active.
     ///

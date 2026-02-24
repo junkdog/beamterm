@@ -42,10 +42,12 @@ impl Error {
         Self::Initialization("Unable to retrieve canvas".to_string())
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn webgl_context_failed() -> Self {
         Self::Initialization("Failed to retrieve WebGL2 rendering context".to_string())
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn canvas_context_failed() -> Self {
         Self::Initialization("Failed to retrieve canvas rendering context".to_string())
     }
@@ -56,14 +58,6 @@ impl Error {
 
     pub(crate) fn rasterizer_context_failed() -> Self {
         Self::Rasterization("Failed to get 2d rendering context from offscreen canvas".to_string())
-    }
-
-    pub(crate) fn rasterizer_missing_font_family() -> Self {
-        Self::Rasterization("font_family must be set before rasterizing".to_string())
-    }
-
-    pub(crate) fn rasterizer_missing_font_size() -> Self {
-        Self::Rasterization("font_size must be set before rasterizing".to_string())
     }
 
     pub(crate) fn rasterizer_fill_text_failed(

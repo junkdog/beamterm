@@ -530,7 +530,7 @@ impl BeamtermRenderer {
             Some(data) => {
                 let bytes = data.to_vec();
                 Some(FontAtlasData::from_binary(&bytes).map_err(|e| {
-                    JsValue::from_str(&format!("Failed to parse atlas data: {e:?}"))
+                    JsValue::from_str(&format!("Failed to parse atlas data: {e}"))
                 })?)
             },
             None => None,
@@ -783,7 +783,7 @@ impl BeamtermRenderer {
             Some(data) => {
                 let bytes = data.to_vec();
                 FontAtlasData::from_binary(&bytes)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e:?}")))?
+                    .map_err(|e| JsValue::from_str(&format!("Failed to parse atlas data: {e}")))?
             },
             None => FontAtlasData::default(),
         };

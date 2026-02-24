@@ -42,7 +42,7 @@ web-sys = "0.3.81"
 default-target = "wasm32-unknown-unknown"
 
 [workspace.lints.rust]
-dead_code = "allow"
+dead_code = "warn"
 unused_variables = "deny"
 unused_imports = "deny"
 

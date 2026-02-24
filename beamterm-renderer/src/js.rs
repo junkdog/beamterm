@@ -20,6 +20,7 @@ pub(crate) fn get_canvas_by_id(canvas_id: &str) -> Result<HtmlCanvasElement, Err
         .map_err(|_| Error::canvas_not_found())
 }
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn get_webgl2_context(
     canvas: &HtmlCanvasElement,
 ) -> Result<web_sys::WebGl2RenderingContext, Error> {

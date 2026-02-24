@@ -16,7 +16,7 @@ pub(crate) struct UniformBufferObject {
 impl UniformBufferObject {
     pub fn new(gl: &glow::Context, binding_point: u32) -> Result<Self, Error> {
         let buffer =
-            unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("ubo"))?;
+            unsafe { gl.create_buffer() }.map_err(|e| Error::buffer_creation_failed("ubo", e))?;
 
         Ok(Self { buffer, binding_point })
     }

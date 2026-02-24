@@ -16,7 +16,7 @@ impl ShaderProgram {
         fragment_source: &str,
     ) -> Result<Self, Error> {
         let program =
-            unsafe { gl.create_program() }.map_err(|_| Error::shader_program_creation_failed())?;
+            unsafe { gl.create_program() }.map_err(|e| Error::shader_program_creation_failed(e))?;
 
         // compile shaders
         let vertex_shader = compile_shader(gl, ShaderType::Vertex, vertex_source)?;
@@ -62,7 +62,7 @@ fn compile_shader(
 ) -> Result<glow::Shader, Error> {
     let gl_shader_type: u32 = shader_type.into();
     let shader = unsafe { gl.create_shader(gl_shader_type) }
-        .map_err(|_| Error::shader_creation_failed("unknown error"))?;
+        .map_err(|e| Error::shader_creation_failed(&e))?;
 
     unsafe {
         gl.shader_source(shader, source);

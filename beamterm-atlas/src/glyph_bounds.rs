@@ -26,16 +26,6 @@ impl GlyphBounds {
         self
     }
 
-    pub fn merge(self, other: Self) -> Self {
-        Self {
-            min_x: self.min_x.min(other.min_x),
-            max_x: self.max_x.max(other.max_x),
-
-            min_y: self.min_y.min(other.min_y),
-            max_y: self.max_y.max(other.max_y),
-        }
-    }
-
     pub fn contains(&self, x: i32, y: i32) -> bool {
         x >= 0 && x <= self.max_x && y >= 0 && y <= self.max_y
     }
@@ -56,9 +46,6 @@ impl GlyphBounds {
         1 + self.max_y - self.min_y
     }
 
-    pub fn has_content(&self) -> bool {
-        self.width() > 0 && self.height() > 0
-    }
 }
 
 /// Measures precise glyph bounds with pixel-level accuracy using cosmic-text drawing

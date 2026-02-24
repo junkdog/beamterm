@@ -47,7 +47,7 @@ impl Texture {
 
         // prepare texture
         let gl_texture =
-            unsafe { gl.create_texture() }.map_err(|_| Error::texture_creation_failed())?;
+            unsafe { gl.create_texture() }.map_err(|e| Error::texture_creation_failed(e))?;
         unsafe {
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(gl_texture));
             gl.tex_storage_3d(
@@ -114,7 +114,7 @@ impl Texture {
         let height = cell_h * GLYPHS_PER_LAYER;
 
         let gl_texture =
-            unsafe { gl.create_texture() }.map_err(|_| Error::texture_creation_failed())?;
+            unsafe { gl.create_texture() }.map_err(|e| Error::texture_creation_failed(e))?;
 
         unsafe {
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(gl_texture));
@@ -173,7 +173,9 @@ impl Texture {
         let y_offset = glyph_index * cell_h;
 
         if layer >= self.dimensions.2 {
-            return Err(Error::texture_creation_failed());
+            return Err(Error::texture_creation_failed(
+                format_args!("glyph id {glyph_id} exceeds texture layer count {}", self.dimensions.2)
+            ));
         }
 
         unsafe {

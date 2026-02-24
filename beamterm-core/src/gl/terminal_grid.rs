@@ -95,7 +95,7 @@ impl GpuResources {
     ) -> Result<Self, Error> {
         // Create and setup the Vertex Array Object
         let vao = unsafe { gl.create_vertex_array() }
-            .map_err(|_| Error::vertex_array_creation_failed())?;
+            .map_err(|e| Error::vertex_array_creation_failed(e))?;
         unsafe { gl.bind_vertex_array(Some(vao)) };
 
         // Create all buffers
@@ -615,14 +615,6 @@ impl TerminalGrid {
             .map(|query| self.cell_iter(query))
     }
 
-    fn flip_cell_colors(&mut self, x: u16, y: u16) {
-        let (cols, _) = self.terminal_size;
-        let idx = y as usize * cols as usize + x as usize;
-        if idx < self.cells.len() {
-            self.cells[idx].flip_colors();
-        }
-    }
-
     /// Resizes the terminal grid to fit the new canvas dimensions.
     pub fn resize(
         &mut self,
@@ -782,7 +774,7 @@ fn create_buffer_u8(
     usage: u32,
 ) -> Result<glow::Buffer, Error> {
     let buffer =
-        unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("vbo-u8"))?;
+        unsafe { gl.create_buffer() }.map_err(|e| Error::buffer_creation_failed("vbo-u8", e))?;
     unsafe {
         gl.bind_buffer(target, Some(buffer));
         gl.buffer_data_u8_slice(target, data, usage);
@@ -797,7 +789,7 @@ fn create_buffer_f32(
     usage: u32,
 ) -> Result<glow::Buffer, Error> {
     let buffer =
-        unsafe { gl.create_buffer() }.map_err(|_| Error::buffer_creation_failed("vbo-f32"))?;
+        unsafe { gl.create_buffer() }.map_err(|e| Error::buffer_creation_failed("vbo-f32", e))?;
 
     unsafe {
         gl.bind_buffer(target, Some(buffer));
@@ -819,7 +811,7 @@ fn create_static_instance_buffer(
     instance_data: &[CellStatic],
 ) -> Result<glow::Buffer, Error> {
     let buffer = unsafe { gl.create_buffer() }
-        .map_err(|_| Error::buffer_creation_failed("static-instance-buffer"))?;
+        .map_err(|e| Error::buffer_creation_failed("static-instance-buffer", e))?;
 
     unsafe {
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer));
@@ -837,7 +829,7 @@ fn create_dynamic_instance_buffer(
     instance_data: &[CellDynamic],
 ) -> Result<glow::Buffer, Error> {
     let buffer = unsafe { gl.create_buffer() }
-        .map_err(|_| Error::buffer_creation_failed("dynamic-instance-buffer"))?;
+        .map_err(|e| Error::buffer_creation_failed("dynamic-instance-buffer", e))?;
 
     unsafe {
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer));
