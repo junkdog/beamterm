@@ -56,7 +56,7 @@ pub(super) struct CellMetrics {
 }
 
 /// Re-export core's RasterizedGlyph for use within the renderer.
-pub(crate) use beamterm_core::gl::texture::RasterizedGlyph;
+pub(crate) use beamterm_core::gl::RasterizedGlyph;
 
 /// Canvas-based glyph rasterizer using OffscreenCanvas.
 ///

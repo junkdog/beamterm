@@ -5,9 +5,7 @@ use std::{
 };
 
 use beamterm_core::gl::{
-    atlas::{self, Atlas, GlyphSlot, GlyphTracker},
-    glyph_cache::{ASCII_SLOTS, GlyphCache},
-    texture::Texture,
+    ASCII_SLOTS, Atlas, DYNAMIC_ATLAS_LOOKUP_MASK, GlyphCache, GlyphSlot, GlyphTracker, Texture,
 };
 use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
@@ -360,7 +358,7 @@ impl Atlas for DynamicFontAtlas {
     /// than the encoded glyph ID scheme. Emoji are tracked via `GlyphSlot::Emoji`
     /// variant instead of a flag bit, so we only need 12 bits for the slot index.
     fn base_lookup_mask(&self) -> u32 {
-        atlas::DYNAMIC_ATLAS_LOOKUP_MASK
+        DYNAMIC_ATLAS_LOOKUP_MASK
     }
 
     fn delete(&self, gl: &glow::Context) {

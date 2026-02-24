@@ -1,4 +1,4 @@
-pub mod error;
+pub(crate) mod error;
 pub mod gl;
 mod mat4;
 mod position;
