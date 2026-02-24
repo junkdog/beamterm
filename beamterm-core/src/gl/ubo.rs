@@ -48,7 +48,7 @@ impl UniformBufferObject {
 
     pub fn upload_data<T>(&self, gl: &glow::Context, data: &T) {
         self.bind(gl);
-        buffer_upload_struct(gl, glow::UNIFORM_BUFFER, data, glow::STATIC_DRAW);
+        unsafe { buffer_upload_struct(gl, glow::UNIFORM_BUFFER, data, glow::STATIC_DRAW) };
         self.unbind(gl);
     }
 

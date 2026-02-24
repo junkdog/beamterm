@@ -158,7 +158,7 @@ impl TerminalBuffers {
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
         }
 
-        buffer_upload_array(gl, glow::ARRAY_BUFFER, cell_data, glow::DYNAMIC_DRAW);
+        unsafe { buffer_upload_array(gl, glow::ARRAY_BUFFER, cell_data, glow::DYNAMIC_DRAW) };
 
         unsafe { gl.bind_vertex_array(None) };
     }
@@ -821,8 +821,10 @@ fn create_static_instance_buffer(
     let buffer = unsafe { gl.create_buffer() }
         .map_err(|_| Error::buffer_creation_failed("static-instance-buffer"))?;
 
-    unsafe { gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer)) };
-    buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::STATIC_DRAW);
+    unsafe {
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer));
+        buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::STATIC_DRAW);
+    }
 
     let stride = size_of::<CellStatic>() as i32;
     enable_vertex_attrib_array(gl, attrib::GRID_XY, 2, glow::UNSIGNED_SHORT, 0, stride);
@@ -837,8 +839,10 @@ fn create_dynamic_instance_buffer(
     let buffer = unsafe { gl.create_buffer() }
         .map_err(|_| Error::buffer_creation_failed("dynamic-instance-buffer"))?;
 
-    unsafe { gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer)) };
-    buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::DYNAMIC_DRAW);
+    unsafe {
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(buffer));
+        buffer_upload_array(gl, glow::ARRAY_BUFFER, instance_data, glow::DYNAMIC_DRAW);
+    }
 
     let stride = size_of::<CellDynamic>() as i32;
 
