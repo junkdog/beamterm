@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - *(core)* `TerminalGrid::cell_data_mut` now sets `cells_pending_flush = true`
 - *(atlas)* `Serializer::write_string` now rejects strings exceeding 255 bytes.
 - *(renderer)* Prevent zero-sized terminal grids
+- *(atlas)* Correct off-by-one in texture layer count calculation
 
 ### 🚜 Refactor
 
