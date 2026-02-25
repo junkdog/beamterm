@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - *(atlas)* `Serializer::write_string` now rejects strings exceeding 255 bytes.
 - *(renderer)* Prevent zero-sized terminal grids
 - *(atlas)* Correct off-by-one in texture layer count calculation
+- *(core)* Enforce Copy bound on GPU buffer upload functions
 
 ### 🚜 Refactor
 

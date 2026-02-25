@@ -24,6 +24,7 @@ use crate::{
 /// and background colors. The renderer uses a 2D texture array to efficiently
 /// store glyph data and supports real-time updates of cell content.
 #[derive(Debug)]
+#[must_use = "call `delete(gl)` before dropping to avoid GPU resource leaks"]
 pub struct TerminalGrid {
     /// GPU resources (shader, buffers, UBOs) - recreated on context loss
     gpu: GpuResources,
@@ -152,7 +153,7 @@ impl TerminalBuffers {
         }
     }
 
-    fn upload_instance_data<T>(&self, gl: &glow::Context, cell_data: &[T]) {
+    fn upload_instance_data<T: Copy>(&self, gl: &glow::Context, cell_data: &[T]) {
         unsafe {
             gl.bind_vertex_array(Some(self.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
@@ -958,6 +959,7 @@ impl<'a> CellData<'a> {
 }
 
 /// Static instance data for terminal cell positioning.
+#[derive(Clone, Copy)]
 #[repr(C, align(4))]
 struct CellStatic {
     /// Grid position as (x, y) coordinates in cell units.
@@ -1097,6 +1099,7 @@ impl CellDynamic {
     }
 }
 
+#[derive(Clone, Copy)]
 #[repr(C, align(16))] // std140 layout requires proper alignment
 struct CellVertexUbo {
     pub projection: [f32; 16], // mat4
@@ -1104,6 +1107,7 @@ struct CellVertexUbo {
     pub _padding: [f32; 2],
 }
 
+#[derive(Clone, Copy)]
 #[repr(C, align(16))] // std140 layout requires proper alignment
 struct CellFragmentUbo {
     pub padding_frac: [f32; 2],       // padding as a fraction of cell size

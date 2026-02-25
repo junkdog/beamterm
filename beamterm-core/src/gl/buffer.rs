@@ -9,7 +9,7 @@ use glow::HasContext;
 /// - Has a stable memory layout (use #[repr(C)] or #[repr(transparent)])
 /// - Contains only copy types
 /// - Has no padding issues that would cause UB
-pub(super) unsafe fn buffer_upload_struct<T>(
+pub(super) unsafe fn buffer_upload_struct<T: Copy>(
     gl: &glow::Context,
     target: u32,
     data: &T,
@@ -30,7 +30,7 @@ pub(super) unsafe fn buffer_upload_struct<T>(
 /// - Has a stable memory layout (use #[repr(C)] or #[repr(transparent)])
 /// - Contains only copy types
 /// - Has no padding issues that would cause UB
-pub(super) unsafe fn buffer_upload_array<T>(
+pub(super) unsafe fn buffer_upload_array<T: Copy>(
     gl: &glow::Context,
     target: u32,
     data: &[T],
