@@ -3,6 +3,7 @@ name = "game-console"
 version = "0.2.0"
 edition.workspace = true
 publish = false
+release = false
 
 [dependencies]
 beamterm-core = { path = "../../beamterm-core" }
