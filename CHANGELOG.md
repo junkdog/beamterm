@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.16.0] - 2026-02-26
 
 ### 🚀 Features
 
@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 - *(core)* Add `native-terminal` example
 - *(core)* Add `game-console` example showing a rotating cube behind a terminal
+- *(deps)* Bump clap from 4.5.58 to 4.5.60 (#96)
 
 ### 🐛 Bug Fixes
 
