@@ -179,7 +179,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-atlas"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "beamterm-data",
  "clap",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-core"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "beamterm-data",
  "bitflags 2.11.0",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-data"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "compact_str",
  "miniz_oxide 0.9.0",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-renderer"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "beamterm-core",
  "beamterm-data",
@@ -781,7 +781,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "game-console"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "beamterm-core",
  "glow",
@@ -1156,7 +1156,7 @@ dependencies = [
 
 [[package]]
 name = "native-terminal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "beamterm-core",
  "glow",
