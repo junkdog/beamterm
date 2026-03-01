@@ -32,6 +32,7 @@ fn main() -> std::io::Result<()> {
             .font_atlas_config(FontAtlasConfig::Static(font_atlas))
             .measure_performance(true)
             .grid_id("container")
+            .disable_auto_css_resize()
             .enable_console_debug_api()
     )?;
     let terminal = Terminal::new(backend)?;
