@@ -845,6 +845,7 @@ impl From<RustSelectionMode> for SelectionMode {
         match mode {
             RustSelectionMode::Block => SelectionMode::Block,
             RustSelectionMode::Linear => SelectionMode::Linear,
+            _ => unreachable!(),
         }
     }
 }
