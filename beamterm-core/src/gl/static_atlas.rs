@@ -79,6 +79,8 @@ impl StaticFontAtlas {
     }
 }
 
+impl atlas::sealed::Sealed for StaticFontAtlas {}
+
 impl Atlas for StaticFontAtlas {
     fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
         let base_id = self.get_base_glyph_id(key)?;

@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [beamterm-v0.16.0] - 2026-02-26
+## [unreleased]
+
+### 🚜 Refactor
+
+- Reduce public API surface
+- *(atlas)* Make `Atlas` a sealed trait
+
+## [beamterm-v0.2.0] - 2026-02-26
 
 ### 🚀 Features
 
@@ -36,6 +43,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(tools)* Remove neglected `font-preview` tool
+- Release beamterm {{version}}
 
 ## [beamterm-v0.15.0] - 2026-02-17
 

@@ -228,6 +228,8 @@ impl DynamicFontAtlas {
     }
 }
 
+impl beamterm_core::gl::sealed::Sealed for DynamicFontAtlas {}
+
 impl Atlas for DynamicFontAtlas {
     fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
         self.resolve_glyph_slot(key, style_bits)

@@ -4,13 +4,24 @@ use compact_str::CompactString;
 
 use crate::Error;
 
+/// Prevents external implementations of the [`Atlas`] trait.
+///
+/// This module is not part of the public API.
+#[doc(hidden)]
+pub mod sealed {
+    /// Sealed marker trait. Cannot be implemented outside of beamterm crates.
+    pub trait Sealed {}
+}
+
 pub type SlotId = u16;
 pub(crate) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
 #[doc(hidden)]
 pub const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 
 /// Trait defining the interface for font atlases.
-pub trait Atlas {
+///
+/// This trait is **sealed** and cannot be implemented outside of beamterm crates.
+pub trait Atlas: sealed::Sealed {
     /// Returns the glyph identifier for the given key and style bits
     fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16>;
 
