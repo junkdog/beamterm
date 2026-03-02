@@ -19,6 +19,7 @@ pub struct CellQuery {
 
 /// Defines how cells are selected in the terminal grid.
 #[derive(Debug, Clone, Copy, Default)]
+#[non_exhaustive]
 pub enum SelectionMode {
     /// Rectangular selection of cells.
     ///

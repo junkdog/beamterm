@@ -1,5 +1,6 @@
 /// Error categories.
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// Failed to initialize WebGL context or retrieve DOM elements.
     #[error("Initialization error: {0}")]
@@ -89,6 +90,7 @@ impl From<beamterm_core::Error> for Error {
             beamterm_core::Error::Shader(msg) => Error::Shader(msg),
             beamterm_core::Error::Resource(msg) => Error::Resource(msg),
             beamterm_core::Error::Data(msg) => Error::Data(msg),
+            other => Error::Resource(other.to_string()),
         }
     }
 }

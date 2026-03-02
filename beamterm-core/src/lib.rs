@@ -20,6 +20,7 @@ pub use url::{UrlMatch, find_url_at_cursor};
 
 /// GL shader language target for version injection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GlslVersion {
     /// WebGL2 / OpenGL ES 3.0: `#version 300 es`
     Es300,

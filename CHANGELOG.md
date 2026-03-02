@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+### 💼 Other
+
+- Add `#[non_exhaustive]` to public enums
+
 ### 🐛 Bug Fixes
 
 - *(core)* Re-export `FontAtlasDeserializationError`
