@@ -1,9 +1,9 @@
 pub mod atlas_generator;
 pub mod bitmap_font;
-pub mod coordinate;
+mod coordinate;
 pub mod font_discovery;
 pub mod glyph_bounds;
 pub mod glyph_rasterizer;
 pub mod grapheme;
-pub mod logging;
-pub mod raster_config;
+pub(crate) mod logging;
+mod raster_config;

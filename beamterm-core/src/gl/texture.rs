@@ -32,17 +32,12 @@ impl RasterizedGlyph {
 #[derive(Debug)]
 pub struct Texture {
     gl_texture: glow::Texture,
-    pub format: u32,
     /// Texture dimensions (width, height, layers)
     dimensions: (i32, i32, i32),
 }
 
 impl Texture {
-    pub fn from_font_atlas_data(
-        gl: &glow::Context,
-        format: u32,
-        atlas: &FontAtlasData,
-    ) -> Result<Self, Error> {
+    pub fn from_font_atlas_data(gl: &glow::Context, atlas: &FontAtlasData) -> Result<Self, Error> {
         let (width, height, layers) = atlas.texture_dimensions;
 
         // prepare texture
@@ -77,11 +72,7 @@ impl Texture {
         Self::setup_sampling(gl);
 
         let (width, height, layers) = atlas.texture_dimensions;
-        Ok(Self {
-            gl_texture,
-            format,
-            dimensions: (width, height, layers),
-        })
+        Ok(Self { gl_texture, dimensions: (width, height, layers) })
     }
 
     /// Creates an empty texture array for dynamic glyph rasterization.
@@ -95,12 +86,10 @@ impl Texture {
     ///
     /// # Arguments
     /// * `gl` - GL context
-    /// * `format` - Texture format
     /// * `cell_size` - (width, height) of each glyph cell in pixels
     /// * `initial_layers` - Number of texture layers to allocate initially
     pub fn for_dynamic_font_atlas(
         gl: &glow::Context,
-        format: u32,
         cell_size: (i32, i32),
         initial_layers: i32,
     ) -> Result<Self, Error> {
@@ -148,7 +137,6 @@ impl Texture {
 
         Ok(Self {
             gl_texture,
-            format,
             dimensions: (width, height, initial_layers),
         })
     }

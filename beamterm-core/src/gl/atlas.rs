@@ -6,6 +6,7 @@ use crate::Error;
 
 pub type SlotId = u16;
 pub(crate) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
+#[doc(hidden)]
 pub const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 
 /// Trait defining the interface for font atlases.

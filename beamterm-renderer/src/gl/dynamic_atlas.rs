@@ -92,8 +92,7 @@ impl DynamicFontAtlas {
             physical_cell_size.0 + FontAtlasData::PADDING * 2,
             physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        let texture =
-            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
+        let texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
         let atlas = Self {
             texture,
@@ -308,8 +307,7 @@ impl Atlas for DynamicFontAtlas {
             self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
             self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        self.texture =
-            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
+        self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
         self.cache.borrow_mut().clear();
         self.symbol_lookup.borrow_mut().clear();
@@ -392,8 +390,7 @@ impl Atlas for DynamicFontAtlas {
             self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
             self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
         );
-        self.texture =
-            Texture::for_dynamic_font_atlas(gl, glow::RGBA, padded_cell_size, NUM_LAYERS)?;
+        self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
         // Clear cache, lookups, and missing glyph tracker, then re-upload ASCII glyphs
         self.cache.borrow_mut().clear();

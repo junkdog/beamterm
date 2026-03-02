@@ -1,3 +1,6 @@
+// Used by binary targets (beamterm-atlas, verify-atlas), not the library.
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 use color_eyre::Report;

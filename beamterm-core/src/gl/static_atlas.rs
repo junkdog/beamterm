@@ -46,7 +46,7 @@ pub struct StaticFontAtlas {
 impl StaticFontAtlas {
     /// Creates a TextureAtlas from a grid of equal-sized cells
     pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
-        let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &config)?;
+        let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, &config)?;
 
         let (cell_width, cell_height) = config.cell_size;
         let mut layers = HashMap::new();
@@ -179,8 +179,7 @@ impl Atlas for StaticFontAtlas {
         self.texture.delete(gl);
 
         // Recreate texture from retained atlas data
-        self.texture =
-            crate::gl::texture::Texture::from_font_atlas_data(gl, glow::RGBA, &self.atlas_data)?;
+        self.texture = crate::gl::texture::Texture::from_font_atlas_data(gl, &self.atlas_data)?;
 
         Ok(())
     }

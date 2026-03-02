@@ -426,6 +426,7 @@ impl TerminalGrid {
         }
     }
 
+    #[doc(hidden)]
     pub fn hash_cells(&self, selection: CellQuery) -> u64 {
         use std::hash::{Hash, Hasher};
 
