@@ -11,6 +11,7 @@ use crate::{
         CellIterator, CellQuery, Drawable, GlState, RenderContext, ShaderProgram,
         atlas::{FontAtlas, GlyphSlot},
         buffer_upload_array,
+        dirty_regions::DirtyRegions,
         selection::SelectionTracker,
         ubo::UniformBufferObject,
     },
@@ -43,7 +44,7 @@ pub struct TerminalGrid {
     /// Selection tracker for managing cell selections.
     selection: SelectionTracker,
     /// Indicates whether there are cells pending flush to the GPU.
-    cells_pending_flush: bool,
+    dirty_regions: DirtyRegions,
     /// Background cell opacity (0.0 = fully transparent, 1.0 = fully opaque).
     bg_alpha: f32,
 }
@@ -164,6 +165,25 @@ impl TerminalBuffers {
         unsafe { gl.bind_vertex_array(None) };
     }
 
+    /// Uploads a sub-range of the instance cell buffer using `buffer_sub_data`.
+    fn upload_instance_data_range<T: Copy>(
+        &self,
+        gl: &glow::Context,
+        cell_data: &[T],
+        byte_offset: usize,
+    ) {
+        unsafe {
+            gl.bind_vertex_array(Some(self.vao));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
+            let bytes = std::slice::from_raw_parts(
+                cell_data.as_ptr() as *const u8,
+                std::mem::size_of_val(cell_data),
+            );
+            gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, byte_offset as i32, bytes);
+            gl.bind_vertex_array(None);
+        }
+    }
+
     /// Updates the vertex buffer with new cell dimensions.
     fn update_vertex_buffer(&self, gl: &glow::Context, cell_size: (i32, i32)) {
         let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
@@ -219,7 +239,7 @@ impl TerminalGrid {
             atlas,
             fallback_glyph: space_glyph,
             selection: SelectionTracker::new(),
-            cells_pending_flush: false,
+            dirty_regions: DirtyRegions::new((cols * rows) as usize),
             bg_alpha: 1.0,
         };
 
@@ -319,7 +339,7 @@ impl TerminalGrid {
         // replace atlas and resize grid accordingly
         let old_atlas = std::mem::replace(&mut self.atlas, atlas);
         old_atlas.delete(gl);
-        self.cells_pending_flush = true;
+        self.dirty_regions.mark_all();
 
         // update vertex buffer with new cell dimensions
         self.gpu
@@ -385,7 +405,7 @@ impl TerminalGrid {
     pub fn cell_data_mut(&mut self, x: u16, y: u16) -> Option<&mut CellDynamic> {
         let (cols, _) = self.terminal_size;
         let idx = y as usize * cols as usize + x as usize;
-        self.cells_pending_flush = true;
+        self.dirty_regions.mark(idx);
         self.cells.get_mut(idx)
     }
 
@@ -503,7 +523,7 @@ impl TerminalGrid {
                 }
             });
 
-        self.cells_pending_flush = true;
+        self.dirty_regions.mark_all();
         Ok(())
     }
 
@@ -548,22 +568,23 @@ impl TerminalGrid {
                 match glyph {
                     GlyphSlot::Normal(id) => {
                         self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                        self.dirty_regions.mark(idx);
                     },
 
                     GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => {
                         // render left half in current cell
                         self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                        self.dirty_regions.mark(idx);
 
                         // render right half in next cell, if within bounds
                         if let Some(c) = self.cells.get_mut(idx + 1) {
                             *c = CellDynamic::new(id + 1, cell.fg, cell.bg);
+                            self.dirty_regions.mark(idx + 1);
                             skip_idx = Some(idx + 1);
                         }
                     },
                 }
             });
-
-        self.cells_pending_flush = true;
 
         Ok(())
     }
@@ -580,7 +601,7 @@ impl TerminalGrid {
 
     /// Flushes pending cell updates to the GPU.
     pub fn flush_cells(&mut self, gl: &glow::Context) -> Result<(), Error> {
-        if !self.cells_pending_flush {
+        if self.dirty_regions.is_clean() {
             return Ok(()); // no pending updates to flush
         }
 
@@ -593,15 +614,27 @@ impl TerminalGrid {
         // during the GPU upload process.
         self.flip_selected_cell_colors();
 
-        self.gpu
-            .buffers
-            .upload_instance_data(gl, &self.cells);
+        if self.dirty_regions.is_all_active_dirty() {
+            // all active chunks dirty — single full upload via buffer orphaning
+            self.gpu
+                .buffers
+                .upload_instance_data(gl, &self.cells);
+            self.dirty_regions.clear();
+        } else {
+            // merge adjacent dirty chunks into contiguous uploads
+            for (start, end) in self.dirty_regions.drain() {
+                self.gpu.buffers.upload_instance_data_range(
+                    gl,
+                    &self.cells[start..end],
+                    start * CellDynamic::SIZE,
+                );
+            }
+        }
 
         // Restore the original colors of the selected cells after the upload.
         // This ensures that the internal state of the cells remains consistent.
         self.flip_selected_cell_colors();
 
-        self.cells_pending_flush = false;
         Ok(())
     }
 
@@ -667,6 +700,7 @@ impl TerminalGrid {
         unsafe { gl.bind_vertex_array(None) };
 
         self.terminal_size = (cols as u16, rows as u16);
+        self.dirty_regions = DirtyRegions::new(self.cells.len());
 
         Ok(())
     }
@@ -691,7 +725,7 @@ impl TerminalGrid {
         self.upload_ubo_data(gl);
 
         // Mark cells as needing flush to upload to new buffers
-        self.cells_pending_flush = true;
+        self.dirty_regions.mark_all();
 
         Ok(())
     }
@@ -1007,6 +1041,8 @@ impl CellStatic {
 }
 
 impl CellDynamic {
+    const SIZE: usize = size_of::<Self>();
+
     const GLYPH_STYLE_MASK: u16 =
         Glyph::BOLD_FLAG | Glyph::ITALIC_FLAG | Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG;
 

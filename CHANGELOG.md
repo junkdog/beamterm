@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 
 - *(core)* Re-export `FontAtlasDeserializationError`
 
+### ⚡ Performance
+
+- *(core)* Chunked dirty tracking for cell buffer uploads
+
 ### 🚜 Refactor
 
 - Reduce public API surface

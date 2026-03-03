@@ -2,6 +2,7 @@ pub(crate) mod atlas;
 mod buffer;
 pub(crate) mod cell_query;
 pub(crate) mod context;
+mod dirty_regions;
 pub(crate) mod glyph_cache;
 mod program;
 pub(crate) mod renderer;
