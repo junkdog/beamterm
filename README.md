@@ -376,7 +376,7 @@ The **Instance Position** and **Instance Cell** buffers are recreated when the t
 The *Instance Cell* buffer uses chunked dirty tracking to minimize GPU upload bandwidth. A `u64`
 bitmask tracks which 1024-cell chunks have been modified since the last frame. On flush, adjacent
 dirty chunks are merged into contiguous `bufferSubData` uploads. When most chunks are dirty (>80%),
-the renderer falls back to a single full buffer upload via.
+the renderer falls back to a single full buffer upload.
 
 
 ### Vertex Attribute Bindings
