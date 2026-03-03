@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
 - Reduce public API surface
 - *(atlas)* Make `Atlas` a sealed trait
 
-## [beamterm-v0.2.0] - 2026-02-26
+## [beamterm-v0.16.0] - 2026-02-26
 
 ### 🚀 Features
 
