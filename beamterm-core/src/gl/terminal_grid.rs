@@ -154,18 +154,32 @@ impl TerminalBuffers {
         }
     }
 
-    fn upload_instance_data<T: Copy>(&self, gl: &glow::Context, cell_data: &[T]) {
+    /// Binds the VAO and instance cell buffer for sub-range uploads.
+    /// Must be paired with [`unbind_instance_buffer`](Self::unbind_instance_buffer).
+    fn bind_instance_buffer(&self, gl: &glow::Context) {
         unsafe {
             gl.bind_vertex_array(Some(self.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
         }
+    }
 
-        unsafe { buffer_upload_array(gl, glow::ARRAY_BUFFER, cell_data, glow::DYNAMIC_DRAW) };
-
+    /// Unbinds the VAO after sub-range uploads.
+    fn unbind_instance_buffer(&self, gl: &glow::Context) {
         unsafe { gl.bind_vertex_array(None) };
     }
 
+    /// Uploads the full instance cell buffer via buffer orphaning.
+    ///
+    /// The VAO and buffer must already be bound via
+    /// [`bind_instance_buffer`](Self::bind_instance_buffer).
+    fn upload_instance_data<T: Copy>(&self, gl: &glow::Context, cell_data: &[T]) {
+        unsafe { buffer_upload_array(gl, glow::ARRAY_BUFFER, cell_data, glow::DYNAMIC_DRAW) };
+    }
+
     /// Uploads a sub-range of the instance cell buffer using `buffer_sub_data`.
+    ///
+    /// The VAO and buffer must already be bound via
+    /// [`bind_instance_buffer`](Self::bind_instance_buffer).
     fn upload_instance_data_range<T: Copy>(
         &self,
         gl: &glow::Context,
@@ -173,14 +187,9 @@ impl TerminalBuffers {
         byte_offset: usize,
     ) {
         unsafe {
-            gl.bind_vertex_array(Some(self.vao));
-            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.instance_cell));
-            let bytes = std::slice::from_raw_parts(
-                cell_data.as_ptr() as *const u8,
-                std::mem::size_of_val(cell_data),
-            );
+            let bytes =
+                std::slice::from_raw_parts(cell_data.as_ptr() as *const u8, size_of_val(cell_data));
             gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, byte_offset as i32, bytes);
-            gl.bind_vertex_array(None);
         }
     }
 
@@ -614,11 +623,13 @@ impl TerminalGrid {
         // during the GPU upload process.
         self.flip_selected_cell_colors();
 
+        self.gpu.buffers.bind_instance_buffer(gl);
         if self.dirty_regions.is_all_active_dirty() {
             // all active chunks dirty — single full upload via buffer orphaning
             self.gpu
                 .buffers
                 .upload_instance_data(gl, &self.cells);
+
             self.dirty_regions.clear();
         } else {
             // merge adjacent dirty chunks into contiguous uploads
@@ -630,6 +641,7 @@ impl TerminalGrid {
                 );
             }
         }
+        self.gpu.buffers.unbind_instance_buffer(gl);
 
         // Restore the original colors of the selected cells after the upload.
         // This ensures that the internal state of the cells remains consistent.
