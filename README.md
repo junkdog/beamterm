@@ -369,7 +369,15 @@ rendering pipeline, with careful attention to memory alignment and update patter
 All vertex buffers are encapsulated within a single Vertex Array Object (VAO), enabling state-free
 rendering with a single draw call.
 
-The **Instance Position** and **Instance Cell** buffers are recreated when the terminal size changes,
+The **Instance Position** and **Instance Cell** buffers are recreated when the terminal size changes.
+
+#### Dirty Range Tracking
+
+The *Instance Cell* buffer uses chunked dirty tracking to minimize GPU upload bandwidth. A `u64`
+bitmask tracks which 1024-cell chunks have been modified since the last frame. On flush, adjacent
+dirty chunks are merged into contiguous `bufferSubData` uploads. When most chunks are dirty (>80%),
+the renderer falls back to a single full buffer upload via.
+
 
 ### Vertex Attribute Bindings
 
