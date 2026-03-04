@@ -40,13 +40,7 @@ impl DirtyRegions {
     /// Returns true if every active chunk is dirty.
     pub(super) fn is_all_active_dirty(&self) -> bool {
         let mask = self.active_mask();
-        if self.dirty & mask == mask {
-            return true;
-        }
-
-        // consider all-active if more than 80% of active chunks are dirty
-        let dirty_active = (self.dirty & mask).count_ones() as f32;
-        dirty_active / mask.count_ones() as f32 > 0.8
+        self.dirty & mask == mask
     }
 
     pub(super) fn clear(&mut self) {
