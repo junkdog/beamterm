@@ -46,11 +46,7 @@ use std::{
 use bitflags::bitflags;
 use wasm_bindgen::{JsCast, closure::Closure};
 
-use crate::{
-    Error, SelectionMode, TerminalGrid,
-    gl::{SelectionTracker, TerminalMetrics},
-    select,
-};
+use crate::{Error, SelectionMode, TerminalGrid, gl::SelectionTracker, select};
 
 /// Type alias for boxed mouse event callback functions.
 ///
@@ -74,8 +70,6 @@ pub struct TerminalMouseHandler {
     canvas: web_sys::HtmlCanvasElement,
     /// Unified closure for all mouse events.
     on_mouse_event: Closure<dyn FnMut(web_sys::MouseEvent)>,
-    /// Cached terminal metrics (dimensions + cell size) for coordinate conversion.
-    metrics: TerminalMetrics,
     /// Optional default selection handler.
     pub(crate) default_input_handler: Option<DefaultSelectionHandler>,
 }
@@ -298,24 +292,18 @@ impl TerminalMouseHandler {
         // Wrap the handler in Rc<RefCell> for sharing between closures
         let shared_handler = Rc::new(RefCell::new(event_handler));
 
-        // Get grid metrics for coordinate conversion
-        // Note: cell_size() returns physical pixels; the caller should update
-        // metrics with CSS pixel values via update_metrics() after construction.
-        let (cell_width, cell_height) = grid.borrow().cell_size();
-        let (cols, rows) = grid.borrow().terminal_size();
-        let metrics = TerminalMetrics::new(cols, rows, cell_width as f32, cell_height as f32);
-
-        // Create pixel-to-cell coordinate converter
-        let metrics_ref = metrics.clone_ref();
+        // Create pixel-to-cell coordinate converter that reads live grid state.
+        // This ensures correct coordinate mapping even after DPR/zoom changes,
+        let grid_for_coords = grid.clone();
         let pixel_to_cell = move |event: &web_sys::MouseEvent| -> Option<(u16, u16)> {
-            let x = event.offset_x() as f32;
-            let y = event.offset_y() as f32;
+            let g = grid_for_coords.try_borrow().ok()?;
+            let (cols, rows) = g.terminal_size();
+            let (cell_width, cell_height) = g.css_cell_size();
 
-            let m = metrics_ref.borrow();
-            let col = (x / m.cell_width).floor() as u16;
-            let row = (y / m.cell_height).floor() as u16;
+            let col = (event.offset_x() as f32 / cell_width).floor() as u16;
+            let row = (event.offset_y() as f32 / cell_height).floor() as u16;
 
-            if col < m.cols && row < m.rows { Some((col, row)) } else { None }
+            if col < cols && row < rows { Some((col, row)) } else { None }
         };
 
         // Create unified event handler
@@ -335,7 +323,6 @@ impl TerminalMouseHandler {
         Ok(Self {
             canvas: canvas.clone(),
             on_mouse_event,
-            metrics,
             default_input_handler: None,
         })
     }
@@ -350,21 +337,6 @@ impl TerminalMouseHandler {
                 self.on_mouse_event.as_ref().unchecked_ref(),
             );
         }
-    }
-
-    /// Updates the cached terminal metrics.
-    ///
-    /// Should be called when the terminal is resized or the font atlas is
-    /// replaced to ensure accurate pixel-to-cell coordinate conversion.
-    ///
-    /// # Arguments
-    /// * `cols` - New column count
-    /// * `rows` - New row count
-    /// * `cell_width` - New cell width in CSS pixels (can be fractional)
-    /// * `cell_height` - New cell height in CSS pixels (can be fractional)
-    pub fn update_metrics(&mut self, cols: u16, rows: u16, cell_width: f32, cell_height: f32) {
-        self.metrics
-            .set(cols, rows, cell_width, cell_height);
     }
 }
 
@@ -670,11 +642,7 @@ impl Drop for TerminalMouseHandler {
 
 impl Debug for TerminalMouseHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (cols, rows, cw, ch) = self.metrics.get();
-        write!(
-            f,
-            "TerminalMouseHandler {{ dimensions: {cols}x{rows}, cell_size: {cw}x{ch} }}"
-        )
+        f.debug_struct("TerminalMouseHandler").finish()
     }
 }
 

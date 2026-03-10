@@ -391,6 +391,18 @@ impl TerminalGrid {
         self.effective_cell_size()
     }
 
+    /// Returns the cell dimensions in CSS pixels (effective size / device pixel ratio).
+    ///
+    /// Use this for converting browser mouse coordinates (which are in CSS pixels)
+    /// to terminal grid coordinates.
+    pub fn css_cell_size(&self) -> (f32, f32) {
+        let (w, h) = self.effective_cell_size();
+        if self.pixel_ratio <= 0.0 {
+            return (w as f32, h as f32);
+        }
+        (w as f32 / self.pixel_ratio, h as f32 / self.pixel_ratio)
+    }
+
     /// Returns the size of the terminal grid in cells.
     pub fn terminal_size(&self) -> (u16, u16) {
         self.terminal_size

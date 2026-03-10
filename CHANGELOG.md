@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - *(core)* Re-export `FontAtlasDeserializationError`
+- *(mouse)* Read coordinates from live grid state instead of cached TerminalMetrics
 
 ### ⚡ Performance
 

@@ -156,8 +156,6 @@ impl Terminal {
             .borrow_mut()
             .resize(self.renderer.gl(), (w, h), self.current_pixel_ratio)?;
 
-        self.update_mouse_handler_metrics();
-
         Ok(())
     }
 
@@ -221,8 +219,6 @@ impl Terminal {
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
 
-        self.update_mouse_handler_metrics();
-
         Ok(())
     }
 
@@ -257,8 +253,6 @@ impl Terminal {
         self.grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
-
-        self.update_mouse_handler_metrics();
 
         Ok(())
     }
@@ -411,21 +405,6 @@ impl Terminal {
             .unwrap_or(false)
     }
 
-    /// Updates the mouse handler with current grid metrics (cell size and dimensions).
-    ///
-    /// Called after operations that may change cell size (atlas replacement) or
-    /// terminal dimensions (resize).
-    fn update_mouse_handler_metrics(&mut self) {
-        if let Some(mouse_input) = &mut self.mouse_handler {
-            let grid = self.grid.borrow();
-            let (cols, rows) = grid.terminal_size();
-            let (phys_width, phys_height) = grid.cell_size();
-            let cell_width = phys_width as f32 / self.current_pixel_ratio;
-            let cell_height = phys_height as f32 / self.current_pixel_ratio;
-            mouse_input.update_metrics(cols, rows, cell_width, cell_height);
-        }
-    }
-
     /// Returns the current device pixel ratio.
     pub fn current_pixel_ratio(&self) -> f32 {
         self.current_pixel_ratio
@@ -450,9 +429,6 @@ impl Terminal {
             handler.create_event_handler(selection_tracker),
         )?;
         mouse_handler.default_input_handler = Some(handler);
-
-        self.update_mouse_metrics(&mut mouse_handler);
-
         self.mouse_handler = Some(mouse_handler);
         Ok(())
     }
@@ -470,11 +446,8 @@ impl Terminal {
             old_handler.cleanup();
         }
 
-        let mut mouse_handler =
+        let mouse_handler =
             TerminalMouseHandler::new(self.renderer.canvas(), self.grid.clone(), callback)?;
-
-        self.update_mouse_metrics(&mut mouse_handler);
-
         self.mouse_handler = Some(mouse_handler);
         Ok(())
     }
@@ -491,16 +464,6 @@ impl Terminal {
             .selection_tracker()
             .get_query()
             .is_some()
-    }
-
-    /// Updates metrics on an externally-held mouse handler.
-    fn update_mouse_metrics(&self, mouse_handler: &mut TerminalMouseHandler) {
-        let grid = self.grid.borrow();
-        let (cols, rows) = grid.terminal_size();
-        let (phys_w, phys_h) = grid.cell_size();
-        let css_w = phys_w as f32 / self.current_pixel_ratio;
-        let css_h = phys_h as f32 / self.current_pixel_ratio;
-        mouse_handler.update_metrics(cols, rows, css_w, css_h);
     }
 
     /// Exposes this terminal instance to the browser console for debugging.
@@ -802,17 +765,6 @@ impl TerminalBuilder {
         // initialize mouse handler if needed
         let selection = grid.borrow().selection_tracker();
 
-        // helper to fix mouse metrics: grid.cell_size() returns physical pixels,
-        // but mouse events use CSS pixels. Convert by dividing by DPR.
-        let fix_mouse_metrics = |mouse_input: &mut TerminalMouseHandler| {
-            let g = grid.borrow();
-            let (cols, rows) = g.terminal_size();
-            let (phys_w, phys_h) = g.cell_size();
-            let css_w = phys_w as f32 / raw_pixel_ratio;
-            let css_h = phys_h as f32 / raw_pixel_ratio;
-            mouse_input.update_metrics(cols, rows, css_w, css_h);
-        };
-
         match self.input_handler {
             None => Ok(Terminal {
                 renderer,
@@ -830,7 +782,6 @@ impl TerminalBuilder {
                     handler.create_event_handler(selection),
                 )?;
                 mouse_input.default_input_handler = Some(handler);
-                fix_mouse_metrics(&mut mouse_input);
 
                 Ok(Terminal {
                     renderer,
@@ -841,9 +792,8 @@ impl TerminalBuilder {
                 })
             },
             Some(InputHandler::Mouse(callback)) => {
-                let mut mouse_input =
+                let mouse_input =
                     TerminalMouseHandler::new(renderer.canvas(), grid.clone(), callback)?;
-                fix_mouse_metrics(&mut mouse_input);
                 Ok(Terminal {
                     renderer,
                     grid,
