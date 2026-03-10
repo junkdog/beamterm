@@ -664,7 +664,10 @@ impl TerminalGrid {
 
     fn flip_selected_cell_colors(&mut self) {
         if let Some(iter) = self.selected_cells_iter() {
-            iter.for_each(|(idx, _)| self.cells[idx].flip_colors());
+            iter.for_each(|(idx, _)| {
+                self.cells[idx].flip_colors();
+                self.dirty_regions.mark(idx);
+            });
         }
     }
 
