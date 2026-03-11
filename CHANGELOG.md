@@ -2,11 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [beamterm-v0.17.0] - 2026-03-11
 
 ### 💼 Other
 
 - Add `#[non_exhaustive]` to public enums
+- *(deps)* Bump glow from 0.16.0 to 0.17.0 (#100)
+- *(deps)* Bump winit from 0.30.12 to 0.30.13 (#98)
 
 ### 🐛 Bug Fixes
 
