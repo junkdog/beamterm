@@ -1,0 +1,21 @@
+[package]
+name = "beamterm-rasterizer"
+description = "Native font rasterization for beamterm using swash + fontdb"
+readme = "../README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+beamterm-data = { path = "../beamterm-data", version = "0.17.0" }
+emojis.workspace = true
+fontdb = { version = "0.23", features = ["memmap", "fontconfig"] }
+swash = "0.2"
+thiserror.workspace = true
+unicode-width.workspace = true
+
+[lints]
+workspace = true

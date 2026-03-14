@@ -4,6 +4,7 @@ members = [
     "beamterm-atlas",
     "beamterm-core",
     "beamterm-data",
+    "beamterm-rasterizer",
     "beamterm-renderer",
     "examples/game-console",
     "examples/native-terminal",
