@@ -1,4 +1,4 @@
-use fontdb::{Database, Family, Query, Weight, Stretch, Style, ID};
+use fontdb::{Database, Family, ID, Query, Stretch, Style, Weight};
 use swash::FontRef;
 
 use crate::error::Error;
@@ -67,9 +67,7 @@ impl FontResolver {
         }
 
         if fonts.is_empty() {
-            return Err(Error::FontNotFound(
-                font_families.join(", ")
-            ));
+            return Err(Error::FontNotFound(font_families.join(", ")));
         }
 
         let primary_count = fonts.len();
@@ -104,7 +102,9 @@ impl FontResolver {
     /// Returns `(FontRef, font_index)` or `None` if no font covers the character.
     pub(crate) fn resolve_char(&mut self, ch: char) -> Option<(FontRef<'_>, usize)> {
         // find index of a loaded font that has the char
-        let found_idx = self.fonts.iter()
+        let found_idx = self
+            .fonts
+            .iter()
             .enumerate()
             .find(|(_, font)| font.has_char(ch))
             .map(|(idx, _)| idx);
@@ -143,8 +143,8 @@ impl FontResolver {
         };
 
         // check if the preferred style variant has the char (without borrowing self mutably)
-        let preferred_has_char = preferred_offset < self.primary_count
-            && self.fonts[preferred_offset].has_char(ch);
+        let preferred_has_char =
+            preferred_offset < self.primary_count && self.fonts[preferred_offset].has_char(ch);
 
         if preferred_has_char {
             let font_ref = self.fonts[preferred_offset].as_font_ref()?;
@@ -172,9 +172,6 @@ impl FontResolver {
     }
 
     fn load_font(db: &Database, id: ID) -> Option<LoadedFont> {
-        db.with_face_data(id, |data, index| LoadedFont {
-            data: data.to_vec(),
-            index,
-        })
+        db.with_face_data(id, |data, index| LoadedFont { data: data.to_vec(), index })
     }
 }

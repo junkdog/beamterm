@@ -4,9 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+### 🚀 Features
+
+- *(rasterizer)* Add beamterm-rasterizer for glyph rasterization on native targets
+- *(core)* Add feature-gated native dynamic font atlas and rasterizer
+
 ### 💼 Other
 
 - *(core)* Add a simple terminal-emulator example
+- *(deps)* Bump cosmic-text from 0.16.0 to 0.18.2
 
 ## [beamterm-v0.17.0] - 2026-03-11
 

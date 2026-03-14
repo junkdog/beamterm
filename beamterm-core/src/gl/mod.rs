@@ -3,7 +3,11 @@ mod buffer;
 pub(crate) mod cell_query;
 pub(crate) mod context;
 mod dirty_regions;
+pub(crate) mod dynamic_atlas;
 pub(crate) mod glyph_cache;
+pub(crate) mod glyph_rasterizer;
+#[cfg(feature = "native-dynamic-atlas")]
+mod native_dynamic_atlas;
 mod program;
 pub(crate) mod renderer;
 pub(crate) mod selection;
@@ -22,7 +26,13 @@ use buffer::*;
 pub use cell_query::{CellIterator, CellQuery, SelectionMode, select};
 pub use context::GlState;
 #[doc(hidden)]
+pub use dynamic_atlas::DynamicFontAtlas;
+#[doc(hidden)]
 pub use glyph_cache::{ASCII_SLOTS, GlyphCache};
+#[doc(hidden)]
+pub use glyph_rasterizer::GlyphRasterizer;
+#[cfg(feature = "native-dynamic-atlas")]
+pub use native_dynamic_atlas::{NativeDynamicAtlas, NativeGlyphRasterizer};
 pub(crate) use program::*;
 pub use renderer::{Drawable, RenderContext};
 pub use selection::SelectionTracker;
