@@ -1,6 +1,6 @@
 mod canvas_rasterizer;
 mod context_loss;
-mod dynamic_atlas;
+pub(crate) mod dynamic_atlas;
 mod renderer;
 
 // Re-export platform-agnostic types from beamterm-core

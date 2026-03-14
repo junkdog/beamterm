@@ -2,13 +2,13 @@ use std::{cell::RefCell, rc::Rc};
 
 use beamterm_core::GlslVersion;
 use beamterm_data::{DebugSpacePattern, FontAtlasData};
-use compact_str::{CompactString, ToCompactString};
+use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compact};
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, CursorPosition, DynamicFontAtlas, Error, FontAtlas, Renderer, SelectionMode,
-    StaticFontAtlas, TerminalGrid, UrlMatch,
-    gl::{CellQuery, ContextLossHandler},
+    CellData, CursorPosition, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
+    TerminalGrid, UrlMatch,
+    gl::{CellQuery, ContextLossHandler, DynamicFontAtlas, dynamic_atlas::CanvasGlyphRasterizer},
     js::device_pixel_ratio,
     mouse::{
         DefaultSelectionHandler, MouseEventCallback, MouseSelectOptions, TerminalMouseEvent,
@@ -247,9 +247,15 @@ impl Terminal {
         font_size: f32,
     ) -> Result<(), Error> {
         let gl = self.renderer.gl();
-        let font_family: Vec<CompactString> = font_family.iter().map(|&s| s.into()).collect();
         let pixel_ratio = device_pixel_ratio();
-        let atlas = DynamicFontAtlas::new(gl, &font_family, font_size, pixel_ratio, None)?;
+        let font_family_css = font_family
+            .iter()
+            .map(|&s| format_compact!("'{s}'"))
+            .join_compact(", ");
+        let effective_font_size = font_size * pixel_ratio;
+        let rasterizer = CanvasGlyphRasterizer::new(&font_family_css, effective_font_size)
+            .map_err(|e| Error::Rasterization(e.to_string()))?;
+        let atlas = DynamicFontAtlas::new(gl, rasterizer, font_size, pixel_ratio)?;
         self.grid
             .borrow_mut()
             .replace_atlas(gl, atlas.into());
@@ -736,12 +742,16 @@ impl TerminalBuilder {
                 StaticFontAtlas::load(gl, atlas_data.unwrap_or_default())?.into()
             },
             AtlasKind::Dynamic { font_family, font_size } => {
-                DynamicFontAtlas::new(gl, &font_family, font_size, raw_pixel_ratio, None)?.into()
+                let rasterizer =
+                    create_canvas_rasterizer(&font_family, font_size, raw_pixel_ratio)?;
+                DynamicFontAtlas::new(gl, rasterizer, font_size, raw_pixel_ratio)?.into()
             },
             AtlasKind::DebugDynamic { font_family, font_size, debug_space_pattern } => {
-                DynamicFontAtlas::new(
+                let rasterizer =
+                    create_canvas_rasterizer(&font_family, font_size, raw_pixel_ratio)?;
+                DynamicFontAtlas::with_debug_spaces(
                     gl,
-                    &font_family,
+                    rasterizer,
                     font_size,
                     raw_pixel_ratio,
                     Some(debug_space_pattern),
@@ -954,4 +964,17 @@ impl<'a> From<&'a web_sys::HtmlCanvasElement> for CanvasSource {
     fn from(value: &'a web_sys::HtmlCanvasElement) -> Self {
         value.clone().into()
     }
+}
+
+fn create_canvas_rasterizer(
+    font_family: &[CompactString],
+    font_size: f32,
+    pixel_ratio: f32,
+) -> Result<CanvasGlyphRasterizer, Error> {
+    let font_family_css = font_family
+        .iter()
+        .map(|s| format_compact!("'{s}'"))
+        .join_compact(", ");
+    let effective_font_size = font_size * pixel_ratio;
+    CanvasGlyphRasterizer::new(&font_family_css, effective_font_size)
 }

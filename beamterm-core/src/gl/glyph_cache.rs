@@ -79,8 +79,22 @@ impl GlyphCache {
 
     /// Inserts a glyph, returning its slot. Evicts LRU if region is full.
     pub fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
+        self.insert_ex(key, style, false)
+    }
+
+    /// Inserts a glyph with an explicit double-width override.
+    ///
+    /// When `force_wide` is true, the glyph is placed in the wide region
+    /// regardless of unicode-width. This is used for PUA glyphs (e.g. Nerd
+    /// Font icons) whose advance width exceeds one cell.
+    pub fn insert_ex(
+        &mut self,
+        key: &str,
+        style: FontStyle,
+        force_wide: bool,
+    ) -> (GlyphSlot, Option<CacheKey>) {
         // avoid inserting ASCII normal glyphs into cache
-        if key.len() == 1 && style == FontStyle::Normal {
+        if key.len() == 1 && style == FontStyle::Normal && !force_wide {
             let slot =
                 GlyphSlot::Normal((key.chars().next().unwrap() as SlotId).saturating_sub(0x20));
             return (slot, None);
@@ -89,7 +103,7 @@ impl GlyphCache {
         let cache_key = (CompactString::new(key), style);
         let is_emoji = is_emoji(key);
 
-        if is_emoji || key.width() == 2 {
+        if is_emoji || key.width() == 2 || force_wide {
             // Check if already present
             if let Some(&slot) = self.wide.get(&cache_key) {
                 return (slot, None);

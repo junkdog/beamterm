@@ -14,6 +14,8 @@ pub use gl::{
     GlyphTracker, RenderContext, SelectionMode, SelectionTracker, StaticFontAtlas, TerminalGrid,
     select,
 };
+#[cfg(feature = "native-dynamic-atlas")]
+pub use gl::{NativeDynamicAtlas, NativeGlyphRasterizer};
 pub use position::CursorPosition;
 use unicode_width::UnicodeWidthStr;
 pub use url::{UrlMatch, find_url_at_cursor};

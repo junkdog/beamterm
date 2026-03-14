@@ -1,5 +1,7 @@
-use swash::FontRef;
-use swash::scale::{Render, ScaleContext, Source};
+use swash::{
+    FontRef,
+    scale::{Render, ScaleContext, Source},
+};
 
 use crate::error::Error;
 
@@ -58,8 +60,7 @@ pub(crate) fn measure_cell_metrics(
             .hint(true)
             .build();
 
-        let image = Render::new(&[Source::Outline])
-            .render(&mut scaler, block_id);
+        let image = Render::new(&[Source::Outline]).render(&mut scaler, block_id);
 
         match image {
             Some(img) if img.placement.height > 0 => img.placement.height as i32,
@@ -114,7 +115,9 @@ pub(crate) fn compute_fallback_font_size(
     base_font_size: f32,
 ) -> f32 {
     let fallback_metrics = fallback_ref.metrics(&[]).scale(base_font_size);
-    let fallback_glyph_metrics = fallback_ref.glyph_metrics(&[]).scale(base_font_size);
+    let fallback_glyph_metrics = fallback_ref
+        .glyph_metrics(&[])
+        .scale(base_font_size);
 
     // scale by advance width: fallback advance should match primary cell width
     let fallback_advance = {
@@ -146,4 +149,3 @@ pub(crate) fn compute_fallback_font_size(
 
     base_font_size * scale
 }
-

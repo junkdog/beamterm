@@ -16,10 +16,11 @@ use std::{
     thread,
 };
 
-use beamterm_core::{
-    CellData, FontAtlasData, FontStyle, GlState, GlslVersion, GlyphEffect, StaticFontAtlas,
-    TerminalGrid,
-};
+use beamterm_core::{CellData, FontStyle, GlState, GlslVersion, GlyphEffect, TerminalGrid};
+#[cfg(not(feature = "dynamic"))]
+use beamterm_core::{FontAtlasData, StaticFontAtlas};
+#[cfg(feature = "dynamic")]
+use beamterm_core::{NativeGlyphRasterizer, gl::DynamicFontAtlas};
 use glutin::surface::GlSurface;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use winit::{
@@ -231,8 +232,22 @@ impl ApplicationHandler for App {
         let win = GlWindow::new(event_loop, "beamterm - terminal emulator", (960, 600));
         let gl_state = GlState::new(&win.gl);
 
-        let atlas_data = FontAtlasData::default();
-        let atlas = StaticFontAtlas::load(&win.gl, atlas_data).expect("failed to load font atlas");
+        #[cfg(not(feature = "dynamic"))]
+        let atlas = {
+            let atlas_data = FontAtlasData::default();
+            StaticFontAtlas::load(&win.gl, atlas_data).expect("failed to load font atlas")
+        };
+        #[cfg(feature = "dynamic")]
+        let atlas = {
+            let effective_font_size = 16.0 * win.pixel_ratio();
+            let rasterizer = NativeGlyphRasterizer::new(
+                &["Hack Nerd Font Mono", "Hack", "Noto Color Emoji"],
+                effective_font_size,
+            )
+            .expect("failed to create native rasterizer");
+            DynamicFontAtlas::new(&win.gl, rasterizer, 16.0, win.pixel_ratio())
+                .expect("failed to create dynamic font atlas")
+        };
 
         let grid = TerminalGrid::new(
             &win.gl,
