@@ -1,0 +1,16 @@
+[package]
+name = "terminal-emulator"
+version = "0.17.0"
+edition.workspace = true
+publish = false
+release = false
+
+[dependencies]
+beamterm-core = { path = "../../beamterm-core" }
+glow.workspace = true
+glutin = "0.32"
+winit = "0.30"
+glutin-winit = "0.5"
+raw-window-handle = "0.6"
+vt100 = "0.16"
+portable-pty = "0.9"

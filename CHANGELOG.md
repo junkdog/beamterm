@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 💼 Other
+
+- *(core)* Add a simple terminal-emulator example
+
 ## [beamterm-v0.17.0] - 2026-03-11
 
 ### 💼 Other
@@ -23,6 +29,10 @@ All notable changes to this project will be documented in this file.
 
 - Reduce public API surface
 - *(atlas)* Make `Atlas` a sealed trait
+
+### ⚙️ Miscellaneous Tasks
+
+- Release beamterm {{version}}
 
 ## [beamterm-v0.16.0] - 2026-02-26
 

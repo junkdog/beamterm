@@ -121,8 +121,9 @@ grid.render(&gl, &mut gl_state)?;
 ```
 
 See [`examples/native-terminal/`](examples/native-terminal/) for a complete glutin + winit
-application and [`examples/game-console/`](examples/game-console/) for compositing a terminal
-overlay on top of 3D content.
+application, [`examples/terminal-emulator/`](examples/terminal-emulator/) for a working terminal
+emulator with PTY support, and [`examples/game-console/`](examples/game-console/) for compositing
+a terminal overlay on top of 3D content.
 
 ### Rendering Lifecycle
 
@@ -470,6 +471,9 @@ cargo install wasm-pack trunk
 ```bash
 # Simple terminal rendering demo (glutin + winit)
 cargo run -p native-terminal
+
+# Terminal emulator with PTY support (vt100 + portable-pty)
+cargo run -p terminal-emulator
 
 # Semi-transparent terminal overlay on a 3D spinning cube
 cargo run -p game-console

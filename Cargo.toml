@@ -7,6 +7,7 @@ members = [
     "beamterm-renderer",
     "examples/game-console",
     "examples/native-terminal",
+    "examples/terminal-emulator",
 ]
 exclude = [
     "examples/canvas_waves",
