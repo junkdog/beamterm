@@ -222,7 +222,7 @@ impl TerminalBuffers {
 impl TerminalGrid {
     pub fn new(
         gl: &glow::Context,
-        atlas: FontAtlas,
+        mut atlas: FontAtlas,
         screen_size: (i32, i32),
         pixel_ratio: f32,
         glsl_version: &crate::GlslVersion,
@@ -281,7 +281,8 @@ impl TerminalGrid {
     pub fn set_fallback_glyph(&mut self, fallback: &str) {
         self.fallback_glyph = self
             .atlas
-            .get_glyph_id(fallback, FontStyle::Normal as u16)
+            .resolve_glyph_slot(fallback, FontStyle::Normal as u16)
+            .map(|slot| slot.slot_id())
             .unwrap_or(' ' as u16);
     }
 
@@ -293,9 +294,12 @@ impl TerminalGrid {
     /// 2. Resolving the corresponding glyph slot in the new atlas
     /// 3. Updating double-width glyphs (emoji, wide chars) across both cells
     /// 4. Resizing the grid if cell dimensions changed
-    pub fn replace_atlas(&mut self, gl: &glow::Context, atlas: FontAtlas) {
+    pub fn replace_atlas(&mut self, gl: &glow::Context, mut atlas: FontAtlas) {
         let glyph_mask = self.atlas.base_lookup_mask() as u16;
         let style_mask = !glyph_mask;
+
+        // compute space glyph before mutable borrows
+        let space_glyph = atlas.space_glyph_id();
 
         // update fallback glyph to new atlas, before translating existing cells
         self.fallback_glyph = self
@@ -306,7 +310,7 @@ impl TerminalGrid {
                 atlas.resolve_glyph_slot(symbol.as_str(), style_bits)
             })
             .map(|slot| slot.slot_id())
-            .unwrap_or(atlas.space_glyph_id());
+            .unwrap_or(space_glyph);
 
         // translate existing glyph ids to new atlas
         let mut skip_next = false;
@@ -514,14 +518,15 @@ impl TerminalGrid {
         &mut self,
         cells: impl Iterator<Item = CellData<'a>>,
     ) -> Result<(), Error> {
-        // update instance buffer with new cell data
-        let atlas = &self.atlas;
-
         let fallback_glyph = GlyphSlot::Normal(self.fallback_glyph);
+
+        // split borrows: atlas needs &mut, cells needs &mut, dirty_regions needs &mut
+        let atlas = &mut self.atlas;
+        let cell_buf = &mut self.cells;
 
         // handle double-width emoji that span two cells
         let mut pending_cell: Option<CellDynamic> = None;
-        self.cells
+        cell_buf
             .iter_mut()
             .zip(cells)
             .for_each(|(cell, data)| {
@@ -562,11 +567,13 @@ impl TerminalGrid {
         &mut self,
         cells: impl Iterator<Item = (usize, CellData<'a>)>,
     ) -> Result<(), Error> {
-        // update instance buffer with new cell data by position
-        let atlas = &self.atlas;
-
-        let cell_count = self.cells.len();
         let fallback_glyph = GlyphSlot::Normal(self.fallback_glyph);
+
+        let atlas = &mut self.atlas;
+        let cell_buf = &mut self.cells;
+        let dirty_regions = &mut self.dirty_regions;
+
+        let cell_count = cell_buf.len();
 
         // ratatui and beamterm can disagree on which emoji
         // are double-width (beamterm assumes double-width for all emoji),
@@ -588,19 +595,19 @@ impl TerminalGrid {
 
                 match glyph {
                     GlyphSlot::Normal(id) => {
-                        self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
-                        self.dirty_regions.mark(idx);
+                        cell_buf[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                        dirty_regions.mark(idx);
                     },
 
                     GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => {
                         // render left half in current cell
-                        self.cells[idx] = CellDynamic::new(id, cell.fg, cell.bg);
-                        self.dirty_regions.mark(idx);
+                        cell_buf[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                        dirty_regions.mark(idx);
 
                         // render right half in next cell, if within bounds
-                        if let Some(c) = self.cells.get_mut(idx + 1) {
+                        if let Some(c) = cell_buf.get_mut(idx + 1) {
                             *c = CellDynamic::new(id + 1, cell.fg, cell.bg);
-                            self.dirty_regions.mark(idx + 1);
+                            dirty_regions.mark(idx + 1);
                             skip_idx = Some(idx + 1);
                         }
                     },
@@ -621,7 +628,14 @@ impl TerminalGrid {
     }
 
     /// Flushes pending cell updates to the GPU.
+    ///
+    /// This also flushes any pending glyph data in the atlas texture
+    /// (e.g., newly rasterized glyphs in a dynamic atlas).
     pub fn flush_cells(&mut self, gl: &glow::Context) -> Result<(), Error> {
+        // flush any pending atlas glyph uploads before uploading cell data
+        self.atlas.bind(gl);
+        self.atlas.flush(gl)?;
+
         if self.dirty_regions.is_clean() {
             return Ok(()); // no pending updates to flush
         }
@@ -763,7 +777,7 @@ impl TerminalGrid {
     }
 
     /// Returns the base glyph identifier for a given symbol.
-    pub fn base_glyph_id(&self, symbol: &str) -> Option<u16> {
+    pub fn base_glyph_id(&mut self, symbol: &str) -> Option<u16> {
         self.atlas.get_base_glyph_id(symbol)
     }
 
@@ -780,7 +794,7 @@ impl TerminalGrid {
         }
     }
 
-    fn resize_cell_grid(&self, old_size: (i32, i32), new_size: (i32, i32)) -> Vec<CellDynamic> {
+    fn resize_cell_grid(&mut self, old_size: (i32, i32), new_size: (i32, i32)) -> Vec<CellDynamic> {
         let empty_cell = CellDynamic::new(self.atlas.space_glyph_id(), 0xFFFFFF, 0x000000);
 
         let new_len = new_size.0 * new_size.1;
@@ -954,7 +968,6 @@ impl Drawable for TerminalGrid {
 
         context.state.active_texture(gl, glow::TEXTURE0);
         self.atlas.bind(gl);
-        self.atlas.flush(gl)?;
         self.gpu.ubo_vertex.bind(context.gl);
         self.gpu.ubo_fragment.bind(context.gl);
         unsafe { gl.uniform_1_i32(Some(&self.gpu.sampler_loc), 0) };

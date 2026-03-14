@@ -82,13 +82,13 @@ impl StaticFontAtlas {
 impl atlas::sealed::Sealed for StaticFontAtlas {}
 
 impl Atlas for StaticFontAtlas {
-    fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
+    fn get_glyph_id(&mut self, key: &str, style_bits: u16) -> Option<u16> {
         let base_id = self.get_base_glyph_id(key)?;
         Some(base_id | style_bits)
     }
 
     /// Returns the base glyph identifier for the given key
-    fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+    fn get_base_glyph_id(&mut self, key: &str) -> Option<u16> {
         if key.len() == 1 {
             let ch = key.chars().next().unwrap();
             if ch.is_ascii() {
@@ -167,7 +167,7 @@ impl Atlas for StaticFontAtlas {
         ascii_count + non_ascii_count
     }
 
-    fn flush(&self, _gl: &glow::Context) -> Result<(), Error> {
+    fn flush(&mut self, _gl: &glow::Context) -> Result<(), Error> {
         Ok(()) // static atlas has no pending glyphs
     }
 
@@ -200,7 +200,7 @@ impl Atlas for StaticFontAtlas {
         }
     }
 
-    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+    fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         if key.len() == 1 {
             let ch = key.chars().next().unwrap();
             if ch.is_ascii() {

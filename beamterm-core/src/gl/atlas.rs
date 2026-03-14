@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, fmt::Debug};
+use std::{collections::HashSet, fmt::Debug};
 
 use compact_str::CompactString;
 
@@ -21,12 +21,20 @@ pub const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
 /// Trait defining the interface for font atlases.
 ///
 /// This trait is **sealed** and cannot be implemented outside of beamterm crates.
+///
+/// Methods that may mutate internal state (glyph resolution, cache updates,
+/// texture uploads) take `&mut self`. Read-only accessors take `&self`.
 pub trait Atlas: sealed::Sealed {
-    /// Returns the glyph identifier for the given key and style bits
-    fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16>;
+    /// Returns the glyph identifier for the given key and style bits.
+    ///
+    /// May mutate internal state (e.g., LRU promotion in dynamic atlases,
+    /// recording missing glyphs in static atlases).
+    fn get_glyph_id(&mut self, key: &str, style_bits: u16) -> Option<u16>;
 
-    /// Returns the base glyph identifier for the given key
-    fn get_base_glyph_id(&self, key: &str) -> Option<u16>;
+    /// Returns the base glyph identifier for the given key.
+    ///
+    /// May mutate internal state (e.g., LRU promotion, missing glyph tracking).
+    fn get_base_glyph_id(&mut self, key: &str) -> Option<u16>;
 
     /// Returns the height of the atlas in pixels.
     fn cell_size(&self) -> (i32, i32);
@@ -64,7 +72,7 @@ pub trait Atlas: sealed::Sealed {
     ///
     /// # Errors
     /// Returns an error if texture upload fails.
-    fn flush(&self, gl: &glow::Context) -> Result<(), Error>;
+    fn flush(&mut self, gl: &glow::Context) -> Result<(), Error>;
 
     /// Recreates the GPU texture after a context loss.
     ///
@@ -84,7 +92,7 @@ pub trait Atlas: sealed::Sealed {
     /// For dynamic atlases, allocates a slot if missing and queues for upload.
     /// The slot is immediately valid, but [`flush`] must be called before
     /// rendering to populate the texture.
-    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
+    fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
 
     /// Returns the bitmask for extracting the base glyph ID from a styled glyph ID.
     ///
@@ -171,11 +179,11 @@ impl FontAtlas {
         Self { inner: Box::new(inner) }
     }
 
-    pub fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
+    pub fn get_glyph_id(&mut self, key: &str, style_bits: u16) -> Option<u16> {
         self.inner.get_glyph_id(key, style_bits)
     }
 
-    pub fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+    pub fn get_base_glyph_id(&mut self, key: &str) -> Option<u16> {
         self.inner.get_base_glyph_id(key)
     }
 
@@ -219,11 +227,11 @@ impl FontAtlas {
         self.inner.for_each_symbol(f)
     }
 
-    pub fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+    pub fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
 
-    pub fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
+    pub fn flush(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.flush(gl)
     }
 
@@ -231,7 +239,7 @@ impl FontAtlas {
         self.inner.base_lookup_mask()
     }
 
-    pub(crate) fn space_glyph_id(&self) -> u16 {
+    pub(crate) fn space_glyph_id(&mut self) -> u16 {
         self.get_glyph_id(" ", 0x0)
             .expect("space glyph exists in every font atlas")
     }
@@ -296,38 +304,38 @@ impl GlyphSlot {
 /// Tracks glyphs that were requested but not found in the font atlas.
 #[derive(Debug, Default)]
 pub struct GlyphTracker {
-    missing: RefCell<HashSet<CompactString>>,
+    missing: HashSet<CompactString>,
 }
 
 impl GlyphTracker {
     /// Creates a new empty glyph tracker.
     pub fn new() -> Self {
-        Self { missing: RefCell::new(HashSet::new()) }
+        Self { missing: HashSet::new() }
     }
 
     /// Records a glyph as missing.
-    pub fn record_missing(&self, glyph: &str) {
-        self.missing.borrow_mut().insert(glyph.into());
+    pub fn record_missing(&mut self, glyph: &str) {
+        self.missing.insert(glyph.into());
     }
 
     /// Returns a copy of all missing glyphs.
     pub fn missing_glyphs(&self) -> HashSet<CompactString> {
-        self.missing.borrow().clone()
+        self.missing.clone()
     }
 
     /// Clears all tracked missing glyphs.
-    pub fn clear(&self) {
-        self.missing.borrow_mut().clear();
+    pub fn clear(&mut self) {
+        self.missing.clear();
     }
 
     /// Returns the number of unique missing glyphs.
     pub fn len(&self) -> usize {
-        self.missing.borrow().len()
+        self.missing.len()
     }
 
     /// Returns true if no glyphs are missing.
     pub fn is_empty(&self) -> bool {
-        self.missing.borrow().is_empty()
+        self.missing.is_empty()
     }
 }
 
@@ -337,7 +345,7 @@ mod tests {
 
     #[test]
     fn test_glyph_tracker() {
-        let tracker = GlyphTracker::new();
+        let mut tracker = GlyphTracker::new();
 
         // Initially empty
         assert!(tracker.is_empty());

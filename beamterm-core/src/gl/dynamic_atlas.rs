@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeSet, HashMap},
     ops::Not,
 };
@@ -34,9 +33,9 @@ const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 128 layers
 /// - Glyphs are rasterized on first use and cached in the texture
 pub struct DynamicFontAtlas<R: GlyphRasterizer> {
     texture: Texture,
-    rasterizer: RefCell<R>,
-    cache: RefCell<GlyphCache>,
-    symbol_lookup: RefCell<HashMap<u16, CompactString>>,
+    rasterizer: R,
+    cache: GlyphCache,
+    symbol_lookup: HashMap<u16, CompactString>,
     glyphs_pending_upload: PendingUploads,
     physical_cell_size: (i32, i32),
     glyph_tracker: GlyphTracker,
@@ -82,11 +81,11 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
         );
         let texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
-        let atlas = Self {
+        let mut atlas = Self {
             texture,
-            rasterizer: RefCell::new(rasterizer),
-            cache: RefCell::new(GlyphCache::new()),
-            symbol_lookup: RefCell::new(HashMap::new()),
+            rasterizer,
+            cache: GlyphCache::new(),
+            symbol_lookup: HashMap::new(),
             glyphs_pending_upload: PendingUploads::new(),
             physical_cell_size,
             glyph_tracker: GlyphTracker::new(),
@@ -101,7 +100,7 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
         Ok(atlas)
     }
 
-    fn upload_ascii_glyphs(&self, gl: &glow::Context) -> Result<(), Error> {
+    fn upload_ascii_glyphs(&mut self, gl: &glow::Context) -> Result<(), Error> {
         let all_pending: Vec<PendingGlyph> = (0x20u8..=0x7Eu8)
             .map(|b| PendingGlyph {
                 slot: GlyphSlot::Normal(b as u16 - 0x20),
@@ -110,7 +109,7 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
             })
             .collect();
 
-        let batch_size = self.rasterizer.borrow().max_batch_size();
+        let batch_size = self.rasterizer.max_batch_size();
         for batch in all_pending.chunks(batch_size) {
             self.rasterize_and_upload(gl, batch.to_vec())?;
         }
@@ -118,18 +117,18 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
         Ok(())
     }
 
-    fn upload_pending_glyphs(&self, gl: &glow::Context) -> Result<(), Error> {
+    fn upload_pending_glyphs(&mut self, gl: &glow::Context) -> Result<(), Error> {
         if self.glyphs_pending_upload.is_empty() {
             return Ok(());
         }
 
-        let batch_size = self.rasterizer.borrow().max_batch_size();
+        let batch_size = self.rasterizer.max_batch_size();
         let pending = self.glyphs_pending_upload.take(batch_size);
         self.rasterize_and_upload(gl, pending)
     }
 
     fn rasterize_and_upload(
-        &self,
+        &mut self,
         gl: &glow::Context,
         pending: Vec<PendingGlyph>,
     ) -> Result<(), Error> {
@@ -145,10 +144,7 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
             .map(|g| (g.key.as_str(), g.style))
             .collect();
 
-        let rasterized = self
-            .rasterizer
-            .borrow_mut()
-            .rasterize_batch(&graphemes)?;
+        let rasterized = self.rasterizer.rasterize_batch(&graphemes)?;
 
         for (pending_glyph, glyph_data) in pending.iter().zip(rasterized.iter()) {
             let glyph_data = if pending_glyph.key == " " {
@@ -185,14 +181,13 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
 impl<R: GlyphRasterizer> atlas::sealed::Sealed for DynamicFontAtlas<R> {}
 
 impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
-    fn get_glyph_id(&self, key: &str, style_bits: u16) -> Option<u16> {
+    fn get_glyph_id(&mut self, key: &str, style_bits: u16) -> Option<u16> {
         self.resolve_glyph_slot(key, style_bits)
             .map(|slot| slot.slot_id())
     }
 
-    fn get_base_glyph_id(&self, key: &str) -> Option<u16> {
+    fn get_base_glyph_id(&mut self, key: &str) -> Option<u16> {
         self.cache
-            .borrow_mut()
             .get(key, FontStyle::Normal)
             .map(|slot| slot.slot_id())
     }
@@ -218,10 +213,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
             let ch = (glyph_id + 0x20) as u8 as char;
             Some(ch.to_compact_string())
         } else {
-            self.symbol_lookup
-                .borrow()
-                .get(&glyph_id)
-                .cloned()
+            self.symbol_lookup.get(&glyph_id).cloned()
         }
     }
 
@@ -240,10 +232,10 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn glyph_count(&self) -> u32 {
-        self.cache.borrow().len() as u32
+        self.cache.len() as u32
     }
 
-    fn flush(&self, gl: &glow::Context) -> Result<(), Error> {
+    fn flush(&mut self, gl: &glow::Context) -> Result<(), Error> {
         while !self.glyphs_pending_upload.is_empty() {
             self.upload_pending_glyphs(gl)?;
         }
@@ -259,8 +251,8 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
-        self.cache.borrow_mut().clear();
-        self.symbol_lookup.borrow_mut().clear();
+        self.cache.clear();
+        self.symbol_lookup.clear();
         self.glyph_tracker.clear();
 
         self.upload_ascii_glyphs(gl)?;
@@ -269,30 +261,30 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
-        for (glyph_id, symbol) in self.symbol_lookup.borrow().iter() {
+        for (glyph_id, symbol) in self.symbol_lookup.iter() {
             f(*glyph_id, symbol.as_str());
         }
     }
 
-    fn resolve_glyph_slot(&self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
+    fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         let font_variant = FontStyle::from_u16(style_bits & FontStyle::MASK).ok()?;
         let styling = style_bits & (Glyph::STRIKETHROUGH_FLAG | Glyph::UNDERLINE_FLAG);
 
-        let mut cache = self.cache.borrow_mut();
-        if let Some(glyph) = cache.get(key, font_variant) {
+        if let Some(glyph) = self.cache.get(key, font_variant) {
             return Some(glyph.with_styling(styling));
         }
 
         // check if the font's advance width indicates this is a double-width
         // glyph (e.g. Nerd Font icons) even though unicode-width returns 1
-        let force_wide = self.rasterizer.borrow_mut().is_double_width(key);
+        let force_wide = self.rasterizer.is_double_width(key);
 
         // glyph not present, insert and mark for upload
-        let (slot, _) = cache.insert_ex(key, font_variant, force_wide);
+        let (slot, _) = self
+            .cache
+            .insert_ex(key, font_variant, force_wide);
 
         // add reverse lookup
         self.symbol_lookup
-            .borrow_mut()
             .insert(slot.slot_id(), CompactString::new(key));
 
         self.glyphs_pending_upload.add(PendingGlyph {
@@ -321,12 +313,11 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
 
         let effective_font_size = self.base_font_size * pixel_ratio;
         self.rasterizer
-            .get_mut()
             .update_font_size(effective_font_size)?;
 
-        self.physical_cell_size = self.rasterizer.get_mut().cell_size();
-        self.underline = self.rasterizer.get_mut().underline();
-        self.strikethrough = self.rasterizer.get_mut().strikethrough();
+        self.physical_cell_size = self.rasterizer.cell_size();
+        self.underline = self.rasterizer.underline();
+        self.strikethrough = self.rasterizer.strikethrough();
 
         self.texture.delete(gl);
         let padded_cell_size = (
@@ -335,8 +326,8 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
-        self.cache.borrow_mut().clear();
-        self.symbol_lookup.borrow_mut().clear();
+        self.cache.clear();
+        self.symbol_lookup.clear();
         self.glyph_tracker.clear();
         self.upload_ascii_glyphs(gl)?;
 
@@ -356,13 +347,13 @@ impl<R: GlyphRasterizer> std::fmt::Debug for DynamicFontAtlas<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynamicFontAtlas")
             .field("physical_cell_size", &self.physical_cell_size)
-            .field("cache", &*self.cache.borrow())
+            .field("cache", &self.cache)
             .finish_non_exhaustive()
     }
 }
 
 struct PendingUploads {
-    glyphs: RefCell<BTreeSet<PendingGlyph>>,
+    glyphs: BTreeSet<PendingGlyph>,
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -374,19 +365,18 @@ struct PendingGlyph {
 
 impl PendingUploads {
     fn new() -> Self {
-        Self { glyphs: RefCell::new(BTreeSet::new()) }
+        Self { glyphs: BTreeSet::new() }
     }
 
-    fn add(&self, glyph: PendingGlyph) {
-        self.glyphs.borrow_mut().insert(glyph);
+    fn add(&mut self, glyph: PendingGlyph) {
+        self.glyphs.insert(glyph);
     }
 
-    fn take(&self, count: usize) -> Vec<PendingGlyph> {
-        let mut glyphs = self.glyphs.borrow_mut();
-        let mut pending = Vec::with_capacity(count.min(glyphs.len()));
+    fn take(&mut self, count: usize) -> Vec<PendingGlyph> {
+        let mut pending = Vec::with_capacity(count.min(self.glyphs.len()));
 
         for _ in 0..count {
-            if let Some(glyph) = glyphs.pop_last() {
+            if let Some(glyph) = self.glyphs.pop_last() {
                 pending.push(glyph);
             } else {
                 break;
@@ -397,7 +387,7 @@ impl PendingUploads {
     }
 
     fn is_empty(&self) -> bool {
-        self.glyphs.borrow().is_empty()
+        self.glyphs.is_empty()
     }
 }
 
