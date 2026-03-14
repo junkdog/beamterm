@@ -71,6 +71,14 @@ impl NativeRasterizer {
         })
     }
 
+    /// Returns a fully transparent glyph sized to a single cell (with padding).
+    fn empty_glyph(&self) -> RasterizedGlyph {
+        let padding = FontAtlasData::PADDING;
+        let pw = (self.cell_metrics.width + padding * 2) as u32;
+        let ph = (self.cell_metrics.height + padding * 2) as u32;
+        RasterizedGlyph::new(vec![0u8; (pw * ph * 4) as usize], pw, ph)
+    }
+
     /// Rasterizes a single grapheme into a cell-sized RGBA bitmap.
     ///
     /// The output is padded by `FontAtlasData::PADDING` on each side.
@@ -87,15 +95,7 @@ impl NativeRasterizer {
         // get the first codepoint for font resolution
         let ch = match grapheme.chars().next() {
             Some(c) => c,
-            None => {
-                let pw = (cell_w + padding * 2) as u32;
-                let ph = (self.cell_metrics.height + padding * 2) as u32;
-                return Ok(RasterizedGlyph::new(
-                    vec![0u8; (pw * ph * 4) as usize],
-                    pw,
-                    ph,
-                ));
-            },
+            None => return Ok(self.empty_glyph()),
         };
 
         // resolve font and glyph ID
@@ -104,40 +104,18 @@ impl NativeRasterizer {
         let (font_ref, font_idx) = if is_emoji {
             match self.font_resolver.resolve_char(ch) {
                 Some(r) => r,
-                None => {
-                    let pw = (cell_w + padding * 2) as u32;
-                    let ph = (self.cell_metrics.height + padding * 2) as u32;
-                    return Ok(RasterizedGlyph::new(
-                        vec![0u8; (pw * ph * 4) as usize],
-                        pw,
-                        ph,
-                    ));
-                },
+                None => return Ok(self.empty_glyph()),
             }
         } else {
             match self.font_resolver.resolve_styled(ch, style) {
                 Some(r) => r,
-                None => {
-                    let pw = (cell_w + padding * 2) as u32;
-                    let ph = (self.cell_metrics.height + padding * 2) as u32;
-                    return Ok(RasterizedGlyph::new(
-                        vec![0u8; (pw * ph * 4) as usize],
-                        pw,
-                        ph,
-                    ));
-                },
+                None => return Ok(self.empty_glyph()),
             }
         };
 
         let glyph_id = font_ref.charmap().map(ch);
         if glyph_id == 0 {
-            let pw = (cell_w + padding * 2) as u32;
-            let ph = (self.cell_metrics.height + padding * 2) as u32;
-            return Ok(RasterizedGlyph::new(
-                vec![0u8; (pw * ph * 4) as usize],
-                pw,
-                ph,
-            ));
+            return Ok(self.empty_glyph());
         }
 
         // determine double-width from unicode properties OR from the font's
