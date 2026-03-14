@@ -47,7 +47,7 @@ maintaining sub-millisecond render times on 2019-era hardware (i9-9900K / RTX 20
 
 ## System Architecture
 
-The renderer consists of four crates:
+The renderer consists of five crates:
 
 **`beamterm-atlas`** - Generates GPU-optimized static font atlases from TTF/OTF files. Automatically
 calculates cell dimensions, supports font styles (normal/bold/italic), and outputs packed
@@ -58,9 +58,15 @@ versioned format with header validation and cross-platform encoding.
 
 **`beamterm-core`** - Platform-agnostic GL rendering engine using [glow](https://github.com/grovesNL/glow).
 Contains all GPU resource management (`TerminalGrid`), buffer handling, shader programs, static atlas
-implementation, and the `Drawable`/`RenderContext` abstractions. The GL target is determined
-automatically by the compilation target: `wasm32` builds use WebGL2 (`#version 300 es`), while
-native builds use OpenGL 3.3 (`#version 330 core`).
+implementation, the generic `DynamicFontAtlas<R>` with `GlyphRasterizer` trait, and the
+`Drawable`/`RenderContext` abstractions. The GL target is determined automatically by the compilation
+target: `wasm32` builds use WebGL2 (`#version 300 es`), while native builds use OpenGL 3.3
+(`#version 330 core`). Enable the `native-dynamic-atlas` feature for native dynamic font atlas support.
+
+**`beamterm-rasterizer`** - Native font rasterization using [swash](https://github.com/dfrg/swash) +
+[fontdb](https://github.com/RazrFalcon/fontdb). Provides `NativeRasterizer` for on-demand glyph
+rasterization from system fonts, with automatic font fallback and per-glyph scaling for mixed-font
+rendering.
 
 **`beamterm-renderer`** - WASM/browser integration layer. Wraps beamterm-core with the `Terminal`
 builder API, JavaScript bindings (`js-api` feature), dynamic font atlas via browser Canvas API,
@@ -209,23 +215,25 @@ let terminal = Terminal::builder("#canvas")
 
 beamterm supports two kinds of font atlases:
 
-| Aspect            | Static Atlas                           | Dynamic Atlas                                |
-|-------------------|----------------------------------------|----------------------------------------------|
-| **Font source**   | Pre-generated `.atlas` file            | Any system or web font                       |
-| **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache |
-| **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via browser Canvas API             |
-| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive |
-| **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                   |
+| Aspect            | Static Atlas                           | Dynamic Atlas                                   |
+|-------------------|----------------------------------------|-------------------------------------------------|
+| **Font source**   | Pre-generated `.atlas` file            | Any system or web font                          |
+| **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache    |
+| **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via Canvas API (WASM) or swash+fontdb |
+| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive    |
+| **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                      |
 
 **Static Atlas** is the default. All glyphs are pre-rasterized and immediately available. ASCII
 characters (0-127) use direct bit manipulation (`char_code | style_bits`) for zero-overhead glyph
 lookup; non-ASCII characters fall back to a HashMap. Because glyphs are fixed at build time, HiDPI
 scaling uses discrete steps to preserve sharpness.
 
-**Dynamic Atlas** (WebGL2/WASM only) rasterizes glyphs on first use via the browser's Canvas API.
-ASCII characters in Normal style bypass the cache; styled ASCII and all non-ASCII characters go
-through an LRU cache. When slots fill up, least-recently-used glyphs are evicted and re-rasterized on
-next access. Glyphs are re-rasterized at the new resolution whenever the device pixel ratio changes.
+**Dynamic Atlas** rasterizes glyphs on first use, supporting both WASM (browser Canvas API) and native
+(swash+fontdb) backends via the `GlyphRasterizer` trait. ASCII characters in Normal style bypass the
+cache; styled ASCII and all non-ASCII characters go through an LRU cache. When slots fill up,
+least-recently-used glyphs are evicted and re-rasterized on next access. Glyphs are re-rasterized at
+the new resolution whenever the device pixel ratio changes. On native targets, automatic font fallback
+resolves missing glyphs from system fonts, with per-font scaling to match the primary cell size.
 
 ```rust
 // Static atlas (default, or with custom atlas)
@@ -234,14 +242,28 @@ let terminal = Terminal::builder("#canvas")
     .font_atlas(FontAtlasData::from_binary(include_bytes!("custom.atlas"))?)
     .build()?;
 
-// Dynamic atlas
+// Dynamic atlas (WASM)
 let terminal = Terminal::builder("#canvas")
     .dynamic_font_atlas(&["JetBrains Mono", "Fira Code"], 16.0)
     .build()?;
 
-// Switch atlas at runtime
+// Switch atlas at runtime (WASM)
 terminal.replace_with_dynamic_atlas(&["Hack", "monospace"], 14.0)?;
 terminal.replace_with_static_atlas(new_atlas_data)?;
+```
+
+Native dynamic atlas usage (requires `native-dynamic-atlas` feature on beamterm-core):
+
+```rust
+use beamterm_core::{NativeGlyphRasterizer, gl::DynamicFontAtlas};
+
+let effective_font_size = 16.0 * pixel_ratio;
+let rasterizer = NativeGlyphRasterizer::new(
+    &["Hack Nerd Font Mono", "Hack", "Noto Color Emoji"],
+    effective_font_size,
+)?;
+let atlas = DynamicFontAtlas::new(&gl, rasterizer, 16.0, pixel_ratio)?;
+let mut grid = TerminalGrid::new(&gl, atlas.into(), size, pixel_ratio, &GlslVersion::Gl330)?;
 ```
 
 ### Texture Array Layout
@@ -335,7 +357,7 @@ tracked separately in a cache rather than encoded in the slot ID.
 **Key differences from static atlas:**
 - **No style encoding in ID**: 'A' _italic_ and 'A' _bold_ occupy separate slots rather than computed IDs (0x0041 vs 0x0441)
 - **LRU eviction**: When a region fills up, least-recently-used glyphs are evicted and re-rasterized on next access
-- **On-demand rasterization**: Glyphs are rendered via `OffscreenCanvas` when first encountered
+- **On-demand rasterization**: Glyphs are rendered via `OffscreenCanvas` (WASM) or swash+fontdb (native) when first encountered
 - **Texture lookup mask:** `0x0FFF` (12 bits) - flat slot index without style bits
 
 **Slot to texture coordinate:**
@@ -477,6 +499,10 @@ cargo run -p terminal-emulator
 
 # Semi-transparent terminal overlay on a 3D spinning cube
 cargo run -p game-console
+
+# Run with dynamic font atlas (rasterizes system fonts at runtime)
+cargo run -p native-terminal --features dynamic
+cargo run -p terminal-emulator --features dynamic
 ```
 
 **WASM/browser** examples require [Trunk](https://trunkrs.dev/):
