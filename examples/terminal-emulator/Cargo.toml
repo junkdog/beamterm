@@ -5,12 +5,8 @@ edition.workspace = true
 publish = false
 release = false
 
-[features]
-default = []
-dynamic = ["beamterm-core/native-dynamic-atlas"]
-
 [dependencies]
-beamterm-core = { path = "../../beamterm-core" }
+beamterm-core = { path = "../../beamterm-core", features = ["native-dynamic-atlas"] }
 glow.workspace = true
 glutin = "0.32"
 winit = "0.30"

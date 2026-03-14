@@ -1,8 +1,9 @@
 //! Terminal emulator demo using beamterm-core for GPU-accelerated rendering.
 //!
 //! Spawns a PTY with the user's default shell and renders it using
-//! beamterm's OpenGL 3.3 pipeline. Uses `vt100` for terminal emulation
-//! and `portable-pty` for PTY management.
+//! beamterm's OpenGL 3.3 pipeline with a native dynamic font atlas
+//! (swash+fontdb). Uses `vt100` for terminal emulation and `portable-pty`
+//! for PTY management.
 //!
 //! Run with:
 //! ```sh
@@ -16,11 +17,10 @@ use std::{
     thread,
 };
 
-use beamterm_core::{CellData, FontStyle, GlState, GlslVersion, GlyphEffect, TerminalGrid};
-#[cfg(not(feature = "dynamic"))]
-use beamterm_core::{FontAtlasData, StaticFontAtlas};
-#[cfg(feature = "dynamic")]
-use beamterm_core::{NativeGlyphRasterizer, gl::DynamicFontAtlas};
+use beamterm_core::{
+    CellData, FontStyle, GlState, GlslVersion, GlyphEffect, NativeGlyphRasterizer, TerminalGrid,
+    gl::DynamicFontAtlas,
+};
 use glutin::surface::GlSurface;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use winit::{
@@ -232,12 +232,6 @@ impl ApplicationHandler for App {
         let win = GlWindow::new(event_loop, "beamterm - terminal emulator", (960, 600));
         let gl_state = GlState::new(&win.gl);
 
-        #[cfg(not(feature = "dynamic"))]
-        let atlas = {
-            let atlas_data = FontAtlasData::default();
-            StaticFontAtlas::load(&win.gl, atlas_data).expect("failed to load font atlas")
-        };
-        #[cfg(feature = "dynamic")]
         let atlas = {
             let effective_font_size = 16.0 * win.pixel_ratio();
             let rasterizer = NativeGlyphRasterizer::new(
