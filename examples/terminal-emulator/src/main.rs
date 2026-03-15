@@ -173,7 +173,7 @@ fn ctrl_key_bytes(key: &Key) -> Option<Vec<u8>> {
     None
 }
 
-fn named_key_bytes(key: &NamedKey) -> Option<Vec<u8>> {
+fn named_key_bytes(key: &NamedKey, application_cursor: bool) -> Option<Vec<u8>> {
     #[rustfmt::skip]
     let seq: &[u8] = match key {
         NamedKey::Enter      => b"\r",
@@ -181,16 +181,30 @@ fn named_key_bytes(key: &NamedKey) -> Option<Vec<u8>> {
         NamedKey::Tab        => b"\t",
         NamedKey::Escape     => b"\x1b",
         NamedKey::Space      => b" ",
-        NamedKey::ArrowUp    => b"\x1b[A",
-        NamedKey::ArrowDown  => b"\x1b[B",
-        NamedKey::ArrowRight => b"\x1b[C",
-        NamedKey::ArrowLeft  => b"\x1b[D",
-        NamedKey::Home       => b"\x1b[H",
-        NamedKey::End        => b"\x1b[F",
+        // cursor keys: application mode (DECCKM) uses SS3, normal uses CSI
+        NamedKey::ArrowUp    => if application_cursor { b"\x1bOA" } else { b"\x1b[A" },
+        NamedKey::ArrowDown  => if application_cursor { b"\x1bOB" } else { b"\x1b[B" },
+        NamedKey::ArrowRight => if application_cursor { b"\x1bOC" } else { b"\x1b[C" },
+        NamedKey::ArrowLeft  => if application_cursor { b"\x1bOD" } else { b"\x1b[D" },
+        NamedKey::Home       => if application_cursor { b"\x1bOH" } else { b"\x1b[H" },
+        NamedKey::End        => if application_cursor { b"\x1bOF" } else { b"\x1b[F" },
         NamedKey::PageUp     => b"\x1b[5~",
         NamedKey::PageDown   => b"\x1b[6~",
         NamedKey::Delete     => b"\x1b[3~",
         NamedKey::Insert     => b"\x1b[2~",
+        // function keys
+        NamedKey::F1         => b"\x1bOP",
+        NamedKey::F2         => b"\x1bOQ",
+        NamedKey::F3         => b"\x1bOR",
+        NamedKey::F4         => b"\x1bOS",
+        NamedKey::F5         => b"\x1b[15~",
+        NamedKey::F6         => b"\x1b[17~",
+        NamedKey::F7         => b"\x1b[18~",
+        NamedKey::F8         => b"\x1b[19~",
+        NamedKey::F9         => b"\x1b[20~",
+        NamedKey::F10        => b"\x1b[21~",
+        NamedKey::F11        => b"\x1b[23~",
+        NamedKey::F12        => b"\x1b[24~",
         _ => return None,
     };
     Some(seq.to_vec())
@@ -398,10 +412,11 @@ impl ApplicationHandler for App {
                     }
                 }
 
+                let app_cursor = state.parser.screen().application_cursor();
                 let bytes = if state.modifiers.control_key() && !state.modifiers.alt_key() {
                     ctrl_key_bytes(&event.logical_key)
                 } else if let Key::Named(ref named) = event.logical_key {
-                    named_key_bytes(named)
+                    named_key_bytes(named, app_cursor)
                 } else {
                     event.text.as_ref().map(|t| t.as_bytes().to_vec())
                 };
