@@ -3,7 +3,6 @@ name = "terminal-emulator"
 version = "0.17.0"
 edition.workspace = true
 publish = false
-release = false
 
 [dependencies]
 beamterm-core = { path = "../../beamterm-core", features = ["native-dynamic-atlas"] }
