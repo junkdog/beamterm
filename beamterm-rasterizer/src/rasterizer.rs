@@ -194,20 +194,12 @@ impl NativeRasterizer {
         // so all glyphs align to the same baseline regardless of font
         let ascent = self.cell_metrics.ascent.round() as i32;
 
-        // Horizontal placement: use the font's left bearing when available,
-        // which preserves alignment between related glyphs (e.g. box-drawing
-        // characters │ and ├ share the same vertical bar x-position).
-        //
-        // Fall back to centering only for negative-bearing glyphs (e.g.
-        // powerline characters that intentionally bleed left), where using
-        // the bearing would place pixels in the padding zone that the shader
-        // clips, creating a visible gap.
-        let image_w = image.placement.width as i32;
-        let dst_x = if image.placement.left >= 0 {
-            padding + image.placement.left
-        } else {
-            padding + (content_w - image_w).max(0) / 2
-        };
+        // Horizontal placement: always use the font's left bearing to
+        // preserve alignment between related glyphs (e.g. box-drawing
+        // characters ║ and ╢ share the same vertical stroke x-positions).
+        // Pixels that land outside the padded cell are clipped by the
+        // copy loop below.
+        let dst_x = padding + image.placement.left;
         let dst_y = padding + (ascent - image.placement.top);
 
         let src_w = image.placement.width as i32;
@@ -837,6 +829,56 @@ mod tests {
             }
         }
         bbox
+    }
+
+    /// Box-drawing characters with negative bearings (e.g. ╢, ╝) must
+    /// use bearing-based placement so their vertical strokes align with
+    /// characters like ║ that have positive bearings.
+    #[test]
+    fn box_drawing_vertical_stroke_alignment() {
+        let Some(mut rasterizer) = test_rasterizer() else {
+            eprintln!("skipping: no monospace font found");
+            return;
+        };
+
+        // helper: find which absolute columns have visible pixels
+        let visible_cols = |glyph: &RasterizedGlyph| -> Vec<usize> {
+            let w = glyph.width as usize;
+            let mut cols = vec![false; w];
+            for (i, px) in glyph.pixels.chunks(4).enumerate() {
+                if px[3] > 0 {
+                    cols[i % w] = true;
+                }
+            }
+            cols.iter()
+                .enumerate()
+                .filter(|(_, has)| **has)
+                .map(|(x, _)| x)
+                .collect()
+        };
+
+        let vert_double = visible_cols(
+            &rasterizer.rasterize("║", FontStyle::Normal).unwrap(),
+        );
+        let vert_left = visible_cols(
+            &rasterizer.rasterize("╢", FontStyle::Normal).unwrap(),
+        );
+        let corner_br = visible_cols(
+            &rasterizer.rasterize("╝", FontStyle::Normal).unwrap(),
+        );
+
+        // ╢ and ╝ extend further left (horizontal lines), but their
+        // rightmost columns (the vertical strokes) must overlap with ║
+        for col in &vert_double {
+            assert!(
+                vert_left.contains(col),
+                "╢ must include ║'s column {col}; ║={vert_double:?}, ╢={vert_left:?}"
+            );
+            assert!(
+                corner_br.contains(col),
+                "╝ must include ║'s column {col}; ║={vert_double:?}, ╝={corner_br:?}"
+            );
+        }
     }
 
     #[test]
