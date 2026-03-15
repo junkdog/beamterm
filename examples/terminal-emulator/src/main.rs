@@ -372,29 +372,29 @@ impl ApplicationHandler for App {
                 }
 
                 // Shift+F1/F2: decrease/increase font size
-                if state.modifiers.shift_key() {
-                    if let Key::Named(ref named) = event.logical_key {
-                        let delta = match named {
-                            NamedKey::F1 => Some(-1.0_f32),
-                            NamedKey::F2 => Some(1.0_f32),
-                            _ => None,
-                        };
+                if state.modifiers.shift_key()
+                    && let Key::Named(ref named) = event.logical_key
+                {
+                    let delta = match named {
+                        NamedKey::F1 => Some(-1.0_f32),
+                        NamedKey::F2 => Some(1.0_f32),
+                        _ => None,
+                    };
 
-                        if let Some(delta) = delta {
-                            let new_size =
-                                (state.font_size + delta).clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
-                            if (new_size - state.font_size).abs() > f32::EPSILON {
-                                let (cols, rows) = change_font_size(state, new_size);
-                                state.parser.screen_mut().set_size(rows, cols);
-                                let _ = state.pty_master.resize(PtySize {
-                                    rows,
-                                    cols,
-                                    pixel_width: 0,
-                                    pixel_height: 0,
-                                });
-                            }
-                            return;
+                    if let Some(delta) = delta {
+                        let new_size =
+                            (state.font_size + delta).clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
+                        if (new_size - state.font_size).abs() > f32::EPSILON {
+                            let (cols, rows) = change_font_size(state, new_size);
+                            state.parser.screen_mut().set_size(rows, cols);
+                            let _ = state.pty_master.resize(PtySize {
+                                rows,
+                                cols,
+                                pixel_width: 0,
+                                pixel_height: 0,
+                            });
                         }
+                        return;
                     }
                 }
 
