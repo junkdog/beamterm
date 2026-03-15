@@ -155,9 +155,7 @@ fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser<TermCallbacks>)
 
     grid.update_cells((0..rows).flat_map(|row| {
         (0..cols).map(move |col| {
-            let is_cursor = show_cursor
-                && row == cursor.0 as usize
-                && col == cursor.1 as usize;
+            let is_cursor = show_cursor && row == cursor.0 as usize && col == cursor.1 as usize;
 
             match screen.cell(row as u16, col as u16) {
                 Some(cell) if !cell.is_wide_continuation() => convert_cell(cell, is_cursor),

@@ -102,7 +102,7 @@ impl NativeRasterizer {
         let is_emoji = is_emoji_grapheme(grapheme);
         let primary_count = self.font_resolver.primary_count();
         let (font_ref, font_idx) = if is_emoji {
-            match self.font_resolver.resolve_char(ch) {
+            match self.font_resolver.resolve_color_char(ch) {
                 Some(r) => r,
                 None => return Ok(self.empty_glyph()),
             }
@@ -858,13 +858,19 @@ mod tests {
         };
 
         let vert_double = visible_cols(
-            &rasterizer.rasterize("║", FontStyle::Normal).unwrap(),
+            &rasterizer
+                .rasterize("║", FontStyle::Normal)
+                .unwrap(),
         );
         let vert_left = visible_cols(
-            &rasterizer.rasterize("╢", FontStyle::Normal).unwrap(),
+            &rasterizer
+                .rasterize("╢", FontStyle::Normal)
+                .unwrap(),
         );
         let corner_br = visible_cols(
-            &rasterizer.rasterize("╝", FontStyle::Normal).unwrap(),
+            &rasterizer
+                .rasterize("╝", FontStyle::Normal)
+                .unwrap(),
         );
 
         // ╢ and ╝ extend further left (horizontal lines), but their

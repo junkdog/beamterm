@@ -1,5 +1,5 @@
 use fontdb::{Database, Family, ID, Query, Stretch, Style, Weight};
-use swash::FontRef;
+use swash::{FontRef, tag_from_bytes};
 
 use crate::error::Error;
 
@@ -7,9 +7,25 @@ use crate::error::Error;
 struct LoadedFont {
     data: Vec<u8>,
     index: u32,
+    /// True if the font has COLR+CPAL or color bitmap (CBDT/sbix) tables.
+    has_color_tables: bool,
 }
 
 impl LoadedFont {
+    fn new(data: Vec<u8>, index: u32) -> Self {
+        let has_color_tables = FontRef::from_index(&data, index as usize)
+            .map(|r| {
+                let has_colr = r.table(tag_from_bytes(b"COLR")).is_some()
+                    && r.table(tag_from_bytes(b"CPAL")).is_some();
+                let has_cbdt = r.table(tag_from_bytes(b"CBDT")).is_some();
+                let has_sbix = r.table(tag_from_bytes(b"sbix")).is_some();
+                has_colr || has_cbdt || has_sbix
+            })
+            .unwrap_or(false);
+
+        Self { data, index, has_color_tables }
+    }
+
     fn as_font_ref(&self) -> Option<FontRef<'_>> {
         FontRef::from_index(&self.data, self.index as usize)
     }
@@ -99,28 +115,57 @@ impl FontResolver {
 
     /// Resolves a font that contains the given character, trying primary fonts first.
     ///
+    /// For emoji characters, prefers fonts with color tables (COLR/CBDT/sbix)
+    /// over outline-only fonts, so that color emoji render correctly.
+    ///
     /// Returns `(FontRef, font_index)` or `None` if no font covers the character.
     pub(crate) fn resolve_char(&mut self, ch: char) -> Option<(FontRef<'_>, usize)> {
-        // find index of a loaded font that has the char
-        let found_idx = self
-            .fonts
-            .iter()
-            .enumerate()
-            .find(|(_, font)| font.has_char(ch))
-            .map(|(idx, _)| idx);
+        self.resolve_char_inner(ch, false)
+    }
 
-        if let Some(idx) = found_idx {
+    /// Like [`resolve_char`], but prefers fonts with color glyph support.
+    pub(crate) fn resolve_color_char(&mut self, ch: char) -> Option<(FontRef<'_>, usize)> {
+        self.resolve_char_inner(ch, true)
+    }
+
+    fn resolve_char_inner(&mut self, ch: char, prefer_color: bool) -> Option<(FontRef<'_>, usize)> {
+        let mut first_match: Option<usize> = None;
+
+        for (idx, font) in self.fonts.iter().enumerate() {
+            if font.has_char(ch) {
+                if !prefer_color || font.has_color_tables {
+                    let font_ref = self.fonts[idx].as_font_ref()?;
+                    return Some((font_ref, idx));
+                }
+                if first_match.is_none() {
+                    first_match = Some(idx);
+                }
+            }
+        }
+
+        // fallback: scan system fonts for one that covers this character
+        if let Some(id) = self.find_fallback_font(ch) {
+            let font = Self::load_font(&self.db, id)?;
+            self.fonts.push(font);
+            let idx = self.fonts.len() - 1;
+
+            // check if the system fallback meets color preference
+            if !prefer_color || self.fonts[idx].has_color_tables {
+                let font_ref = self.fonts[idx].as_font_ref()?;
+                return Some((font_ref, idx));
+            }
+            if first_match.is_none() {
+                first_match = Some(idx);
+            }
+        }
+
+        // no color font found; fall back to first font that has the character
+        if let Some(idx) = first_match {
             let font_ref = self.fonts[idx].as_font_ref()?;
             return Some((font_ref, idx));
         }
 
-        // fallback: scan system fonts for one that covers this character
-        let id = self.find_fallback_font(ch)?;
-        let font = Self::load_font(&self.db, id)?;
-        self.fonts.push(font);
-        let idx = self.fonts.len() - 1;
-        let font_ref = self.fonts[idx].as_font_ref()?;
-        Some((font_ref, idx))
+        None
     }
 
     /// Resolves the best font for the given character and style.
@@ -172,6 +217,6 @@ impl FontResolver {
     }
 
     fn load_font(db: &Database, id: ID) -> Option<LoadedFont> {
-        db.with_face_data(id, |data, index| LoadedFont { data: data.to_vec(), index })
+        db.with_face_data(id, |data, index| LoadedFont::new(data.to_vec(), index))
     }
 }
