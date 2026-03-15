@@ -13,7 +13,7 @@
 use std::{
     io::{Read, Write},
     num::NonZeroU32,
-    sync::mpsc,
+    sync::{Arc, Mutex, mpsc},
     thread,
 };
 
@@ -129,7 +129,23 @@ fn convert_cell(cell: &'_ vt100::Cell, is_cursor: bool) -> CellData<'_> {
 
 const SPACE: CellData<'static> = CellData::new_with_style_bits(" ", 0, DEFAULT_FG, DEFAULT_BG);
 
-fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser) {
+/// Drain all pending PTY output and feed it to the vt100 parser.
+/// This must be called after resize events so that DSR responses
+/// (cursor position queries from TUI apps) are processed promptly.
+fn drain_pty(state: &mut AppState) {
+    loop {
+        match state.pty_rx.try_recv() {
+            Ok(data) => state.parser.process(&data),
+            Err(mpsc::TryRecvError::Empty) => break,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                state.shell_exited = true;
+                break;
+            },
+        }
+    }
+}
+
+fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser<TermCallbacks>) {
     let screen = parser.screen();
     let (term_cols, term_rows) = grid.terminal_size();
     let cols = term_cols as usize;
@@ -210,6 +226,36 @@ fn named_key_bytes(key: &NamedKey, application_cursor: bool) -> Option<Vec<u8>> 
     Some(seq.to_vec())
 }
 
+// terminal callbacks //
+
+/// Handles escape sequences that require a response written back to the PTY
+/// (e.g. DSR/cursor position reports needed by ratatui and other TUI apps).
+struct TermCallbacks {
+    pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
+}
+
+impl vt100::Callbacks for TermCallbacks {
+    fn unhandled_csi(
+        &mut self,
+        screen: &mut vt100::Screen,
+        _i1: Option<u8>,
+        _i2: Option<u8>,
+        params: &[&[u16]],
+        c: char,
+    ) {
+        // DSR - Device Status Report: \x1b[6n → respond with cursor position
+        if c == 'n' && params.first().and_then(|p| p.first()) == Some(&6) {
+            let (row, col) = screen.cursor_position();
+            let response = format!("\x1b[{};{}R", row + 1, col + 1);
+            let _ = self
+                .pty_writer
+                .lock()
+                .unwrap()
+                .write_all(response.as_bytes());
+        }
+    }
+}
+
 // application //
 
 #[derive(Default)]
@@ -226,9 +272,9 @@ struct AppState {
     win: GlWindow,
     gl_state: GlState,
     grid: TerminalGrid,
-    parser: vt100::Parser,
+    parser: vt100::Parser<TermCallbacks>,
     pty_master: Box<dyn portable_pty::MasterPty + Send>,
-    pty_writer: Box<dyn Write + Send>,
+    pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pty_rx: mpsc::Receiver<Vec<u8>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
     modifiers: ModifiersState,
@@ -297,10 +343,11 @@ impl ApplicationHandler for App {
             .master
             .try_clone_reader()
             .expect("failed to clone pty reader");
-        let writer = pair
-            .master
-            .take_writer()
-            .expect("failed to take pty writer");
+        let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(
+            pair.master
+                .take_writer()
+                .expect("failed to take pty writer"),
+        ));
 
         // --- PTY reader thread ---
         let (tx, rx) = mpsc::channel();
@@ -319,7 +366,8 @@ impl ApplicationHandler for App {
             }
         });
 
-        let parser = vt100::Parser::new(term_rows, term_cols, 0);
+        let callbacks = TermCallbacks { pty_writer: Arc::clone(&writer) };
+        let parser = vt100::Parser::new_with_callbacks(term_rows, term_cols, 0, callbacks);
 
         self.state = Some(AppState {
             win,
@@ -327,7 +375,7 @@ impl ApplicationHandler for App {
             grid,
             parser,
             pty_master: pair.master,
-            pty_writer: writer,
+            pty_writer: writer.clone(),
             pty_rx: rx,
             _child: child,
             modifiers: ModifiersState::default(),
@@ -422,21 +470,11 @@ impl ApplicationHandler for App {
                 };
 
                 if let Some(bytes) = bytes {
-                    let _ = state.pty_writer.write_all(&bytes);
+                    let _ = state.pty_writer.lock().unwrap().write_all(&bytes);
                 }
             },
             WindowEvent::RedrawRequested => {
-                // drain PTY output
-                loop {
-                    match state.pty_rx.try_recv() {
-                        Ok(data) => state.parser.process(&data),
-                        Err(mpsc::TryRecvError::Empty) => break,
-                        Err(mpsc::TryRecvError::Disconnected) => {
-                            state.shell_exited = true;
-                            break;
-                        },
-                    }
-                }
+                drain_pty(state);
 
                 sync_terminal(&mut state.grid, &state.parser);
                 state
@@ -471,7 +509,11 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(state) = self.state.as_ref() {
+        if let Some(state) = self.state.as_mut() {
+            // drain PTY every iteration so DSR responses (cursor position
+            // queries) are never delayed by event batching during resize
+            drain_pty(state);
+
             if state.shell_exited {
                 if let Some(state) = self.state.take() {
                     state.grid.delete(&state.win.gl);
