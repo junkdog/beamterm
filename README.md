@@ -57,10 +57,9 @@ texture data.
 versioned format with header validation and cross-platform encoding.
 
 **`beamterm-core`** - Platform-agnostic GL rendering engine using [glow](https://github.com/grovesNL/glow).
-Contains all GPU resource management (`TerminalGrid`), buffer handling, shader programs, static atlas
-implementation, the generic `DynamicFontAtlas<R>` with `GlyphRasterizer` trait, and the
-`Drawable`/`RenderContext` abstractions. The GL target is determined automatically by the compilation
-target: `wasm32` builds use WebGL2 (`#version 300 es`), while native builds use OpenGL 3.3
+Contains all GPU resource management (`TerminalGrid`), buffer handling, shader programs, atlas
+implementation, and the `Drawable`/`RenderContext` abstractions. The GL target is determined automatically
+by the compilation target: `wasm32` builds use WebGL2 (`#version 300 es`), while native builds use OpenGL 3.3
 (`#version 330 core`). Enable the `native-dynamic-atlas` feature for native dynamic font atlas support.
 
 **`beamterm-rasterizer`** - Native font rasterization using [swash](https://github.com/dfrg/swash) +

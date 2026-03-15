@@ -194,16 +194,20 @@ impl NativeRasterizer {
         // so all glyphs align to the same baseline regardless of font
         let ascent = self.cell_metrics.ascent.round() as i32;
 
-        // Horizontal placement: center the glyph image within the cell's
-        // content area. This handles:
-        // - Negative bearings (powerline glyphs): prevents left-bleed into
-        //   padding that the shader would clip, creating a gap
-        // - Narrow fallback glyphs: centers them rather than left-aligning
-        //   with a gap on the right
-        // - Normal glyphs: centered within the advance width (typical for
-        //   monospace fonts where bearing ≈ 0)
+        // Horizontal placement: use the font's left bearing when available,
+        // which preserves alignment between related glyphs (e.g. box-drawing
+        // characters │ and ├ share the same vertical bar x-position).
+        //
+        // Fall back to centering only for negative-bearing glyphs (e.g.
+        // powerline characters that intentionally bleed left), where using
+        // the bearing would place pixels in the padding zone that the shader
+        // clips, creating a visible gap.
         let image_w = image.placement.width as i32;
-        let dst_x = padding + (content_w - image_w) / 2;
+        let dst_x = if image.placement.left >= 0 {
+            padding + image.placement.left
+        } else {
+            padding + (content_w - image_w).max(0) / 2
+        };
         let dst_y = padding + (ascent - image.placement.top);
 
         let src_w = image.placement.width as i32;
