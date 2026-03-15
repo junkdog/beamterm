@@ -1019,16 +1019,19 @@ pub struct CellData<'a> {
 impl<'a> CellData<'a> {
     /// Creates new cell data with the specified character and colors.
     pub fn new(symbol: &'a str, style: FontStyle, effect: GlyphEffect, fg: u32, bg: u32) -> Self {
-        Self::new_with_style_bits(symbol, style.style_mask() | effect as u16, fg, bg)
-    }
+        let style_bits = style.style_mask() | effect as u16;
 
-    /// Creates new cell data with pre-encoded style bits.
-    pub fn new_with_style_bits(symbol: &'a str, style_bits: u16, fg: u32, bg: u32) -> Self {
         // emoji and glyph base mask should not intersect with style bits
         debug_assert!(
             0x81FF & style_bits == 0,
             "Invalid style bits: {style_bits:#04x}"
         );
+
+        Self::new_with_style_bits(symbol, style_bits, fg, bg)
+    }
+
+    /// Creates new cell data with pre-encoded style bits.
+    pub const fn new_with_style_bits(symbol: &'a str, style_bits: u16, fg: u32, bg: u32) -> Self {
         Self { symbol, style_bits, fg, bg }
     }
 }

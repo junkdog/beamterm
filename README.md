@@ -6,7 +6,9 @@ Badge]][Deps.rs]
 A high-performance terminal rendering system targeting sub-millisecond render times. The GL backend
 is abstracted via [glow](https://github.com/grovesNL/glow), supporting both **WebGL2** (browsers)
 and **OpenGL 3.3** (native desktop). **beamterm** is a terminal renderer, not a full terminal
-emulator - it handles the display layer while you provide the terminal logic.
+emulator - it handles the display layer while you provide the terminal logic (see the
+[terminal emulator example](examples/terminal-emulator/) for a demo pairing beamterm with
+`vt100` and `portable-pty` to build a working terminal).
 
 ### [Live Demos][demos]
 
@@ -231,8 +233,9 @@ scaling uses discrete steps to preserve sharpness.
 (swash+fontdb) backends via the `GlyphRasterizer` trait. ASCII characters in Normal style bypass the
 cache; styled ASCII and all non-ASCII characters go through an LRU cache. When slots fill up,
 least-recently-used glyphs are evicted and re-rasterized on next access. Glyphs are re-rasterized at
-the new resolution whenever the device pixel ratio changes. On native targets, automatic font fallback
-resolves missing glyphs from system fonts, with per-font scaling to match the primary cell size.
+the new resolution whenever the device pixel ratio changes.
+
+### Atlas Usage: WASM
 
 ```rust
 // Static atlas (default, or with custom atlas)
@@ -247,9 +250,11 @@ let terminal = Terminal::builder("#canvas")
     .build()?;
 
 // Switch atlas at runtime (WASM)
-terminal.replace_with_dynamic_atlas(&["Hack", "monospace"], 14.0)?;
+terminal.replace_with_dynamic_atlas(&["Hack", "Fira Code"], 14.0)?;
 terminal.replace_with_static_atlas(new_atlas_data)?;
 ```
+
+### Atlas Usage: Native OpenGL 3.3
 
 Native dynamic atlas usage (requires `native-dynamic-atlas` feature on beamterm-core):
 
@@ -398,7 +403,6 @@ The **Instance Position** and **Instance Cell** buffers are recreated when the t
 The *Instance Cell* buffer uses chunked dirty tracking to minimize GPU upload bandwidth. A `u64`
 bitmask tracks which 1024-cell chunks have been modified since the last frame. On flush, adjacent
 dirty chunks are merged into contiguous `bufferSubData` uploads.
-
 
 ### Vertex Attribute Bindings
 

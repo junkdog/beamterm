@@ -125,17 +125,9 @@ fn convert_cell(cell: &'_ vt100::Cell, is_cursor: bool) -> CellData<'_> {
     CellData::new(symbol, style, effect, fg, bg)
 }
 
-fn space() -> CellData<'static> {
-    CellData::new(
-        " ",
-        FontStyle::Normal,
-        GlyphEffect::None,
-        DEFAULT_FG,
-        DEFAULT_BG,
-    )
-}
-
 // terminal sync //
+
+const SPACE: CellData<'static> = CellData::new_with_style_bits(" ", 0, DEFAULT_FG, DEFAULT_BG);
 
 fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser) {
     let screen = parser.screen();
@@ -160,7 +152,7 @@ fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser) {
                             DEFAULT_FG,
                         )
                     } else {
-                        space()
+                        SPACE
                     }
                 },
             }
@@ -211,6 +203,11 @@ struct App {
     state: Option<AppState>,
 }
 
+const FONT_FAMILIES: &[&str] = &["Hack Nerd Font Mono", "Hack", "Noto Color Emoji"];
+const DEFAULT_FONT_SIZE: f32 = 16.0;
+const MIN_FONT_SIZE: f32 = 6.0;
+const MAX_FONT_SIZE: f32 = 48.0;
+
 struct AppState {
     win: GlWindow,
     gl_state: GlState,
@@ -221,6 +218,18 @@ struct AppState {
     pty_rx: mpsc::Receiver<Vec<u8>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
     modifiers: ModifiersState,
+    shell_exited: bool,
+    font_size: f32,
+}
+
+fn create_atlas(
+    gl: &glow::Context,
+    font_size: f32,
+    pixel_ratio: f32,
+) -> DynamicFontAtlas<NativeGlyphRasterizer> {
+    NativeGlyphRasterizer::new(FONT_FAMILIES, font_size * pixel_ratio)
+        .and_then(|rasterizer| DynamicFontAtlas::new(gl, rasterizer, font_size, pixel_ratio))
+        .expect("failed to create dynamic font atlas")
 }
 
 impl ApplicationHandler for App {
@@ -229,19 +238,14 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let win = GlWindow::new(event_loop, "beamterm - terminal emulator", (960, 600));
+        let win = GlWindow::new(
+            event_loop,
+            "beamterm - terminal emulator  |  Shift+F1/F2: font size",
+            (960, 600),
+        );
         let gl_state = GlState::new(&win.gl);
 
-        let atlas = {
-            let effective_font_size = 16.0 * win.pixel_ratio();
-            let rasterizer = NativeGlyphRasterizer::new(
-                &["Hack Nerd Font Mono", "Hack", "Noto Color Emoji"],
-                effective_font_size,
-            )
-            .expect("failed to create native rasterizer");
-            DynamicFontAtlas::new(&win.gl, rasterizer, 16.0, win.pixel_ratio())
-                .expect("failed to create dynamic font atlas")
-        };
+        let atlas = create_atlas(&win.gl, DEFAULT_FONT_SIZE, win.pixel_ratio());
 
         let grid = TerminalGrid::new(
             &win.gl,
@@ -313,6 +317,8 @@ impl ApplicationHandler for App {
             pty_rx: rx,
             _child: child,
             modifiers: ModifiersState::default(),
+            shell_exited: false,
+            font_size: DEFAULT_FONT_SIZE,
         });
     }
 
@@ -365,6 +371,33 @@ impl ApplicationHandler for App {
                     return;
                 }
 
+                // Shift+F1/F2: decrease/increase font size
+                if state.modifiers.shift_key() {
+                    if let Key::Named(ref named) = event.logical_key {
+                        let delta = match named {
+                            NamedKey::F1 => Some(-1.0_f32),
+                            NamedKey::F2 => Some(1.0_f32),
+                            _ => None,
+                        };
+
+                        if let Some(delta) = delta {
+                            let new_size =
+                                (state.font_size + delta).clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
+                            if (new_size - state.font_size).abs() > f32::EPSILON {
+                                let (cols, rows) = change_font_size(state, new_size);
+                                state.parser.screen_mut().set_size(rows, cols);
+                                let _ = state.pty_master.resize(PtySize {
+                                    rows,
+                                    cols,
+                                    pixel_width: 0,
+                                    pixel_height: 0,
+                                });
+                            }
+                            return;
+                        }
+                    }
+                }
+
                 let bytes = if state.modifiers.control_key() && !state.modifiers.alt_key() {
                     ctrl_key_bytes(&event.logical_key)
                 } else if let Key::Named(ref named) = event.logical_key {
@@ -379,8 +412,15 @@ impl ApplicationHandler for App {
             },
             WindowEvent::RedrawRequested => {
                 // drain PTY output
-                while let Ok(data) = state.pty_rx.try_recv() {
-                    state.parser.process(&data);
+                loop {
+                    match state.pty_rx.try_recv() {
+                        Ok(data) => state.parser.process(&data),
+                        Err(mpsc::TryRecvError::Empty) => break,
+                        Err(mpsc::TryRecvError::Disconnected) => {
+                            state.shell_exited = true;
+                            break;
+                        },
+                    }
                 }
 
                 sync_terminal(&mut state.grid, &state.parser);
@@ -391,9 +431,13 @@ impl ApplicationHandler for App {
 
                 let (w, h) = state.grid.canvas_size();
                 state.gl_state.viewport(&state.win.gl, 0, 0, w, h);
-                state
-                    .gl_state
-                    .clear_color(&state.win.gl, 0.0, 0.0, 0.0, 1.0);
+                state.gl_state.clear_color(
+                    &state.win.gl,
+                    ((DEFAULT_BG >> 16) & 0xff) as f32 / 255.0,
+                    ((DEFAULT_BG >> 8) & 0xff) as f32 / 255.0,
+                    (DEFAULT_BG & 0xff) as f32 / 255.0,
+                    1.0,
+                );
 
                 unsafe {
                     use glow::HasContext;
@@ -411,11 +455,28 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(state) = self.state.as_ref() {
+            if state.shell_exited {
+                if let Some(state) = self.state.take() {
+                    state.grid.delete(&state.win.gl);
+                }
+                event_loop.exit();
+                return;
+            }
             state.win.window.request_redraw();
         }
     }
+}
+
+fn change_font_size(state: &mut AppState, new_size: f32) -> (u16, u16) {
+    state.font_size = new_size;
+    let atlas = create_atlas(&state.win.gl, new_size, state.win.pixel_ratio());
+
+    state
+        .grid
+        .replace_atlas(&state.win.gl, atlas.into());
+    state.grid.terminal_size()
 }
 
 // glutin / winit boilerplate //
