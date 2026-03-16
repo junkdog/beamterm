@@ -293,11 +293,9 @@ impl ApplicationHandler for App {
             } else {
                 // no pending data: poll at ~200Hz to stay responsive
                 // without spinning the CPU
-                event_loop.set_control_flow(
-                    winit::event_loop::ControlFlow::WaitUntil(
-                        std::time::Instant::now() + std::time::Duration::from_millis(5),
-                    ),
-                );
+                event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+                    std::time::Instant::now() + std::time::Duration::from_millis(5),
+                ));
             }
         }
     }

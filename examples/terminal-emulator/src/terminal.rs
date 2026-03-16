@@ -90,13 +90,16 @@ pub fn sync_terminal(
                     .visible_rows()
                     .enumerate()
                     .flat_map(|(row, vt_row)| {
-                        vt_row.cells().enumerate().map(move |(col, cell)| {
-                            let is_cursor = show_cursor
-                                && row == cursor.0 as usize
-                                && col == cursor.1 as usize;
+                        vt_row
+                            .cells()
+                            .enumerate()
+                            .map(move |(col, cell)| {
+                                let is_cursor = show_cursor
+                                    && row == cursor.0 as usize
+                                    && col == cursor.1 as usize;
 
-                            cell_data(cell, is_cursor)
-                        })
+                                cell_data(cell, is_cursor)
+                            })
                     }),
             )
             .expect("failed to update cells");
@@ -117,10 +120,7 @@ pub fn sync_terminal(
             .expect("failed to update cells");
 
             // cursor overlay: repaint cells where cursor appeared or disappeared
-            let cursor_cells = [
-                (show_cursor, cursor),
-                (prev_show, prev_cursor),
-            ];
+            let cursor_cells = [(show_cursor, cursor), (prev_show, prev_cursor)];
             grid.update_cells_by_position(cursor_cells.into_iter().filter_map(
                 |(visible, (row, col))| {
                     let cell = screen.cell(row, col)?;
@@ -158,7 +158,13 @@ fn diff_row<'a>(
 fn cell_data(cell: &vt100::Cell, is_cursor: bool) -> CellData<'_> {
     if cell.is_wide_continuation() {
         if is_cursor {
-            CellData::new(" ", FontStyle::Normal, GlyphEffect::None, DEFAULT_BG, DEFAULT_FG)
+            CellData::new(
+                " ",
+                FontStyle::Normal,
+                GlyphEffect::None,
+                DEFAULT_BG,
+                DEFAULT_FG,
+            )
         } else {
             SPACE
         }
