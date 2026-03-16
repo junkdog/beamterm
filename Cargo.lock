@@ -225,7 +225,7 @@ name = "beamterm-data"
 version = "0.17.0"
 dependencies = [
  "compact_str",
- "miniz_oxide 0.9.0",
+ "miniz_oxide 0.9.1",
  "thiserror 2.0.18",
 ]
 
@@ -1183,9 +1183,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5faa9f23e86bd5768d76def086192ff5f869fb088da12a976ea21e9796b975f6"
+checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
 ]
