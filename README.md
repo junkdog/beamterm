@@ -3,12 +3,10 @@
 [![Crate Badge]][Crate] [![NPM Badge]][NPM] [![API Badge]][API] [![Deps.rs
 Badge]][Deps.rs] [![DeepWiki Badge]][DeepWiki]
 
-A high-performance terminal rendering library targeting sub-millisecond render times. The GL backend
-is abstracted via [glow](https://github.com/grovesNL/glow), supporting both **WebGL2** (browsers)
-and **OpenGL 3.3** (native desktop). **beamterm** is a terminal renderer, not a full terminal
+A high-performance terminal rendering library targeting sub-millisecond render times, supporting
+both **WebGL2** and **OpenGL 3.3**. **beamterm** is a terminal renderer, not a full terminal
 emulator - it handles the display layer while you provide the terminal logic (see the
-[terminal emulator example](examples/terminal-emulator/) for a demo pairing beamterm with
-`vt100` and `portable-pty` to build a working terminal).
+[terminal emulator example](examples/terminal-emulator/) for a demo of a working terminal).
 
 ### [Live Demos][demos]
 
