@@ -11,5 +11,5 @@ glutin = "0.32"
 winit = "0.30"
 glutin-winit = "0.5"
 raw-window-handle = "0.6"
-vt100 = "0.16"
+vt100 = { git = "https://github.com/junkdog/vt100-rust", branch = "direct-row-access" }
 portable-pty = "0.9"

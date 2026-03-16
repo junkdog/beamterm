@@ -63,34 +63,39 @@ pub fn drain_pty(state: &mut AppState) {
 
 pub fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser<TermCallbacks>) {
     let screen = parser.screen();
-    let (term_cols, term_rows) = grid.terminal_size();
-    let cols = term_cols as usize;
-    let rows = term_rows as usize;
     let cursor = screen.cursor_position();
     let show_cursor = !screen.hide_cursor();
 
-    grid.update_cells((0..rows).flat_map(|row| {
-        (0..cols).map(move |col| {
-            let is_cursor = show_cursor && row == cursor.0 as usize && col == cursor.1 as usize;
+    grid.update_cells(
+        screen
+            .visible_rows()
+            .enumerate()
+            .flat_map(|(row, vt_row)| {
+                vt_row
+                    .cells()
+                    .enumerate()
+                    .map(move |(col, cell)| {
+                        let is_cursor =
+                            show_cursor && row == cursor.0 as usize && col == cursor.1 as usize;
 
-            match screen.cell(row as u16, col as u16) {
-                Some(cell) if !cell.is_wide_continuation() => convert_cell(cell, is_cursor),
-                _ => {
-                    if is_cursor {
-                        CellData::new(
-                            " ",
-                            FontStyle::Normal,
-                            GlyphEffect::None,
-                            DEFAULT_BG,
-                            DEFAULT_FG,
-                        )
-                    } else {
-                        SPACE
-                    }
-                },
-            }
-        })
-    }))
+                        if cell.is_wide_continuation() {
+                            if is_cursor {
+                                CellData::new(
+                                    " ",
+                                    FontStyle::Normal,
+                                    GlyphEffect::None,
+                                    DEFAULT_BG,
+                                    DEFAULT_FG,
+                                )
+                            } else {
+                                SPACE
+                            }
+                        } else {
+                            convert_cell(cell, is_cursor)
+                        }
+                    })
+            }),
+    )
     .expect("failed to update cells");
 }
 
