@@ -61,42 +61,98 @@ pub fn drain_pty(state: &mut AppState) {
     }
 }
 
-pub fn sync_terminal(grid: &mut TerminalGrid, parser: &vt100::Parser<TermCallbacks>) {
+pub fn sync_terminal(
+    grid: &mut TerminalGrid,
+    parser: &vt100::Parser<TermCallbacks>,
+    prev_screen: &mut Option<vt100::Screen>,
+) {
     let screen = parser.screen();
     let cursor = screen.cursor_position();
     let show_cursor = !screen.hide_cursor();
 
-    grid.update_cells(
-        screen
-            .visible_rows()
-            .enumerate()
-            .flat_map(|(row, vt_row)| {
-                vt_row
-                    .cells()
+    match prev_screen.as_ref() {
+        None => {
+            // full update: first frame or after resize/font change
+            grid.update_cells(
+                screen
+                    .visible_rows()
                     .enumerate()
-                    .map(move |(col, cell)| {
-                        let is_cursor =
-                            show_cursor && row == cursor.0 as usize && col == cursor.1 as usize;
+                    .flat_map(|(row, vt_row)| {
+                        vt_row.cells().enumerate().map(move |(col, cell)| {
+                            let is_cursor = show_cursor
+                                && row == cursor.0 as usize
+                                && col == cursor.1 as usize;
 
-                        if cell.is_wide_continuation() {
-                            if is_cursor {
-                                CellData::new(
-                                    " ",
-                                    FontStyle::Normal,
-                                    GlyphEffect::None,
-                                    DEFAULT_BG,
-                                    DEFAULT_FG,
-                                )
-                            } else {
-                                SPACE
-                            }
-                        } else {
-                            convert_cell(cell, is_cursor)
-                        }
-                    })
-            }),
-    )
-    .expect("failed to update cells");
+                            cell_data(cell, is_cursor)
+                        })
+                    }),
+            )
+            .expect("failed to update cells");
+        },
+        Some(prev) => {
+            // diff update: only emit changed cells
+            let prev_cursor = prev.cursor_position();
+            let prev_show = !prev.hide_cursor();
+
+            // cell content diff
+            grid.update_cells_by_position(
+                screen
+                    .visible_rows()
+                    .zip(prev.visible_rows())
+                    .enumerate()
+                    .flat_map(|(row, (cur_row, prev_row))| diff_row(row, cur_row, prev_row)),
+            )
+            .expect("failed to update cells");
+
+            // cursor overlay: repaint cells where cursor appeared or disappeared
+            let cursor_cells = [
+                (show_cursor, cursor),
+                (prev_show, prev_cursor),
+            ];
+            grid.update_cells_by_position(cursor_cells.into_iter().filter_map(
+                |(visible, (row, col))| {
+                    let cell = screen.cell(row, col)?;
+                    let is_cursor = visible && row == cursor.0 && col == cursor.1;
+                    Some((col, row, cell_data(cell, is_cursor)))
+                },
+            ))
+            .expect("failed to update cursor cells");
+        },
+    }
+
+    *prev_screen = Some(screen.clone());
+}
+
+/// Yields `(col, row, CellData)` for cells that differ between the current
+/// and previous row.
+fn diff_row<'a>(
+    row: usize,
+    cur_row: &'a vt100::Row,
+    prev_row: &'a vt100::Row,
+) -> impl Iterator<Item = (u16, u16, CellData<'a>)> {
+    cur_row
+        .cells()
+        .zip(prev_row.cells())
+        .enumerate()
+        .filter_map(move |(col, (cell, prev_cell))| {
+            if cell != prev_cell {
+                Some((col as u16, row as u16, cell_data(cell, false)))
+            } else {
+                None
+            }
+        })
+}
+
+fn cell_data(cell: &vt100::Cell, is_cursor: bool) -> CellData<'_> {
+    if cell.is_wide_continuation() {
+        if is_cursor {
+            CellData::new(" ", FontStyle::Normal, GlyphEffect::None, DEFAULT_BG, DEFAULT_FG)
+        } else {
+            SPACE
+        }
+    } else {
+        convert_cell(cell, is_cursor)
+    }
 }
 
 // terminal callbacks //

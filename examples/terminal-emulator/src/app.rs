@@ -36,6 +36,7 @@ pub struct AppState {
     gl_state: GlState,
     grid: TerminalGrid,
     pub parser: vt100::Parser<TermCallbacks>,
+    prev_screen: Option<vt100::Screen>,
     pty_master: Box<dyn portable_pty::MasterPty + Send>,
     pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub pty_rx: mpsc::Receiver<Vec<u8>>,
@@ -137,6 +138,7 @@ impl ApplicationHandler for App {
             gl_state,
             grid,
             parser,
+            prev_screen: None,
             pty_master: pair.master,
             pty_writer: writer.clone(),
             pty_rx: rx,
@@ -178,6 +180,7 @@ impl ApplicationHandler for App {
 
                     let (cols, rows) = state.grid.terminal_size();
                     state.parser.screen_mut().set_size(rows, cols);
+                    state.prev_screen = None;
                     let _ = state.pty_master.resize(PtySize {
                         rows,
                         cols,
@@ -239,7 +242,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 drain_pty(state);
 
-                sync_terminal(&mut state.grid, &state.parser);
+                sync_terminal(&mut state.grid, &state.parser, &mut state.prev_screen);
                 state
                     .grid
                     .flush_cells(&state.win.gl)
@@ -291,6 +294,7 @@ impl ApplicationHandler for App {
 
 fn change_font_size(state: &mut AppState, new_size: f32) -> (u16, u16) {
     state.font_size = new_size;
+    state.prev_screen = None;
     let atlas = create_atlas(&state.win.gl, new_size, state.win.pixel_ratio());
 
     state
