@@ -278,7 +278,7 @@ impl ApplicationHandler for App {
         if let Some(state) = self.state.as_mut() {
             // drain PTY every iteration so DSR responses (cursor position
             // queries) are never delayed by event batching during resize
-            drain_pty(state);
+            let has_data = drain_pty(state);
 
             if state.shell_exited {
                 if let Some(state) = self.state.take() {
@@ -287,7 +287,18 @@ impl ApplicationHandler for App {
                 event_loop.exit();
                 return;
             }
-            state.win.window.request_redraw();
+
+            if has_data {
+                state.win.window.request_redraw();
+            } else {
+                // no pending data: poll at ~200Hz to stay responsive
+                // without spinning the CPU
+                event_loop.set_control_flow(
+                    winit::event_loop::ControlFlow::WaitUntil(
+                        std::time::Instant::now() + std::time::Duration::from_millis(5),
+                    ),
+                );
+            }
         }
     }
 }

@@ -80,7 +80,7 @@ impl GlWindow {
             .expect("failed to make GL context current");
 
         let _ = gl_surface
-            .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
+            .set_swap_interval(&gl_context, SwapInterval::DontWait);
 
         let gl = unsafe {
             glow::Context::from_loader_function_cstr(|name| gl_display.get_proc_address(name))

@@ -48,10 +48,20 @@ const SPACE: CellData<'static> = CellData::new_with_style_bits(" ", 0, DEFAULT_F
 /// Drain all pending PTY output and feed it to the vt100 parser.
 /// This must be called after resize events so that DSR responses
 /// (cursor position queries from TUI apps) are processed promptly.
-pub fn drain_pty(state: &mut AppState) {
+/// Returns `true` if any data was received.
+pub fn drain_pty(state: &mut AppState) -> bool {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(8);
+    let mut received = false;
+
     loop {
         match state.pty_rx.try_recv() {
-            Ok(data) => state.parser.process(&data),
+            Ok(data) => {
+                received = true;
+                state.parser.process(&data);
+                if std::time::Instant::now() >= deadline {
+                    break;
+                }
+            },
             Err(mpsc::TryRecvError::Empty) => break,
             Err(mpsc::TryRecvError::Disconnected) => {
                 state.shell_exited = true;
@@ -59,6 +69,8 @@ pub fn drain_pty(state: &mut AppState) {
             },
         }
     }
+
+    received
 }
 
 pub fn sync_terminal(
