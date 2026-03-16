@@ -60,3 +60,9 @@ needless_return = "warn"
 redundant_closure_for_method_calls = "warn"
 type_complexity = "warn"
 uninlined_format_args = "warn"
+
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
