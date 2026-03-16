@@ -190,15 +190,29 @@ impl vt100::Callbacks for TermCallbacks {
         params: &[&[u16]],
         c: char,
     ) {
-        // DSR - Device Status Report: \x1b[6n → respond with cursor position
-        if c == 'n' && params.first().and_then(|p| p.first()) == Some(&6) {
-            let (row, col) = screen.cursor_position();
-            let response = format!("\x1b[{};{}R", row + 1, col + 1);
-            let _ = self
-                .pty_writer
-                .lock()
-                .unwrap()
-                .write_all(response.as_bytes());
+        if c == 'n' {
+            let code = params.first().and_then(|p| p.first()).copied();
+            match code {
+                // DSR - Device Status Report: \x1b[5n → respond "OK"
+                Some(5) => {
+                    let _ = self
+                        .pty_writer
+                        .lock()
+                        .unwrap()
+                        .write_all(b"\x1b[0n");
+                },
+                // DSR - Cursor Position Report: \x1b[6n → respond with position
+                Some(6) => {
+                    let (row, col) = screen.cursor_position();
+                    let response = format!("\x1b[{};{}R", row + 1, col + 1);
+                    let _ = self
+                        .pty_writer
+                        .lock()
+                        .unwrap()
+                        .write_all(response.as_bytes());
+                },
+                _ => {},
+            }
         }
     }
 }
