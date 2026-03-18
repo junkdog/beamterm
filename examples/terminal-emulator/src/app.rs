@@ -43,6 +43,7 @@ pub struct AppState {
     prev_cursor: (u16, u16),
     prev_show_cursor: bool,
     last_render: Instant,
+    redraw_pending: bool,
     pty_master: Box<dyn portable_pty::MasterPty + Send>,
     pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub pty_rx: mpsc::Receiver<(Box<[u8; PTY_BUF_SIZE]>, usize)>,
@@ -151,7 +152,9 @@ impl ApplicationHandler for App {
         });
 
         let callbacks = TermCallbacks { pty_writer: Arc::clone(&writer) };
-        let parser = vt100::Parser::new_with_callbacks(term_rows, term_cols, 0, callbacks);
+        let mut parser = vt100::Parser::new_with_callbacks(term_rows, term_cols, 0, callbacks);
+        // mark all rows dirty so the first sync_terminal paints the full screen
+        parser.screen_mut().set_size(term_rows, term_cols);
 
         self.state = Some(AppState {
             win,
@@ -161,6 +164,7 @@ impl ApplicationHandler for App {
             prev_cursor: (0, 0),
             prev_show_cursor: true,
             last_render: Instant::now(),
+            redraw_pending: true,
             pty_master: pair.master,
             pty_writer: writer.clone(),
             pty_rx: rx,
@@ -316,13 +320,22 @@ impl ApplicationHandler for App {
                 return;
             }
 
-            if has_data {
+            state.redraw_pending |= has_data;
+
+            if state.redraw_pending {
                 let now = Instant::now();
                 if now.duration_since(state.last_render) >= FRAME_INTERVAL {
+                    state.redraw_pending = false;
                     state.win.window.request_redraw();
-                } else {
-                    // data flowing but frame not due yet: keep draining
+                } else if has_data {
+                    // data still flowing: keep draining between frames
                     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+                } else {
+                    // data stopped but frame not yet due: check back
+                    // soon for new data, but no later than the frame deadline
+                    let frame_due = state.last_render + FRAME_INTERVAL;
+                    let poll_at = (Instant::now() + Duration::from_millis(2)).min(frame_due);
+                    event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(poll_at));
                 }
             } else {
                 // no pending data: poll at ~200Hz to stay responsive
