@@ -2485,7 +2485,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vt100"
 version = "0.16.2"
-source = "git+https://github.com/junkdog/vt100-rust?branch=direct-row-access#be669ef926af1042af0344b481a29b6634be5dd1"
+source = "git+https://github.com/junkdog/vt100-rust?branch=direct-row-access#a78468e976cfaf4e6dcefd713bbbed6a65841c20"
 dependencies = [
  "itoa",
  "unicode-width",
