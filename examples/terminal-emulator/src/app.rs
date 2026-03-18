@@ -138,12 +138,7 @@ impl ApplicationHandler for App {
 
         thread::spawn(move || {
             let mut reader = reader;
-            loop {
-                // blocking: wait for a free buffer
-                let mut buf = match buf_rx.recv() {
-                    Ok(b) => b,
-                    Err(_) => break,
-                };
+            while let Ok(mut buf) = buf_rx.recv() {
                 match reader.read(buf.as_mut()) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
