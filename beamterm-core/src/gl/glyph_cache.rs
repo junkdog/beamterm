@@ -52,28 +52,28 @@ impl GlyphCache {
 
     /// Gets the slot for a glyph, marking it as recently used.
     pub fn get(&mut self, key: &str, style: FontStyle) -> Option<GlyphSlot> {
-        let cache_key = (CompactString::new(key), style);
-
-        match () {
-            // ascii glyphs with normal font styles are always allocated (outside cache)
-            _ if key.len() == 1 && style == FontStyle::Normal => Some(GlyphSlot::Normal(
+        // ascii glyphs with normal font styles are always allocated (outside cache)
+        if key.len() == 1 && style == FontStyle::Normal {
+            Some(GlyphSlot::Normal(
                 (key.chars().next().unwrap() as SlotId).saturating_sub(0x20),
-            )),
-
+            ))
+        } else if key.len() == 1 {
             // ascii glyphs are always single-width
-            _ if key.len() == 1 => self.normal.get(&cache_key).copied(),
-
+            let cache_key = (CompactString::new(key), style);
+            self.normal.get(&cache_key).copied()
+        } else if is_emoji(key) {
             // emoji glyphs disregard style
-            _ if is_emoji(key) => self
-                .wide
-                .get(&(CompactString::new(key), FontStyle::Normal))
-                .copied(),
-
-            // double-width glyphs
-            _ if key.width() == 2 => self.wide.get(&cache_key).copied(),
-
-            // normal glyphs
-            _ => self.normal.get(&cache_key).copied(),
+            let cache_key = (CompactString::new(key), FontStyle::Normal);
+            self.wide.get(&cache_key).copied()
+        } else {
+            let cache_key = (CompactString::new(key), style);
+            if key.width() == 2 {
+                // double-width glyphs
+                self.wide.get(&cache_key).copied()
+            } else {
+                // normal glyphs
+                self.normal.get(&cache_key).copied()
+            }
         }
     }
 
