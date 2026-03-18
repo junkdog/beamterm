@@ -50,14 +50,15 @@ const SPACE: CellData<'static> = CellData::new_with_style_bits(" ", 0, DEFAULT_F
 /// (cursor position queries from TUI apps) are processed promptly.
 /// Returns `true` if any data was received.
 pub fn drain_pty(state: &mut AppState) -> bool {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(8);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(4);
     let mut received = false;
 
     loop {
         match state.pty_rx.try_recv() {
-            Ok(data) => {
+            Ok((buf, len)) => {
                 received = true;
-                state.parser.process(&data);
+                state.parser.process(&buf[..len]);
+                let _ = state.buf_tx.send(buf);
                 if std::time::Instant::now() >= deadline {
                     break;
                 }
@@ -75,84 +76,54 @@ pub fn drain_pty(state: &mut AppState) -> bool {
 
 pub fn sync_terminal(
     grid: &mut TerminalGrid,
-    parser: &vt100::Parser<TermCallbacks>,
-    prev_screen: &mut Option<vt100::Screen>,
+    parser: &mut vt100::Parser<TermCallbacks>,
+    prev_cursor: &mut (u16, u16),
+    prev_show_cursor: &mut bool,
 ) {
     let screen = parser.screen();
     let cursor = screen.cursor_position();
     let show_cursor = !screen.hide_cursor();
+    let (rows, _cols) = screen.size();
 
-    match prev_screen.as_ref() {
-        None => {
-            // full update: first frame or after resize/font change
-            grid.update_cells(
-                screen
-                    .visible_rows()
-                    .enumerate()
-                    .flat_map(|(row, vt_row)| {
-                        vt_row
-                            .cells()
-                            .enumerate()
-                            .map(move |(col, cell)| {
-                                let is_cursor = show_cursor
-                                    && row == cursor.0 as usize
-                                    && col == cursor.1 as usize;
-
-                                cell_data(cell, is_cursor)
-                            })
-                    }),
-            )
-            .expect("failed to update cells");
-        },
-        Some(prev) => {
-            // diff update: only emit changed cells
-            let prev_cursor = prev.cursor_position();
-            let prev_show = !prev.hide_cursor();
-
-            // cell content diff
-            grid.update_cells_by_position(
-                screen
-                    .visible_rows()
-                    .zip(prev.visible_rows())
-                    .enumerate()
-                    .flat_map(|(row, (cur_row, prev_row))| diff_row(row, cur_row, prev_row)),
-            )
-            .expect("failed to update cells");
-
-            // cursor overlay: repaint cells where cursor appeared or disappeared
-            let cursor_cells = [(show_cursor, cursor), (prev_show, prev_cursor)];
-            grid.update_cells_by_position(cursor_cells.into_iter().filter_map(
-                |(visible, (row, col))| {
-                    let cell = screen.cell(row, col)?;
-                    let is_cursor = visible && row == cursor.0 && col == cursor.1;
-                    Some((col, row, cell_data(cell, is_cursor)))
-                },
-            ))
-            .expect("failed to update cursor cells");
-        },
+    let dirty = parser.screen_mut().take_dirty();
+    if !dirty.any() && cursor == *prev_cursor && show_cursor == *prev_show_cursor {
+        return;
     }
 
-    *prev_screen = Some(screen.clone());
-}
+    let screen = parser.screen();
 
-/// Yields `(col, row, CellData)` for cells that differ between the current
-/// and previous row.
-fn diff_row<'a>(
-    row: usize,
-    cur_row: &'a vt100::Row,
-    prev_row: &'a vt100::Row,
-) -> impl Iterator<Item = (u16, u16, CellData<'a>)> {
-    cur_row
-        .cells()
-        .zip(prev_row.cells())
-        .enumerate()
-        .filter_map(move |(col, (cell, prev_cell))| {
-            if cell != prev_cell {
-                Some((col as u16, row as u16, cell_data(cell, false)))
-            } else {
-                None
-            }
-        })
+    // update dirty rows
+    grid.update_cells_by_position(dirty.iter(rows).flat_map(|row_idx| {
+        let vt_row = screen.visible_row(row_idx).unwrap();
+        vt_row
+            .cells()
+            .enumerate()
+            .map(move |(col, cell)| {
+                let is_cursor = show_cursor && row_idx == cursor.0 && col as u16 == cursor.1;
+                (col as u16, row_idx, cell_data(cell, is_cursor))
+            })
+    }))
+    .expect("failed to update cells");
+
+    // cursor overlay: repaint cells where cursor was and where it is now,
+    // unless already covered by dirty rows
+    let cursor_cells = [(show_cursor, cursor), (*prev_show_cursor, *prev_cursor)];
+    grid.update_cells_by_position(
+        cursor_cells
+            .into_iter()
+            .filter_map(|(visible, (row, col))| {
+                if dirty.is_dirty(row) {
+                    return None; // already handled above
+                }
+                let cell = screen.cell(row, col)?;
+                let is_cursor = visible && row == cursor.0 && col == cursor.1;
+                Some((col, row, cell_data(cell, is_cursor)))
+            }),
+    )
+    .expect("failed to update cursor cells");
+
+    *prev_cursor = cursor;
+    *prev_show_cursor = show_cursor;
 }
 
 fn cell_data(cell: &vt100::Cell, is_cursor: bool) -> CellData<'_> {

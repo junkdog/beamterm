@@ -4,6 +4,7 @@ use std::{
     io::Write,
     sync::{Arc, Mutex, mpsc},
     thread,
+    time::{Duration, Instant},
 };
 
 use beamterm_core::{
@@ -31,15 +32,21 @@ pub struct App {
     state: Option<AppState>,
 }
 
+const PTY_BUF_SIZE: usize = 4096;
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667); // ~60fps
+
 pub struct AppState {
     win: GlWindow,
     gl_state: GlState,
     grid: TerminalGrid,
     pub parser: vt100::Parser<TermCallbacks>,
-    prev_screen: Option<vt100::Screen>,
+    prev_cursor: (u16, u16),
+    prev_show_cursor: bool,
+    last_render: Instant,
     pty_master: Box<dyn portable_pty::MasterPty + Send>,
     pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    pub pty_rx: mpsc::Receiver<Vec<u8>>,
+    pub pty_rx: mpsc::Receiver<(Box<[u8; PTY_BUF_SIZE]>, usize)>,
+    pub buf_tx: mpsc::Sender<Box<[u8; PTY_BUF_SIZE]>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
     modifiers: ModifiersState,
     pub shell_exited: bool,
@@ -114,15 +121,33 @@ impl ApplicationHandler for App {
         ));
 
         // --- PTY reader thread ---
-        let (tx, rx) = mpsc::channel();
+        //
+        // A pool of reusable 4 KiB buffers avoids a heap allocation per read.
+        // The reader thread takes a buffer from `buf_rx`, reads into it, then
+        // sends `(buf, len)` to the event loop via `data_tx`.  After the event
+        // loop has processed the data it returns the buffer via `buf_tx`.
+        const PTY_BUF_COUNT: usize = 8;
+
+        let (data_tx, rx) = mpsc::channel::<(Box<[u8; PTY_BUF_SIZE]>, usize)>();
+        let (buf_tx, buf_rx) = mpsc::channel::<Box<[u8; PTY_BUF_SIZE]>>();
+
+        // seed the pool
+        for _ in 0..PTY_BUF_COUNT {
+            let _ = buf_tx.send(Box::new([0u8; PTY_BUF_SIZE]));
+        }
+
         thread::spawn(move || {
             let mut reader = reader;
-            let mut buf = [0u8; 4096];
             loop {
-                match reader.read(&mut buf) {
+                // blocking: wait for a free buffer
+                let mut buf = match buf_rx.recv() {
+                    Ok(b) => b,
+                    Err(_) => break,
+                };
+                match reader.read(buf.as_mut()) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        if tx.send(buf[..n].to_vec()).is_err() {
+                        if data_tx.send((buf, n)).is_err() {
                             break;
                         }
                     },
@@ -138,10 +163,13 @@ impl ApplicationHandler for App {
             gl_state,
             grid,
             parser,
-            prev_screen: None,
+            prev_cursor: (0, 0),
+            prev_show_cursor: true,
+            last_render: Instant::now(),
             pty_master: pair.master,
             pty_writer: writer.clone(),
             pty_rx: rx,
+            buf_tx,
             _child: child,
             modifiers: ModifiersState::default(),
             shell_exited: false,
@@ -180,7 +208,6 @@ impl ApplicationHandler for App {
 
                     let (cols, rows) = state.grid.terminal_size();
                     state.parser.screen_mut().set_size(rows, cols);
-                    state.prev_screen = None;
                     let _ = state.pty_master.resize(PtySize {
                         rows,
                         cols,
@@ -242,7 +269,12 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 drain_pty(state);
 
-                sync_terminal(&mut state.grid, &state.parser, &mut state.prev_screen);
+                sync_terminal(
+                    &mut state.grid,
+                    &mut state.parser,
+                    &mut state.prev_cursor,
+                    &mut state.prev_show_cursor,
+                );
                 state
                     .grid
                     .flush_cells(&state.win.gl)
@@ -269,6 +301,7 @@ impl ApplicationHandler for App {
                     .expect("failed to render grid");
 
                 state.win.swap_buffers();
+                state.last_render = Instant::now();
             },
             _ => {},
         }
@@ -289,12 +322,18 @@ impl ApplicationHandler for App {
             }
 
             if has_data {
-                state.win.window.request_redraw();
+                let now = Instant::now();
+                if now.duration_since(state.last_render) >= FRAME_INTERVAL {
+                    state.win.window.request_redraw();
+                } else {
+                    // data flowing but frame not due yet: keep draining
+                    event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+                }
             } else {
                 // no pending data: poll at ~200Hz to stay responsive
                 // without spinning the CPU
                 event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-                    std::time::Instant::now() + std::time::Duration::from_millis(5),
+                    Instant::now() + Duration::from_millis(5),
                 ));
             }
         }
@@ -303,7 +342,6 @@ impl ApplicationHandler for App {
 
 fn change_font_size(state: &mut AppState, new_size: f32) -> (u16, u16) {
     state.font_size = new_size;
-    state.prev_screen = None;
     let atlas = create_atlas(&state.win.gl, new_size, state.win.pixel_ratio());
 
     state
