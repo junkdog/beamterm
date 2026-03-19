@@ -32,7 +32,7 @@ pub struct App {
     state: Option<AppState>,
 }
 
-const PTY_BUF_SIZE: usize = 4096;
+const PTY_BUF_SIZE: usize = 32_768;
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667); // ~60fps
 
 pub struct AppState {
@@ -123,7 +123,7 @@ impl ApplicationHandler for App {
 
         // --- PTY reader thread ---
         //
-        // A pool of reusable 4 KiB buffers avoids a heap allocation per read.
+        // A pool of reusable 32 KiB buffers avoids a heap allocation per read.
         // The reader thread takes a buffer from `buf_rx`, reads into it, then
         // sends `(buf, len)` to the event loop via `data_tx`.  After the event
         // loop has processed the data it returns the buffer via `buf_tx`.

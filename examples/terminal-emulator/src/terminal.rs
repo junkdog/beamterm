@@ -5,12 +5,24 @@ use std::{
     sync::{Arc, Mutex, mpsc},
 };
 
-use beamterm_core::{CellData, FontStyle, GlyphEffect, TerminalGrid};
+use beamterm_core::{CellData, TerminalGrid};
 
 use crate::{
     app::AppState,
     color::{DEFAULT_BG, DEFAULT_FG, color_to_rgb, dim_color},
 };
+
+/// Extracts beamterm glyph styling bits from vt100 attribute mode byte.
+///
+/// vt100 mode bits:     bit 0 = BOLD, bit 2 = ITALIC, bit 3 = UNDERLINE
+/// beamterm style bits: bit 10 = Bold, bit 11 = Italic, bit 13 = Underline
+const fn into_glyph_bits(mode: u8) -> u16 {
+    let m = mode as u16;
+
+    (m << 10) & (1 << 10)  // bold
+    | (m << 9) & (1 << 11) // italic
+    | (m << 10) & (1 << 13) // underline
+}
 
 fn convert_cell(cell: &'_ vt100::Cell, is_cursor: bool) -> CellData<'_> {
     let contents = cell.contents();
@@ -29,16 +41,7 @@ fn convert_cell(cell: &'_ vt100::Cell, is_cursor: bool) -> CellData<'_> {
         std::mem::swap(&mut fg, &mut bg);
     }
 
-    let style = match (cell.bold(), cell.italic()) {
-        (true, true) => FontStyle::BoldItalic,
-        (true, false) => FontStyle::Bold,
-        (false, true) => FontStyle::Italic,
-        (false, false) => FontStyle::Normal,
-    };
-
-    let effect = if cell.underline() { GlyphEffect::Underline } else { GlyphEffect::None };
-
-    CellData::new(symbol, style, effect, fg, bg)
+    CellData::new_with_style_bits(symbol, into_glyph_bits(cell.attrs().mode), fg, bg)
 }
 
 // terminal sync //
@@ -97,6 +100,7 @@ pub fn sync_terminal(
         let vt_row = screen.visible_row(row_idx).unwrap();
         vt_row
             .cells()
+            .iter()
             .enumerate()
             .map(move |(col, cell)| {
                 let is_cursor = show_cursor && row_idx == cursor.0 && col as u16 == cursor.1;
@@ -129,13 +133,7 @@ pub fn sync_terminal(
 fn cell_data(cell: &vt100::Cell, is_cursor: bool) -> CellData<'_> {
     if cell.is_wide_continuation() {
         if is_cursor {
-            CellData::new(
-                " ",
-                FontStyle::Normal,
-                GlyphEffect::None,
-                DEFAULT_BG,
-                DEFAULT_FG,
-            )
+            CellData::new_with_style_bits(" ", 0, DEFAULT_BG, DEFAULT_FG)
         } else {
             SPACE
         }
