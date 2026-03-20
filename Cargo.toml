@@ -61,6 +61,10 @@ redundant_closure_for_method_calls = "warn"
 type_complexity = "warn"
 uninlined_format_args = "warn"
 
+[profile.profiling]
+inherits = "release"
+debug = 2
+
 [profile.release-lto]
 inherits = "release"
 lto = "fat"

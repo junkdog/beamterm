@@ -210,45 +210,35 @@ impl NativeRasterizer {
         let src_stride = src_w * bytes_per_src_pixel;
         let dst_stride = padded_w as i32 * 4;
 
-        for row in 0..src_h {
-            let sy = row;
-            let dy = dst_y + row;
-            if dy < 0 || dy >= padded_h as i32 {
-                continue;
-            }
+        // precompute the valid row/col ranges, eliminating per-pixel bounds checks
+        let row_start = 0.max(-dst_y) as usize;
+        let row_end = src_h.min(padded_h as i32 - dst_y) as usize;
+        let col_start = 0.max(-dst_x) as usize;
+        let col_end = src_w.min(padded_w as i32 - dst_x) as usize;
 
-            for col in 0..src_w {
-                let dx = dst_x + col;
-                if dx < 0 || dx >= padded_w as i32 {
-                    continue;
+        for row in row_start..row_end {
+            let src_row_offset = (row as i32 * src_stride) as usize;
+            let dst_row_offset = ((dst_y + row as i32) * dst_stride) as usize;
+            let dst_col_base = (dst_x + col_start as i32) as usize * 4;
+
+            if is_color {
+                for col in col_start..col_end {
+                    let src_idx = src_row_offset + col * 4;
+                    let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
+                    pixels[dst_idx..dst_idx + 4]
+                        .copy_from_slice(&image.data[src_idx..src_idx + 4]);
                 }
+            } else {
+                for col in col_start..col_end {
+                    let alpha = image.data[src_row_offset + col];
 
-                let src_idx = (sy * src_stride + col * bytes_per_src_pixel) as usize;
-                let dst_idx = (dy * dst_stride + dx * 4) as usize;
-
-                if dst_idx + 3 >= pixels.len() {
-                    continue;
-                }
-
-                if is_color {
-                    // RGBA source
-                    if src_idx + 3 < image.data.len() {
-                        pixels[dst_idx] = image.data[src_idx];
-                        pixels[dst_idx + 1] = image.data[src_idx + 1];
-                        pixels[dst_idx + 2] = image.data[src_idx + 2];
-                        pixels[dst_idx + 3] = image.data[src_idx + 3];
-                    }
-                } else {
-                    // alpha-only source: white text with alpha
-                    if src_idx < image.data.len() {
-                        let alpha = image.data[src_idx];
-                        if alpha > 0 {
-                            pixels[dst_idx] = 0xff;
-                            pixels[dst_idx + 1] = 0xff;
-                            pixels[dst_idx + 2] = 0xff;
-                            pixels[dst_idx + 3] = alpha;
-                        }
-                    }
+                    // avoiding an if alpha > 0 to not mess with the branch predictor
+                    let v = 0xff * alpha.min(1);
+                    let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
+                    pixels[dst_idx] = v;
+                    pixels[dst_idx + 1] = v;
+                    pixels[dst_idx + 2] = v;
+                    pixels[dst_idx + 3] = alpha;
                 }
             }
         }
@@ -289,6 +279,10 @@ impl NativeRasterizer {
     /// This detects PUA glyphs (e.g. Nerd Font icons) that have advance widths
     /// wider than one cell, even though `unicode-width` returns 1 for them.
     pub fn is_double_width(&mut self, grapheme: &str) -> bool {
+        if grapheme.len() == 1 {
+            return false;
+        }
+
         if is_wide(grapheme) {
             return true;
         }

@@ -17,5 +17,12 @@ swash = "0.2"
 thiserror.workspace = true
 unicode-width.workspace = true
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "rasterize"
+harness = false
+
 [lints]
 workspace = true
