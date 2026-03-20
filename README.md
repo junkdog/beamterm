@@ -6,7 +6,9 @@ Badge]][Deps.rs] [![DeepWiki Badge]][DeepWiki]
 A high-performance terminal rendering library targeting sub-millisecond render times, supporting
 both **WebGL2** and **OpenGL 3.3**. **beamterm** is a terminal renderer, not a full terminal
 emulator - it handles the display layer while you provide the terminal logic (see the
-[terminal emulator example](examples/terminal-emulator/) for a demo of a working terminal).
+[terminal emulator example](examples/terminal-emulator/) for a demo of a working terminal
+that [outperforms](examples/terminal-emulator/README.md#benchmarks) several established emulators
+in rendering throughput).
 
 ### [Live Demos][demos]
 
