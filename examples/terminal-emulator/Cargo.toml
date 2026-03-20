@@ -11,6 +11,7 @@ glutin = "0.32"
 winit = "0.30"
 glutin-winit = "0.5"
 raw-window-handle = "0.6"
-vt100 = { git = "https://github.com/junkdog/vt100-rust", branch = "direct-row-access" }
-#vt100 = { path = "../../../vt100-rust" }
+#vt100 = { git = "https://github.com/junkdog/vt100-rust", branch = "direct-row-access" }
+vt100 = { path = "../../../vt100-rust" }
 portable-pty = "0.9"
+arboard = "3.6.1"

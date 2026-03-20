@@ -225,6 +225,23 @@ impl ApplicationHandler for App {
                     return;
                 }
 
+                // Ctrl+Shift+V: paste from clipboard
+                if state.modifiers.control_key()
+                    && state.modifiers.shift_key()
+                    && event.logical_key == Key::Character("V".into())
+                {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        && let Ok(text) = clipboard.get_text()
+                    {
+                        let _ = state
+                            .pty_writer
+                            .lock()
+                            .unwrap()
+                            .write_all(text.as_bytes());
+                    }
+                    return;
+                }
+
                 // Shift+F1/F2: decrease/increase font size
                 if state.modifiers.shift_key()
                     && let Key::Named(ref named) = event.logical_key

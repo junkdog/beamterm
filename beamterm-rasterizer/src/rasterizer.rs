@@ -225,8 +225,7 @@ impl NativeRasterizer {
                 for col in col_start..col_end {
                     let src_idx = src_row_offset + col * 4;
                     let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
-                    pixels[dst_idx..dst_idx + 4]
-                        .copy_from_slice(&image.data[src_idx..src_idx + 4]);
+                    pixels[dst_idx..dst_idx + 4].copy_from_slice(&image.data[src_idx..src_idx + 4]);
                 }
             } else {
                 for col in col_start..col_end {
