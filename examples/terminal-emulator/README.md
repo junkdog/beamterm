@@ -44,18 +44,18 @@ Lower is better for vtebench (ms), higher is better for kitten (MB/s).
 
 | Test                          | beamterm    | alacritty    | kitty    | urxvt     | konsole  |
 | ----------------------------- | ----------- | ------------ | -------- | --------- | -------- |
-| cursor_motion                 | **4.97ms**  | 6.48ms       | 15.65ms  | 6.94ms    | 19.6ms   |
-| dense_cells                   | **13.96ms** | 18.5ms       | 33.26ms  | 1469.88ms | 64.86ms  |
-| light_cells                   | 4.08ms      | **4.03ms**   | 5.71ms   | 5.02ms    | 21.58ms  |
-| medium_cells                  | **4.43ms**  | 5.13ms       | 10.17ms  | 5.21ms    | 63.02ms  |
-| scrolling                     | 170.84ms    | **115.16ms** | 168.14ms | 120.7ms   | 151.42ms |
-| scrolling_bottom_region       | 168.7ms     | **114.03ms** | 145.88ms | 119.74ms  | 151.97ms |
-| scrolling_bottom_small_region | 170.54ms    | **120.12ms** | 144.68ms | 125.56ms  | 153.74ms |
-| scrolling_fullscreen          | 7.4ms       | 5.23ms       | 14.25ms  | **4.6ms** | 16.03ms  |
-| scrolling_top_region          | 169.64ms    | **120.49ms** | 146.28ms | 131.34ms  | 153.6ms  |
-| scrolling_top_small_region    | 170.73ms    | **119.92ms** | 144.57ms | 132.88ms  | 153.08ms |
-| sync_medium_cells             | **4.93ms**  | 5.93ms       | 18.79ms  | 5.47ms    | 66.15ms  |
-| unicode                       | 569.3ms     | **4.03ms**   | 580.39ms | 15533ms   | 39.87ms  |
+| cursor_motion                 | **5.14ms**  | 6.48ms       | 15.65ms  | 6.94ms    | 19.6ms   |
+| dense_cells                   | **14.45ms** | 18.5ms       | 33.26ms  | 1469.88ms | 64.86ms  |
+| light_cells                   | 4.03ms      | **4.03ms**   | 5.71ms   | 5.02ms    | 21.58ms  |
+| medium_cells                  | **4.47ms**  | 5.13ms       | 10.17ms  | 5.21ms    | 63.02ms  |
+| scrolling                     | 168.34ms    | **115.16ms** | 168.14ms | 120.7ms   | 151.42ms |
+| scrolling_bottom_region       | 170.64ms    | **114.03ms** | 145.88ms | 119.74ms  | 151.97ms |
+| scrolling_bottom_small_region | 169.68ms    | **120.12ms** | 144.68ms | 125.56ms  | 153.74ms |
+| scrolling_fullscreen          | 7.57ms      | 5.23ms       | 14.25ms  | **4.6ms** | 16.03ms  |
+| scrolling_top_region          | 170.78ms    | **120.49ms** | 146.28ms | 131.34ms  | 153.6ms  |
+| scrolling_top_small_region    | 168.67ms    | **119.92ms** | 144.57ms | 132.88ms  | 153.08ms |
+| sync_medium_cells             | **4.89ms**  | 5.93ms       | 18.79ms  | 5.47ms    | 66.15ms  |
+| unicode                       | 105.6ms     | **4.03ms**   | 580.39ms | 15533ms   | 39.87ms  |
 
 ### kitten benchmark
 
