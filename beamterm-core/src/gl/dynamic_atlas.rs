@@ -378,6 +378,7 @@ impl PendingUploads {
     ///
     /// Only the most recently added glyphs (tail of each vec) are kept,
     /// since earlier entries have already been evicted from the cache.
+    /// Wide capacity is 2048 glyphs, each occupying 2 consecutive texture slots.
     fn cap_to_capacity(&mut self) {
         let normal_cap = NORMAL_CAPACITY - ASCII_SLOTS as usize;
         if self.normal.len() > normal_cap {
@@ -517,4 +518,105 @@ fn split_double_width_glyph(
         RasterizedGlyph::new(left_pixels, cell_w, cell_h),
         RasterizedGlyph::new(right_pixels, cell_w, cell_h),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gl::glyph_cache::ASCII_SLOTS;
+
+    fn normal_glyph(slot: u16, key: &str) -> PendingGlyph {
+        PendingGlyph {
+            slot: GlyphSlot::Normal(slot),
+            key: CompactString::new(key),
+            style: FontStyle::Normal,
+        }
+    }
+
+    fn wide_glyph(slot: u16, key: &str) -> PendingGlyph {
+        PendingGlyph {
+            slot: GlyphSlot::Wide(slot),
+            key: CompactString::new(key),
+            style: FontStyle::Normal,
+        }
+    }
+
+    #[test]
+    fn cap_to_capacity_is_noop_when_under_limit() {
+        let mut uploads = PendingUploads::new();
+        uploads.add(normal_glyph(100, "a"));
+        uploads.add(wide_glyph(2048, "\u{4E2D}"));
+
+        uploads.cap_to_capacity();
+
+        assert_eq!(uploads.normal.len(), 1);
+        assert_eq!(uploads.wide.len(), 1);
+    }
+
+    #[test]
+    fn cap_to_capacity_trims_oldest_normal_glyphs() {
+        let mut uploads = PendingUploads::new();
+        let normal_cap = NORMAL_CAPACITY - ASCII_SLOTS as usize;
+
+        // fill beyond capacity: oldest entries should be dropped
+        for i in 0..(normal_cap + 3) as u16 {
+            uploads.add(normal_glyph(i, &format!("n{i}")));
+        }
+
+        uploads.cap_to_capacity();
+
+        assert_eq!(uploads.normal.len(), normal_cap);
+        // the 3 oldest entries (n0, n1, n2) should have been drained;
+        // the first remaining entry should be n3
+        assert_eq!(uploads.normal[0].key.as_str(), "n3");
+    }
+
+    #[test]
+    fn cap_to_capacity_trims_oldest_wide_glyphs() {
+        let mut uploads = PendingUploads::new();
+
+        for i in 0..(WIDE_CAPACITY + 5) as u16 {
+            uploads.add(wide_glyph(2048 + i * 2, &format!("w{i}")));
+        }
+
+        uploads.cap_to_capacity();
+
+        assert_eq!(uploads.wide.len(), WIDE_CAPACITY);
+        // the 5 oldest entries (w0..w4) should have been drained
+        assert_eq!(uploads.wide[0].key.as_str(), "w5");
+    }
+
+    #[test]
+    fn cap_to_capacity_trims_regions_independently() {
+        let mut uploads = PendingUploads::new();
+        let normal_cap = NORMAL_CAPACITY - ASCII_SLOTS as usize;
+
+        // overflow normal, keep wide under limit
+        for i in 0..(normal_cap + 2) as u16 {
+            uploads.add(normal_glyph(i, &format!("n{i}")));
+        }
+        uploads.add(wide_glyph(2048, "w0"));
+
+        uploads.cap_to_capacity();
+
+        assert_eq!(uploads.normal.len(), normal_cap);
+        assert_eq!(uploads.wide.len(), 1); // wide untouched
+    }
+
+    #[test]
+    fn take_prioritizes_wide_glyphs() {
+        let mut uploads = PendingUploads::new();
+        uploads.add(normal_glyph(100, "n0"));
+        uploads.add(wide_glyph(2048, "w0"));
+        uploads.add(normal_glyph(101, "n1"));
+        uploads.add(wide_glyph(2050, "w1"));
+
+        let batch = uploads.take(3);
+
+        assert_eq!(batch.len(), 3);
+        // wide glyphs taken first (popped from back: w1, w0), then normal
+        assert_eq!(batch[0].key.as_str(), "w1");
+        assert_eq!(batch[1].key.as_str(), "w0");
+        assert_eq!(batch[2].key.as_str(), "n1");
+    }
 }
