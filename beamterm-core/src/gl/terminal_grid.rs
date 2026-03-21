@@ -9,7 +9,7 @@ use crate::{
     error::Error,
     gl::{
         CellIterator, CellQuery, Drawable, GlState, RenderContext, ShaderProgram,
-        atlas::{FontAtlas, GlyphSlot},
+        atlas::{self, FontAtlas, GlyphSlot},
         buffer_upload_array,
         dirty_regions::DirtyRegions,
         selection::SelectionTracker,
@@ -295,7 +295,7 @@ impl TerminalGrid {
     /// 3. Updating double-width glyphs (emoji, wide chars) across both cells
     /// 4. Resizing the grid if cell dimensions changed
     pub fn replace_atlas(&mut self, gl: &glow::Context, mut atlas: FontAtlas) {
-        let glyph_mask = self.atlas.base_lookup_mask() as u16;
+        let glyph_mask = atlas::GLYPH_SLOT_MASK as u16;
         let style_mask = !glyph_mask;
 
         // compute space glyph before mutable borrows
@@ -1162,7 +1162,10 @@ impl CellDynamic {
         self.glyph_id() & Self::GLYPH_STYLE_MASK
     }
 
-    /// Returns true if the glyph is an emoji.
+    /// Returns true if the glyph is an emoji (static atlas only, bit 12).
+    ///
+    /// For dynamic atlas glyphs, the emoji flag is at bit 15. Use the atlas's
+    /// `emoji_bit()` to determine the correct bit position.
     pub fn is_emoji(&self) -> bool {
         self.glyph_id() & Glyph::EMOJI_FLAG != 0
     }
@@ -1195,7 +1198,7 @@ struct CellFragmentUbo {
     pub underline_thickness: f32,     // underline thickness as fraction of cell height
     pub strikethrough_pos: f32,       // strikethrough position (0.0 = top, 1.0 = bottom)
     pub strikethrough_thickness: f32, // strikethrough thickness as fraction of cell height
-    pub texture_lookup_mask: u32,     // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
+    pub emoji_bit: u32,               // static atlas: 12, dynamic atlas: 15
     pub bg_alpha: f32,                // background cell opacity (0.0 = transparent, 1.0 = opaque)
 }
 
@@ -1231,7 +1234,7 @@ impl CellFragmentUbo {
             underline_thickness: underline.thickness,
             strikethrough_pos: strikethrough.position,
             strikethrough_thickness: strikethrough.thickness,
-            texture_lookup_mask: atlas.base_lookup_mask(),
+            emoji_bit: atlas.emoji_bit(),
             bg_alpha,
         }
     }

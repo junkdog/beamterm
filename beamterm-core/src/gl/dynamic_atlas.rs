@@ -7,8 +7,8 @@ use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDeco
 use compact_str::{CompactString, ToCompactString};
 
 use super::{
-    atlas::{self, Atlas, DYNAMIC_ATLAS_LOOKUP_MASK, GlyphSlot, GlyphTracker},
-    glyph_cache::{ASCII_SLOTS, GlyphCache},
+    atlas::{self, Atlas, GlyphSlot, GlyphTracker},
+    glyph_cache::{ASCII_SLOTS, DYNAMIC_EMOJI_FLAG, GlyphCache},
     glyph_rasterizer::GlyphRasterizer,
     texture::{RasterizedGlyph, Texture},
 };
@@ -16,10 +16,10 @@ use crate::Error;
 
 /// Glyphs per layer (1x32 vertical grid)
 const GLYPHS_PER_LAYER: usize = 32;
-/// Total number of glyph slots (2048 normal + 2048 wide)
-const TOTAL_SLOTS: usize = 4096;
+/// Total number of glyph slots (2048 normal + 4096 wide = 2048 double-width glyphs)
+const TOTAL_SLOTS: usize = 6144;
 /// Number of texture layers in the atlas
-const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 128 layers
+const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 192 layers
 
 /// A dynamic texture atlas that rasterizes font glyphs on demand.
 ///
@@ -159,7 +159,7 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
 
             if pending_glyph.slot.is_double_width() {
                 let (left, right) = split_double_width_glyph(&glyph_data, cell_w, cell_h);
-                let slot_id = pending_glyph.slot.slot_id() & Glyph::EMOJI_FLAG.not();
+                let slot_id = pending_glyph.slot.slot_id() & DYNAMIC_EMOJI_FLAG.not();
                 self.texture
                     .upload_glyph(gl, slot_id, padded_cell_size, &left)?;
                 self.texture
@@ -296,8 +296,8 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         Some(slot.with_styling(styling))
     }
 
-    fn base_lookup_mask(&self) -> u32 {
-        DYNAMIC_ATLAS_LOOKUP_MASK
+    fn emoji_bit(&self) -> u32 {
+        15
     }
 
     fn delete(&self, gl: &glow::Context) {
