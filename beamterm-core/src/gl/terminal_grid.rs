@@ -1162,14 +1162,6 @@ impl CellDynamic {
         self.glyph_id() & Self::GLYPH_STYLE_MASK
     }
 
-    /// Returns true if the glyph is an emoji (static atlas only, bit 12).
-    ///
-    /// For dynamic atlas glyphs, the emoji flag is at bit 15. Use the atlas's
-    /// `emoji_bit()` to determine the correct bit position.
-    pub fn is_emoji(&self) -> bool {
-        self.glyph_id() & Glyph::EMOJI_FLAG != 0
-    }
-
     #[inline]
     fn glyph_id(&self) -> u16 {
         u16::from_le_bytes([self.data[0], self.data[1]])
