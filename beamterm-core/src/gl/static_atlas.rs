@@ -232,8 +232,8 @@ impl Atlas for StaticFontAtlas {
     ///
     /// This 13-bit mask includes the emoji flag (bit 12) so that emoji base IDs
     /// can be extracted correctly for symbol lookup and texture coordinate calculation.
-    fn base_lookup_mask(&self) -> u32 {
-        atlas::STATIC_ATLAS_LOOKUP_MASK
+    fn emoji_bit(&self) -> u32 {
+        12
     }
 
     fn delete(&self, gl: &glow::Context) {

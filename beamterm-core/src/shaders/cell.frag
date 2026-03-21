@@ -6,7 +6,7 @@ layout(std140) uniform FragUbo {
     float u_underline_thickness;     // underline thickness as fraction of cell height
     float u_strikethrough_pos;       // strikethrough position (0.0 = top, 1.0 = bottom)
     float u_strikethrough_thickness; // strikethrough thickness as fraction of cell height
-    uint u_lookup_mask;      // static atlas: 0x1FFF, dynamic atlas: 0x0FFF
+    uint u_emoji_bit;        // static atlas: 12, dynamic atlas: 15
     float u_bg_alpha;        // background cell opacity (0.0 = transparent, 1.0 = opaque)
 };
 
@@ -25,7 +25,7 @@ void main() {
     uint glyph_index = v_glyph_index;
 
     // texture position from sequential index (32 glyphs per layer)
-    uint layer = (glyph_index & u_lookup_mask) >> 5u;
+    uint layer = (glyph_index & 0x1FFFu) >> 5u;
     uint pos_in_layer = glyph_index & 0x1Fu;
 
     // apply strikethrough or underline if the glyph has either bit set
@@ -47,7 +47,7 @@ void main() {
     vec4 glyph = texture(u_sampler, tex_coord);
 
     // 0.0 for normal glyphs, 1.0 for emojis
-    float emoji_factor = float((glyph_index >> 12u) & 0x1u);
+    float emoji_factor = float((glyph_index >> u_emoji_bit) & 0x1u);
 
     // color for normal glyphs are taken from the packed data;
     // emoji colors are sampled from the texture directly

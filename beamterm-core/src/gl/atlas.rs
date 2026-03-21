@@ -14,9 +14,12 @@ pub mod sealed {
 }
 
 pub type SlotId = u16;
-pub(crate) const STATIC_ATLAS_LOOKUP_MASK: u32 = 0x1FFF;
-#[doc(hidden)]
-pub const DYNAMIC_ATLAS_LOOKUP_MASK: u32 = 0x0FFF;
+/// Bitmask for extracting the base glyph slot from a styled glyph ID.
+///
+/// Both static and dynamic atlases use 13 bits (0x1FFF) for texture addressing.
+/// The emoji flag lives above this mask: bit 12 for static atlas (naturally part
+/// of slot address for emoji at slots >= 4096), bit 15 for dynamic atlas.
+pub(crate) const GLYPH_SLOT_MASK: u32 = 0x1FFF;
 
 /// Trait defining the interface for font atlases.
 ///
@@ -94,25 +97,17 @@ pub trait Atlas: sealed::Sealed {
     /// rendering to populate the texture.
     fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
 
-    /// Returns the bitmask for extracting the base glyph ID from a styled glyph ID.
+    /// Returns the bit position used for emoji detection in the fragment shader.
     ///
-    /// The glyph ID encodes both the base glyph index and style/effect flags. This mask
-    /// isolates the base ID portion, which is used for texture coordinate calculation
-    /// and symbol reverse-lookup.
+    /// The glyph ID encodes the base slot index (bits 0-12, masked by `0x1FFF`)
+    /// plus effect/flag bits above that. The emoji bit tells the shader to use
+    /// texture color (emoji) vs foreground color (regular text).
     ///
-    /// # Implementation Differences
-    ///
-    /// - **`StaticFontAtlas`** returns `0x1FFF` (13 bits):
-    ///   - Bits 0-9: Base glyph ID (1024 values for regular glyphs)
-    ///   - Bits 10-11: Reserved for font style derivation
-    ///   - Bit 12: Emoji flag (included in mask for emoji base ID extraction)
-    ///   - Supports the full glyph ID encoding scheme from `beamterm-atlas`
-    ///
-    /// - **`DynamicFontAtlas`** returns `0x0FFF` (12 bits):
-    ///   - Uses a flat slot-based addressing (4096 total slots)
-    ///   - Emoji are tracked via `GlyphSlot::Emoji` variant rather than a flag bit
-    ///   - Simpler addressing since glyphs are assigned sequentially at runtime
-    fn base_lookup_mask(&self) -> u32;
+    /// - **`StaticFontAtlas`** returns `12`: emoji are at slots >= 4096, so bit 12
+    ///   is naturally set in their slot address.
+    /// - **`DynamicFontAtlas`** returns `15`: emoji flag is stored in bit 15,
+    ///   outside the 13-bit slot mask, leaving bits 13-14 for underline/strikethrough.
+    fn emoji_bit(&self) -> u32;
 
     /// Deletes the GPU texture resources associated with this atlas.
     ///
@@ -235,8 +230,8 @@ impl FontAtlas {
         self.inner.flush(gl)
     }
 
-    pub(crate) fn base_lookup_mask(&self) -> u32 {
-        self.inner.base_lookup_mask()
+    pub(crate) fn emoji_bit(&self) -> u32 {
+        self.inner.emoji_bit()
     }
 
     pub(crate) fn space_glyph_id(&mut self) -> u16 {

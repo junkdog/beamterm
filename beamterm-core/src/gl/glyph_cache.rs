@@ -4,7 +4,7 @@
 //! - O(1) lookup, insert, and eviction
 //! - No bitmap needed - each region allocates sequentially then evicts LRU
 
-use beamterm_data::{FontStyle, Glyph};
+use beamterm_data::FontStyle;
 use compact_str::CompactString;
 use lru::LruCache;
 use unicode_width::UnicodeWidthStr;
@@ -19,16 +19,24 @@ pub const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
 
 /// Normal glyphs: slots 0..2048
 const NORMAL_CAPACITY: usize = 2048;
-/// Double-width glyphs: slots 2048..4096 (1024 glyphs x 2 slots each)
-const WIDE_CAPACITY: usize = 1024;
+/// Double-width glyphs: slots 2048..6144 (2048 glyphs x 2 slots each)
+const WIDE_CAPACITY: usize = 2048;
 const WIDE_BASE: SlotId = NORMAL_CAPACITY as SlotId;
+
+/// Emoji flag for the dynamic atlas (bit 15).
+///
+/// Unlike the static atlas which uses `Glyph::EMOJI_FLAG` (bit 12) as part of
+/// the texture slot address, the dynamic atlas stores the emoji flag in bit 15
+/// — outside the 13-bit slot mask (0x1FFF) — so that the full 8192-slot address
+/// space is available for non-emoji wide glyphs.
+pub(crate) const DYNAMIC_EMOJI_FLAG: u16 = 0x8000;
 
 pub(crate) type CacheKey = (CompactString, FontStyle);
 
 /// Glyph cache with separate regions for normal and double-width glyphs.
 ///
 /// - Normal region: slots 0-2047 (2048 single-width glyphs)
-/// - Wide region: slots 2048-4095 (1024 double-width glyphs, 2 slots each)
+/// - Wide region: slots 2048-6143 (2048 double-width glyphs, 2 slots each)
 pub struct GlyphCache {
     /// LRU for normal (single-width) glyphs
     normal: LruCache<CacheKey, GlyphSlot>,
@@ -124,7 +132,7 @@ impl GlyphCache {
                 };
 
             let slot = if is_emoji {
-                GlyphSlot::Emoji(idx | Glyph::EMOJI_FLAG)
+                GlyphSlot::Emoji(idx | DYNAMIC_EMOJI_FLAG)
             } else {
                 GlyphSlot::Wide(idx)
             };
@@ -199,8 +207,8 @@ mod tests {
     // First normal slot after reserved ASCII slots (0-94)
     const FIRST_NORMAL_SLOT: SlotId = ASCII_SLOTS; // 95
 
-    // Emoji slots include EMOJI_FLAG (0x1000)
-    const EMOJI_SLOT_BASE: SlotId = WIDE_BASE | Glyph::EMOJI_FLAG; // 2048 | 4096 = 6144
+    // Emoji slots include DYNAMIC_EMOJI_FLAG (0x8000)
+    const EMOJI_SLOT_BASE: SlotId = WIDE_BASE | DYNAMIC_EMOJI_FLAG; // 2048 | 0x8000 = 34816
 
     #[test]
     fn test_ascii_fast_path() {
@@ -239,7 +247,7 @@ mod tests {
         let (slot1, _) = cache.insert("\u{1F680}", S);
         let (slot2, _) = cache.insert("\u{1F3AE}", S);
 
-        // Emoji slots start at WIDE_BASE with EMOJI_FLAG, each takes 2 slots
+        // Emoji slots start at WIDE_BASE with DYNAMIC_EMOJI_FLAG, each takes 2 slots
         assert_eq!(slot1, GlyphSlot::Emoji(EMOJI_SLOT_BASE));
         assert_eq!(slot2, GlyphSlot::Emoji(EMOJI_SLOT_BASE + 2));
 
