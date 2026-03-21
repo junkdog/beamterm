@@ -18,9 +18,9 @@ use crate::{
 pub const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
 
 /// Normal glyphs: slots 0..2048
-const NORMAL_CAPACITY: usize = 2048;
+pub(crate) const NORMAL_CAPACITY: usize = 2048;
 /// Double-width glyphs: slots 2048..6144 (2048 glyphs x 2 slots each)
-const WIDE_CAPACITY: usize = 2048;
+pub(crate) const WIDE_CAPACITY: usize = 2048;
 const WIDE_BASE: SlotId = NORMAL_CAPACITY as SlotId;
 
 /// Emoji flag for the dynamic atlas (bit 15).
