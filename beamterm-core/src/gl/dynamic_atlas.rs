@@ -27,7 +27,7 @@ const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 192 layers
 /// and WASM (Canvas API) backends with shared atlas logic.
 ///
 /// # Architecture
-/// - 128 layers x 32 glyphs per layer = 4096 total slots
+/// - 192 layers x 32 glyphs per layer = 6144 total slots
 /// - LRU-based slot allocation with eviction when full
 /// - Double-width glyphs (emoji, CJK) occupy 2 consecutive slots
 /// - Glyphs are rasterized on first use and cached in the texture

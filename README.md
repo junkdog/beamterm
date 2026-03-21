@@ -223,7 +223,7 @@ beamterm supports two kinds of font atlases:
 | **Font source**   | Pre-generated `.atlas` file            | Any system or web font                          |
 | **Glyph lookup**  | ASCII: direct cast; non-ASCII: HashMap | ASCII Normal: direct cast; others: LRU cache    |
 | **Rasterization** | Build-time (via `beamterm-atlas` CLI)  | On-demand via Canvas API (WASM) or swash+fontdb |
-| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 1024 wide; LRU evicts inactive    |
+| **Capacity**      | 1024 glyphs × 4 styles + 2048 emoji    | 2048 normal + 2048 wide; LRU evicts inactive    |
 | **HiDPI scaling** | Snapped (0.5×, 1×, 2×, 3×...)          | Re-rasterizes at exact DPR                      |
 
 **Static Atlas** is the default. All glyphs are pre-rasterized and immediately available. ASCII
@@ -310,7 +310,7 @@ packed representation is passed directly to the GPU.
 | 12     | EMOJI         | `0x1000` | `0001_0000_0000_0000` | Emoji character flag      |
 | 13     | UNDERLINE     | `0x2000` | `0010_0000_0000_0000` | Underline effect          |
 | 14     | STRIKETHROUGH | `0x4000` | `0100_0000_0000_0000` | Strikethrough effect      |
-| 15     | RESERVED      | `0x8000` | `1000_0000_0000_0000` | Reserved for future use   |
+| 15     | EMOJI (dyn)   | `0x8000` | `1000_0000_0000_0000` | Dynamic atlas emoji flag  |
 
 *When the EMOJI flag (bit 12) is set, bits 10-11 are **not** used for bold/italic styling (emoji
 render in a single style). Instead, these bits contribute to the layer offset calculation, expanding
@@ -351,20 +351,21 @@ Both types are rasterized at 2× cell width, then split into left (even ID) and 
 
 ### Dynamic Atlas: Flat Slot Addressing
 
-The dynamic atlas uses a simpler flat addressing scheme with 12-bit slot IDs. Font styles are
-tracked separately in a cache rather than encoded in the slot ID.
+The dynamic atlas uses a simpler flat addressing scheme with 13-bit slot IDs. Font styles are
+tracked separately in a cache rather than encoded in the slot ID. The emoji flag is stored in
+bit 15 (outside the slot mask), unlike the static atlas where bit 12 is part of the slot address.
 
 | Slot Range  | Purpose                     | Capacity                    |
 |-------------|-----------------------------|-----------------------------|
 | 0-94        | ASCII (Normal style only)   | 95 pre-allocated slots      |
 | 95-2047     | Normal glyphs (any style)   | 1953 LRU-managed slots      |
-| 2048-4095   | Wide glyphs (emoji, CJK)    | 1024 glyphs × 2 slots each  |
+| 2048-6143   | Wide glyphs (emoji, CJK)    | 2048 glyphs × 2 slots each  |
 
 **Key differences from static atlas:**
 - **No style encoding in ID**: 'A' _italic_ and 'A' _bold_ occupy separate slots rather than computed IDs (0x0041 vs 0x0441)
 - **LRU eviction**: When a region fills up, least-recently-used glyphs are evicted and re-rasterized on next access
 - **On-demand rasterization**: Glyphs are rendered via `OffscreenCanvas` (WASM) or swash+fontdb (native) when first encountered
-- **Texture lookup mask:** `0x0FFF` (12 bits) - flat slot index without style bits
+- **Texture lookup mask:** `0x1FFF` (13 bits) - same as static atlas; emoji flag at bit 15 instead of bit 12
 
 **Slot to texture coordinate:**
 ```
@@ -453,10 +454,10 @@ ANGLE bugs affecting uint bit operations on certain GPU drivers (AMD, Qualcomm).
 Performs the core rendering logic with efficient 2D array texture lookups:
 
 - Uses pre-extracted glyph ID and colors from vertex shader
-- Masks glyph ID with a configurable uniform (`0x1FFF` for static atlas, `0x0FFF` for dynamic) to compute layer index
+- Masks glyph ID with `0x1FFF` (13 bits, same for both atlas types) to compute layer index
 - Computes layer index and vertical position using bit operations
 - Samples from 2D texture array using direct layer indexing
-- Detects emoji glyphs via bit 12 for special color handling
+- Detects emoji glyphs via configurable `u_emoji_bit` uniform (bit 12 for static, bit 15 for dynamic)
 - Applies underline/strikethrough effects via bits 13-14
 - Blends foreground/background colors with glyph alpha for anti-aliasing
 
