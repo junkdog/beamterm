@@ -1,14 +1,11 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    ops::Not,
-};
+use std::{collections::HashMap, ops::Not};
 
 use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, ToCompactString};
 
 use super::{
     atlas::{self, Atlas, GlyphSlot, GlyphTracker},
-    glyph_cache::{ASCII_SLOTS, DYNAMIC_EMOJI_FLAG, GlyphCache},
+    glyph_cache::{ASCII_SLOTS, DYNAMIC_EMOJI_FLAG, GlyphCache, NORMAL_CAPACITY, WIDE_CAPACITY},
     glyph_rasterizer::GlyphRasterizer,
     texture::{RasterizedGlyph, Texture},
 };
@@ -236,6 +233,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn flush(&mut self, gl: &glow::Context) -> Result<(), Error> {
+        self.glyphs_pending_upload.cap_to_capacity();
         while !self.glyphs_pending_upload.is_empty() {
             self.upload_pending_glyphs(gl)?;
         }
@@ -353,10 +351,11 @@ impl<R: GlyphRasterizer> std::fmt::Debug for DynamicFontAtlas<R> {
 }
 
 struct PendingUploads {
-    glyphs: BTreeSet<PendingGlyph>,
+    normal: Vec<PendingGlyph>,
+    wide: Vec<PendingGlyph>,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone)]
 struct PendingGlyph {
     slot: GlyphSlot,
     key: CompactString,
@@ -365,29 +364,52 @@ struct PendingGlyph {
 
 impl PendingUploads {
     fn new() -> Self {
-        Self { glyphs: BTreeSet::new() }
+        Self { normal: Vec::new(), wide: Vec::new() }
     }
 
     fn add(&mut self, glyph: PendingGlyph) {
-        self.glyphs.insert(glyph);
+        match glyph.slot {
+            GlyphSlot::Normal(_) => self.normal.push(glyph),
+            GlyphSlot::Wide(_) | GlyphSlot::Emoji(_) => self.wide.push(glyph),
+        }
+    }
+
+    /// Discards pending glyphs that exceed the LRU capacity per region.
+    ///
+    /// Only the most recently added glyphs (tail of each vec) are kept,
+    /// since earlier entries have already been evicted from the cache.
+    fn cap_to_capacity(&mut self) {
+        let normal_cap = NORMAL_CAPACITY - ASCII_SLOTS as usize;
+        if self.normal.len() > normal_cap {
+            let excess = self.normal.len() - normal_cap;
+            self.normal.drain(0..excess);
+        }
+        if self.wide.len() > WIDE_CAPACITY {
+            let excess = self.wide.len() - WIDE_CAPACITY;
+            self.wide.drain(0..excess);
+        }
     }
 
     fn take(&mut self, count: usize) -> Vec<PendingGlyph> {
-        let mut pending = Vec::with_capacity(count.min(self.glyphs.len()));
+        let total = self.normal.len() + self.wide.len();
+        let to_take = count.min(total);
+        let mut result = Vec::with_capacity(to_take);
 
-        for _ in 0..count {
-            if let Some(glyph) = self.glyphs.pop_last() {
-                pending.push(glyph);
+        while result.len() < to_take {
+            if let Some(g) = self.wide.pop() {
+                result.push(g);
+            } else if let Some(g) = self.normal.pop() {
+                result.push(g);
             } else {
                 break;
             }
         }
 
-        pending
+        result
     }
 
     fn is_empty(&self) -> bool {
-        self.glyphs.is_empty()
+        self.normal.is_empty() && self.wide.is_empty()
     }
 }
 
