@@ -8,11 +8,17 @@ All notable changes to this project will be documented in this file.
 
 - *(rasterizer)* Add beamterm-rasterizer for glyph rasterization on native targets
 - *(core)* Add feature-gated native dynamic font atlas and rasterizer (#101)
+- *(dynamic-atlas)* Increase wide glyph slots to 2048, doubling capacity (#107)
 
 ### 💼 Other
 
 - *(core)* Add a simple terminal-emulator example
 - *(deps)* Bump cosmic-text from 0.16.0 to 0.18.2
+- *(deps)* Bump actions/upload-artifact from 6 to 7 (#97)
+
+### ⚡ Performance
+
+- *(rasterizer)* Avoid rasterizing glyphs already evicted (#108)
 
 ### 🚜 Refactor
 
