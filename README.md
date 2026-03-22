@@ -547,9 +547,9 @@ within the same layer, improving texture cache hit rates
 [Crate Badge]: https://img.shields.io/crates/v/beamterm-renderer.svg
 [Crate]: https://crates.io/crates/beamterm-renderer
 [Deps.rs Badge]: https://deps.rs/repo/github/junkdog/beamterm-renderer/status.svg
-[Deps.rs]: https://deps.rs/repo/github/junkdog/beamterm-renderer
+[Deps.rs]: https://deps.rs/repo/github/junkdog/beamterm
 [demos]: https://junkdog.github.io/beamterm/
 [npm]: https://www.npmjs.com/package/@beamterm/renderer
 [NPM Badge]: https://img.shields.io/npm/v/@beamterm/renderer.svg
-[DeepWiki Badge]: https://img.shields.io/badge/DeepWiki-junkdog%2Fbeamterm-blue.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAC8ElEQVR4Ae3BA6xcWRiA4X+d2dabYG3btm3btm3btm3bdmu7ts3Zb8ZT1Ok8r5t8+VKJMAwDcAjXcRevmMEUbnCOh3jDe6ax0teleM0LnnGb+3jDe57iEbdwiidYwR3u8pทnXGMEGnqAep3iMR7jBYzZwnZdYwymecYOHPMc6LvGEczzHOi5wi4e4wV3s4g+m+AU7GOPX3OAer7GCSzzBKi5wi4d4hBUM4pfsFR7gA3d4jnt4xCeM4YdYwR7u8B5PsYHfcoNbvMJjrOASz7GOyzzGKi7xBOu4zFM8xQ4e4g5vsI47vMI6LnGHp7jHV0zgI09wkTd8wEmec4PnWMFlnmAdl3mCddzgBa5xgyd4hPt4xwSu8AxruMwLXOcB7vEWG7jFO2zgOk+xg+dYx01e4Dp3eYZ13OQ1NnCTe3jMR8xgHHd4jgs8wB2s4Q43eIk7vMRj3OAeNnGBh9jGa17gPq5xg5e4w308wiEe8Roj+CX38Ap38QAneIoV3OEpnmEDt3mIO7zGCE7zFE/xBE9wjrs8xTbm+C3XuMcLPMUerpCLE0ziIe5hD894g7s4xXt84FfsF+7hCa5wk+e4xwts4BYfcJXf8hIXeYyrPMd5fkMuTnKLh7jGCzxmP3GbD7jGXZ7jHrd5jms84h7O8QBHeI4LvOIh3mCMn3Kb27jBIzzFXZ7hMh9wh+fYxR0+4haPcIenOMdTvMQjPMdZLnGfp3iBC7zCHd7gDs9xnls85B2u8Rp3eId7PORPvOcOP/ET93iGczzmLhZxlxe4wC2eYx2XeYJ13OAFrnGP57jOYzzEBm7xBhu4ySOcZIyfc5t7vMQKzvGIj1jDCV7hGndxl+fYwBlu8wrPcZWfcYv3uMpTPMcFXuAy97GCi9zmJY5yjdd4hId4hJu4yxNc4D7u8AoneI5N3OAut3mLh7jPc5znNs9wmdd4iuu4ynM8xi1e4xqv8JLnuMsbPMMdnuMB/sVfuMsjfMJFXuExb3GPZ3jIPKbx/zhOvDzAGJ7gLo/whv8AvGn1cxB67WAAAAAASUVORK5CYII=
+[DeepWiki Badge]: https://deepwiki.com/badge.svg
 [DeepWiki]: https://deepwiki.com/junkdog/beamterm
