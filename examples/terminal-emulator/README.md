@@ -6,7 +6,7 @@ using the dynamic font atlas.
 Use Shift+F1 / Shift+F2 to adjust the font size on the fly.
 
 ![beamterm terminal emulator](screenshots/beamterm-terminal-emulator-2.png)
-__tmux running nvim, a plain terminal and btop__
+_tmux running nvim, a plain terminal and btop_
 
 ## Features
 
