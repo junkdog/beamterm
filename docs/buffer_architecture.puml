@@ -70,12 +70,14 @@ package "CPU (TerminalGrid)" as cpu #282828 {
     <color:#8ec07c>ASCII fast path (0-127)</color>
     ..
     <color:#83a598>cells</color> : <color:#8ec07c>Vec<CellDynamic></color>
-    <color:#83a598>cells_pending_flush</color> : <color:#8ec07c>bool</color>
+    <color:#83a598>dirty_regions</color> : <color:#8ec07c>DirtyRegions (u64 bitmask)</color>
   }
 
   class "flush_cells()" as flush <<Phase 2>> #32302f {
     <color:#8ec07c>Selection color inversion</color>
-    <color:#8ec07c>glBufferData(DYNAMIC_DRAW)</color>
+    <color:#8ec07c>DirtyRegions partial upload</color>
+    <color:#8ec07c>Full: glBufferData (orphaning)</color>
+    <color:#8ec07c>Partial: glBufferSubData</color>
     ..
     <color:#fb4934>RAM → GPU VRAM</color>
   }
@@ -148,14 +150,14 @@ package "Uniform Buffer Objects" as ubos #282828 {
   }
 
   class "Fragment UBO" as fubo <<binding=1>> #32302f {
-    <color:#fe8019>48 bytes (std140)</color>
+    <color:#fe8019>32 bytes (std140)</color>
     ..
     <color:#fb4934>*</color><color:#83a598>u_padding_frac</color> : <color:#8ec07c>vec2</color>
     <color:#fb4934>*</color><color:#83a598>u_underline_pos</color> : <color:#8ec07c>f32</color>
     <color:#fb4934>*</color><color:#83a598>u_underline_thickness</color> : <color:#8ec07c>f32</color>
     <color:#fb4934>*</color><color:#83a598>u_strikethrough_pos</color> : <color:#8ec07c>f32</color>
     <color:#fb4934>*</color><color:#83a598>u_strikethrough_thickness</color> : <color:#8ec07c>f32</color>
-    <color:#fb4934>*</color><color:#83a598>u_lookup_mask</color> : <color:#8ec07c>uint</color>
+    <color:#fb4934>*</color><color:#83a598>u_emoji_bit</color> : <color:#8ec07c>uint</color>
     <color:#fb4934>*</color><color:#83a598>u_bg_alpha</color> : <color:#8ec07c>f32</color>
     --
     <color:#b8bb26>Update: on atlas change</color>
@@ -178,10 +180,10 @@ package "Shader Program" as shaders #282828 {
   }
 
   class "cell.frag" as frag <<Fragment Shader>> #32302f {
-    <color:#8ec07c>layer = (glyph & mask) >> 5</color>
+    <color:#8ec07c>layer = (glyph & 0x1FFF) >> 5</color>
     <color:#8ec07c>slot  = glyph & 0x1F</color>
     ..
-    <color:#83a598>bit 12</color> : <color:#8ec07c>emoji (texture color)</color>
+    <color:#83a598>u_emoji_bit</color> : <color:#8ec07c>emoji (texture color)</color>
     <color:#83a598>bit 13</color> : <color:#8ec07c>underline effect</color>
     <color:#83a598>bit 14</color> : <color:#8ec07c>strikethrough effect</color>
     --
@@ -217,16 +219,16 @@ class "draw_elements_instanced()" as draw <<Phase 4>> #32302f {
 ' RELATIONSHIPS
 ' ============================================================================
 
-update -[#b8bb26]-> flush : <color:#b8bb26>cells_pending_flush
+update -[#b8bb26]-> flush : <color:#b8bb26>dirty_regions
 
-flush -[#fb4934]-> cellbuf : <color:#fb4934>glBufferData\n<color:#fb4934>every frame
+flush -[#fb4934]-> cellbuf : <color:#fb4934>partial/full upload\n<color:#fb4934>per dirty chunks
 
 vbuf -[#83a598]-> vert : <color:#a89984>a_pos, a_tex_coord
 posbuf -[#83a598]-> vert : <color:#a89984>a_instance_pos
 cellbuf -[#83a598]-> vert : <color:#a89984>a_packed_data
 ibuf -[#83a598]-> draw : <color:#a89984>index lookup
 vubo -[#fe8019]-> vert : <color:#a89984>projection, cell_size
-fubo -[#fe8019]-> frag : <color:#a89984>effects, mask, alpha
+fubo -[#fe8019]-> frag : <color:#a89984>effects, emoji_bit, alpha
 atlas -[#d3869b]-> frag : <color:#a89984>glyph textures
 vert -[#83a598]-> frag : <color:#a89984>varyings
 frag -[#83a598]-> draw : <color:#a89984>FragColor
@@ -241,10 +243,11 @@ note bottom of cellbuf
   <color:#83a598>bits  0-9</color>  : base glyph (1024)
   <color:#83a598>bit    10</color>  : <color:#b8bb26>bold</color>   (0x0400)
   <color:#83a598>bit    11</color>  : <color:#d3869b>italic</color> (0x0800)
-  <color:#83a598>bit    12</color>  : <color:#fe8019>emoji</color>  (0x1000)
+  <color:#83a598>bit    12</color>  : <color:#fe8019>emoji/static</color> (0x1000)
   <color:#83a598>bits 0-12</color>  : emoji ID (8192)
-  <color:#83a598>bit    13</color>  : <color:#fb4934>underline</color>
-  <color:#83a598>bit    14</color>  : <color:#fb4934>strikethrough</color>
+  <color:#83a598>bit    13</color>  : <color:#fb4934>underline</color>  (0x2000)
+  <color:#83a598>bit    14</color>  : <color:#fb4934>strikethrough</color> (0x4000)
+  <color:#83a598>bit    15</color>  : <color:#fe8019>emoji/dynamic</color> (0x8000)
 end note
 
 note bottom of draw
@@ -253,7 +256,7 @@ note bottom of draw
   Instance Cell: <color:#fe8019>64 KB</color>/frame
   Instance Pos:  <color:#8ec07c>32 KB</color> (resize)
   Vertex + Index: <color:#8ec07c>70 B</color> (static)
-  UBOs:           <color:#8ec07c>128 B</color> (resize)
+  UBOs:           <color:#8ec07c>112 B</color> (resize)
 end note
 
 @enduml
