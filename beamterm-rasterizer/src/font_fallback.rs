@@ -3,45 +3,35 @@ use swash::{FontRef, tag_from_bytes};
 
 use crate::error::Error;
 
-/// A loaded font kept alive so swash can borrow from it.
 struct LoadedFont {
-    data: Vec<u8>,
+    id: ID,
     index: u32,
     /// True if the font has COLR+CPAL or color bitmap (CBDT/sbix) tables.
     has_color_tables: bool,
 }
 
 impl LoadedFont {
-    fn new(data: Vec<u8>, index: u32) -> Self {
-        let has_color_tables = FontRef::from_index(&data, index as usize)
-            .map(|r| {
-                let has_colr = r.table(tag_from_bytes(b"COLR")).is_some()
-                    && r.table(tag_from_bytes(b"CPAL")).is_some();
-                let has_cbdt = r.table(tag_from_bytes(b"CBDT")).is_some();
-                let has_sbix = r.table(tag_from_bytes(b"sbix")).is_some();
-                has_colr || has_cbdt || has_sbix
-            })
-            .unwrap_or(false);
+    fn new(db: &Database, id: ID) -> Option<Self> {
+        db.with_face_data(id, |data, index| {
+            let has_color_tables = FontRef::from_index(data, index as usize)
+                .map(|r| {
+                    let has_colr = r.table(tag_from_bytes(b"COLR")).is_some()
+                        && r.table(tag_from_bytes(b"CPAL")).is_some();
+                    let has_cbdt = r.table(tag_from_bytes(b"CBDT")).is_some();
+                    let has_sbix = r.table(tag_from_bytes(b"sbix")).is_some();
+                    has_colr || has_cbdt || has_sbix
+                })
+                .unwrap_or(false);
 
-        Self { data, index, has_color_tables }
-    }
-
-    fn as_font_ref(&self) -> Option<FontRef<'_>> {
-        FontRef::from_index(&self.data, self.index as usize)
-    }
-
-    /// Returns true if this font contains the given character.
-    fn has_char(&self, ch: char) -> bool {
-        self.as_font_ref()
-            .map(|r| r.charmap().map(ch) != 0)
-            .unwrap_or(false)
+            LoadedFont { id, index, has_color_tables }
+        })
     }
 }
 
 /// Resolves fonts by family name with fallback support.
 pub(crate) struct FontResolver {
     db: Database,
-    /// Loaded font data in priority order (primary families first).
+    /// Loaded font metadata in priority order (primary families first).
     fonts: Vec<LoadedFont>,
     /// Number of primary fonts (from constructor families).
     primary_count: usize,
@@ -56,7 +46,7 @@ impl FontResolver {
         let mut db = Database::new();
         db.load_system_fonts();
 
-        let mut fonts = Vec::new();
+        let mut fonts: Vec<(ID, LoadedFont)> = Vec::new();
 
         for &family in font_families {
             // try all 4 style variants for each family
@@ -74,8 +64,8 @@ impl FontResolver {
                 };
 
                 if let Some(id) = db.query(&query)
-                    && !fonts.iter().any(|f: &(ID, LoadedFont)| f.0 == id)
-                    && let Some(font) = Self::load_font(&db, id)
+                    && !fonts.iter().any(|f| f.0 == id)
+                    && let Some(font) = LoadedFont::new(&db, id)
                 {
                     fonts.push((id, font));
                 }
@@ -92,11 +82,19 @@ impl FontResolver {
         Ok(Self { db, fonts, primary_count })
     }
 
-    /// Returns a font reference for the primary font (normal weight, normal style).
-    pub(crate) fn primary_font(&self) -> FontRef<'_> {
-        self.fonts[0]
-            .as_font_ref()
-            .expect("primary font always valid")
+    /// Calls `f` with a [`FontRef`] for the primary font (normal weight, normal style).
+    pub(crate) fn with_primary_font<T>(&self, f: impl FnOnce(FontRef<'_>) -> T) -> Option<T> {
+        self.with_font(0, f)
+    }
+
+    /// Calls `f` with a [`FontRef`] for the font at the given index.
+    pub(crate) fn with_font<T>(&self, idx: usize, f: impl FnOnce(FontRef<'_>) -> T) -> Option<T> {
+        let font = self.fonts.get(idx)?;
+        self.db
+            .with_face_data(font.id, |data, _| {
+                FontRef::from_index(data, font.index as usize).map(f)
+            })
+            .flatten()
     }
 
     /// Returns the number of primary fonts (loaded from the constructor
@@ -108,34 +106,34 @@ impl FontResolver {
     /// Returns true if any primary font contains the given character.
     #[cfg(test)]
     pub(crate) fn primary_has_char(&self, ch: char) -> bool {
-        self.fonts[..self.primary_count]
-            .iter()
-            .any(|f| f.has_char(ch))
+        (0..self.primary_count).any(|idx| self.font_has_char(idx, ch))
+    }
+
+    /// Returns true if the font at `idx` contains the given character.
+    fn font_has_char(&self, idx: usize, ch: char) -> bool {
+        self.with_font(idx, |r| r.charmap().map(ch) != 0)
+            .unwrap_or(false)
     }
 
     /// Resolves a font that contains the given character, trying primary fonts first.
     ///
-    /// For emoji characters, prefers fonts with color tables (COLR/CBDT/sbix)
-    /// over outline-only fonts, so that color emoji render correctly.
-    ///
-    /// Returns `(FontRef, font_index)` or `None` if no font covers the character.
-    pub(crate) fn resolve_char(&mut self, ch: char) -> Option<(FontRef<'_>, usize)> {
+    /// Returns the font index or `None` if no font covers the character.
+    pub(crate) fn resolve_char(&mut self, ch: char) -> Option<usize> {
         self.resolve_char_inner(ch, false)
     }
 
     /// Like [`resolve_char`], but prefers fonts with color glyph support.
-    pub(crate) fn resolve_color_char(&mut self, ch: char) -> Option<(FontRef<'_>, usize)> {
+    pub(crate) fn resolve_color_char(&mut self, ch: char) -> Option<usize> {
         self.resolve_char_inner(ch, true)
     }
 
-    fn resolve_char_inner(&mut self, ch: char, prefer_color: bool) -> Option<(FontRef<'_>, usize)> {
+    fn resolve_char_inner(&mut self, ch: char, prefer_color: bool) -> Option<usize> {
         let mut first_match: Option<usize> = None;
 
-        for (idx, font) in self.fonts.iter().enumerate() {
-            if font.has_char(ch) {
-                if !prefer_color || font.has_color_tables {
-                    let font_ref = self.fonts[idx].as_font_ref()?;
-                    return Some((font_ref, idx));
+        for idx in 0..self.fonts.len() {
+            if self.font_has_char(idx, ch) {
+                if !prefer_color || self.fonts[idx].has_color_tables {
+                    return Some(idx);
                 }
                 if first_match.is_none() {
                     first_match = Some(idx);
@@ -145,14 +143,13 @@ impl FontResolver {
 
         // fallback: scan system fonts for one that covers this character
         if let Some(id) = self.find_fallback_font(ch) {
-            let font = Self::load_font(&self.db, id)?;
+            let font = LoadedFont::new(&self.db, id)?;
             self.fonts.push(font);
             let idx = self.fonts.len() - 1;
 
             // check if the system fallback meets color preference
             if !prefer_color || self.fonts[idx].has_color_tables {
-                let font_ref = self.fonts[idx].as_font_ref()?;
-                return Some((font_ref, idx));
+                return Some(idx);
             }
             if first_match.is_none() {
                 first_match = Some(idx);
@@ -160,12 +157,7 @@ impl FontResolver {
         }
 
         // no color font found; fall back to first font that has the character
-        if let Some(idx) = first_match {
-            let font_ref = self.fonts[idx].as_font_ref()?;
-            return Some((font_ref, idx));
-        }
-
-        None
+        first_match
     }
 
     /// Resolves the best font for the given character and style.
@@ -176,7 +168,7 @@ impl FontResolver {
         &mut self,
         ch: char,
         style: beamterm_data::FontStyle,
-    ) -> Option<(FontRef<'_>, usize)> {
+    ) -> Option<usize> {
         use beamterm_data::FontStyle;
 
         // determine preferred weight/style index
@@ -187,13 +179,9 @@ impl FontResolver {
             FontStyle::BoldItalic => 3,
         };
 
-        // check if the preferred style variant has the char (without borrowing self mutably)
-        let preferred_has_char =
-            preferred_offset < self.primary_count && self.fonts[preferred_offset].has_char(ch);
-
-        if preferred_has_char {
-            let font_ref = self.fonts[preferred_offset].as_font_ref()?;
-            return Some((font_ref, preferred_offset));
+        // check if the preferred style variant has the char
+        if preferred_offset < self.primary_count && self.font_has_char(preferred_offset, ch) {
+            return Some(preferred_offset);
         }
 
         // fall back to any font that has the character
@@ -214,9 +202,5 @@ impl FontResolver {
         }
 
         None
-    }
-
-    fn load_font(db: &Database, id: ID) -> Option<LoadedFont> {
-        db.with_face_data(id, |data, index| LoadedFont::new(data.to_vec(), index))
     }
 }

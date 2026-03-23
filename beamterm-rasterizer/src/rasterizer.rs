@@ -59,8 +59,11 @@ impl NativeRasterizer {
     pub fn new(font_families: &[&str], font_size: f32) -> Result<Self, Error> {
         let font_resolver = FontResolver::new(font_families)?;
         let mut scale_context = ScaleContext::new();
-        let cell_metrics =
-            measure_cell_metrics(font_resolver.primary_font(), font_size, &mut scale_context)?;
+        let cell_metrics = font_resolver
+            .with_primary_font(|font_ref| {
+                measure_cell_metrics(font_ref, font_size, &mut scale_context)
+            })
+            .ok_or_else(|| Error::RasterizationFailed("primary font unavailable".into()))??;
 
         Ok(Self {
             font_resolver,
@@ -69,14 +72,6 @@ impl NativeRasterizer {
             cell_metrics,
             fallback_sizes: HashMap::new(),
         })
-    }
-
-    /// Returns a fully transparent glyph sized to a single cell (with padding).
-    fn empty_glyph(&self) -> RasterizedGlyph {
-        let padding = FontAtlasData::PADDING;
-        let pw = (self.cell_metrics.width + padding * 2) as u32;
-        let ph = (self.cell_metrics.height + padding * 2) as u32;
-        RasterizedGlyph::new(vec![0u8; (pw * ph * 4) as usize], pw, ph)
     }
 
     /// Rasterizes a single grapheme into a cell-sized RGBA bitmap.
@@ -89,165 +84,42 @@ impl NativeRasterizer {
         grapheme: &str,
         style: FontStyle,
     ) -> Result<RasterizedGlyph, Error> {
-        let padding = FontAtlasData::PADDING;
-        let cell_w = self.cell_metrics.width;
-
         // get the first codepoint for font resolution
         let ch = match grapheme.chars().next() {
             Some(c) => c,
-            None => return Ok(self.empty_glyph()),
+            None => return Ok(empty_glyph_from_metrics(&self.cell_metrics)),
         };
 
-        // resolve font and glyph ID
+        // resolve font index
         let is_emoji = is_emoji_grapheme(grapheme);
-        let primary_count = self.font_resolver.primary_count();
-        let (font_ref, font_idx) = if is_emoji {
+        let font_idx = if is_emoji {
             match self.font_resolver.resolve_color_char(ch) {
-                Some(r) => r,
-                None => return Ok(self.empty_glyph()),
+                Some(idx) => idx,
+                None => return Ok(empty_glyph_from_metrics(&self.cell_metrics)),
             }
         } else {
             match self.font_resolver.resolve_styled(ch, style) {
-                Some(r) => r,
-                None => return Ok(self.empty_glyph()),
+                Some(idx) => idx,
+                None => return Ok(empty_glyph_from_metrics(&self.cell_metrics)),
             }
         };
 
-        let glyph_id = font_ref.charmap().map(ch);
-        if glyph_id == 0 {
-            return Ok(self.empty_glyph());
-        }
-
-        // determine double-width from unicode properties OR from the font's
-        // own advance width. PUA glyphs (e.g. Nerd Font icons) often have
-        // advance widths > 1 cell but unicode-width returns 1.
-        let is_double_width = if is_wide(grapheme) {
-            true
-        } else {
-            let glyph_metrics = font_ref.glyph_metrics(&[]).scale(self.font_size);
-            let advance = glyph_metrics.advance_width(glyph_id);
-            advance > cell_w as f32 * 1.5
+        // split borrows: font_resolver (immutable) vs other fields (mutable)
+        let resolver = &self.font_resolver;
+        let mut ctx = RasterizeContext {
+            font_idx,
+            grapheme,
+            ch,
+            primary_count: resolver.primary_count(),
+            cell_metrics: &self.cell_metrics,
+            font_size: self.font_size,
+            scale_ctx: &mut self.scale_context,
+            fallback_sizes: &mut self.fallback_sizes,
         };
 
-        let content_w = if is_double_width { cell_w * 2 } else { cell_w };
-        let content_h = self.cell_metrics.height;
-        let padded_w = (content_w + padding * 2) as u32;
-        let padded_h = (content_h + padding * 2) as u32;
-
-        let mut pixels = vec![0u8; (padded_w * padded_h * 4) as usize];
-
-        // scale fallback fonts to fit within the primary font's cell
-        let is_primary_font = font_idx < primary_count;
-        let effective_size = if is_primary_font {
-            self.font_size
-        } else {
-            // get or compute the per-font base scale (from █ refinement)
-            let base_size = if let Some(&cached) = self.fallback_sizes.get(&font_idx) {
-                cached
-            } else {
-                let size = Self::refine_fallback_size(
-                    &self.cell_metrics,
-                    font_ref,
-                    self.font_size,
-                    &mut self.scale_context,
-                );
-                self.fallback_sizes.insert(font_idx, size);
-                size
-            };
-
-            // further adjust per-glyph: scale so this glyph's advance width
-            // matches the target cell width (1x or 2x). Handles proportional
-            // fallback fonts where each glyph has a different advance.
-            let glyph_metrics = font_ref.glyph_metrics(&[]).scale(base_size);
-            let glyph_advance = glyph_metrics.advance_width(glyph_id);
-            if glyph_advance > 0.0 {
-                let target_w = content_w as f32;
-                let w_scale = target_w / glyph_advance;
-                if w_scale > 1.05 { base_size * w_scale } else { base_size }
-            } else {
-                base_size
-            }
-        };
-
-        // rasterize
-        let mut scaler = self
-            .scale_context
-            .builder(font_ref)
-            .size(effective_size)
-            .hint(true)
-            .build();
-
-        let image = Render::new(&[
-            Source::ColorOutline(0),
-            Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
-            Source::Outline,
-        ])
-        .default_color([0xff, 0xff, 0xff, 0xff])
-        .render(&mut scaler, glyph_id);
-
-        let image = match image {
-            Some(img) => img,
-            None => return Ok(RasterizedGlyph::new(pixels, padded_w, padded_h)),
-        };
-
-        // always use the primary font's ascent for baseline placement,
-        // so all glyphs align to the same baseline regardless of font
-        let ascent = self.cell_metrics.ascent.round() as i32;
-
-        // Horizontal placement: always use the font's left bearing to
-        // preserve alignment between related glyphs (e.g. box-drawing
-        // characters ║ and ╢ share the same vertical stroke x-positions).
-        // Pixels that land outside the padded cell are clipped by the
-        // copy loop below.
-        let dst_x = padding + image.placement.left;
-        let dst_y = padding + (ascent - image.placement.top);
-
-        let src_w = image.placement.width as i32;
-        let src_h = image.placement.height as i32;
-
-        let is_color = image.content == Content::Color;
-        let bytes_per_src_pixel = if is_color { 4 } else { 1 };
-        let src_stride = src_w * bytes_per_src_pixel;
-        let dst_stride = padded_w as i32 * 4;
-
-        // precompute the valid row/col ranges, eliminating per-pixel bounds checks
-        let row_start = 0.max(-dst_y) as usize;
-        let row_end = src_h.min(padded_h as i32 - dst_y) as usize;
-        let col_start = 0.max(-dst_x) as usize;
-        let col_end = src_w.min(padded_w as i32 - dst_x) as usize;
-
-        for row in row_start..row_end {
-            let src_row_offset = (row as i32 * src_stride) as usize;
-            let dst_row_offset = ((dst_y + row as i32) * dst_stride) as usize;
-            let dst_col_base = (dst_x + col_start as i32) as usize * 4;
-
-            if is_color {
-                for col in col_start..col_end {
-                    let src_idx = src_row_offset + col * 4;
-                    let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
-                    pixels[dst_idx..dst_idx + 4].copy_from_slice(&image.data[src_idx..src_idx + 4]);
-                }
-            } else {
-                for col in col_start..col_end {
-                    let alpha = image.data[src_row_offset + col];
-
-                    // avoiding an if alpha > 0 to not mess with the branch predictor
-                    let v = 0xff * alpha.min(1);
-                    let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
-                    pixels[dst_idx] = v;
-                    pixels[dst_idx + 1] = v;
-                    pixels[dst_idx + 2] = v;
-                    pixels[dst_idx + 3] = alpha;
-                }
-            }
-        }
-
-        Ok(RasterizedGlyph {
-            pixels,
-            width: padded_w,
-            height: padded_h,
-            is_double_width,
-        })
+        resolver
+            .with_font(font_idx, |font_ref| rasterize_with_font(font_ref, &mut ctx))
+            .unwrap_or_else(|| Ok(empty_glyph_from_metrics(&self.cell_metrics)))
     }
 
     /// Returns the cell size in pixels (without padding).
@@ -292,85 +164,259 @@ impl NativeRasterizer {
         };
 
         // resolve the font for this character
-        let (font_ref, _) = match self.font_resolver.resolve_char(ch) {
-            Some(r) => r,
+        let font_idx = match self.font_resolver.resolve_char(ch) {
+            Some(idx) => idx,
             None => return false,
         };
 
-        let glyph_id = font_ref.charmap().map(ch);
-        if glyph_id == 0 {
-            return false;
-        }
+        let font_size = self.font_size;
+        let cell_w = self.cell_metrics.width;
 
-        let glyph_metrics = font_ref.glyph_metrics(&[]).scale(self.font_size);
-        let advance = glyph_metrics.advance_width(glyph_id);
-        advance > self.cell_metrics.width as f32 * 1.5
+        self.font_resolver
+            .with_font(font_idx, |font_ref| {
+                let glyph_id = font_ref.charmap().map(ch);
+                if glyph_id == 0 {
+                    return false;
+                }
+
+                let glyph_metrics = font_ref.glyph_metrics(&[]).scale(font_size);
+                let advance = glyph_metrics.advance_width(glyph_id);
+                advance > cell_w as f32 * 1.5
+            })
+            .unwrap_or(false)
     }
 
     /// Updates the font size and re-measures cell metrics.
     pub fn update_font_size(&mut self, font_size: f32) -> Result<(), Error> {
         self.font_size = font_size;
-        self.cell_metrics = measure_cell_metrics(
-            self.font_resolver.primary_font(),
-            font_size,
-            &mut self.scale_context,
-        )?;
+
+        let resolver = &self.font_resolver;
+        let scale_ctx = &mut self.scale_context;
+
+        self.cell_metrics = resolver
+            .with_primary_font(|font_ref| measure_cell_metrics(font_ref, font_size, scale_ctx))
+            .ok_or_else(|| Error::RasterizationFailed("primary font unavailable".into()))??;
+
         self.fallback_sizes.clear();
         Ok(())
     }
+}
 
-    /// Computes the optimal font size for a fallback font by:
-    /// 1. Starting with a metrics-based estimate
-    /// 2. Rendering █ at that size to measure actual pixel dimensions
-    /// 3. Adjusting the size so the rendered glyph fits the primary cell
-    ///
-    /// This is called once per fallback font and cached.
-    fn refine_fallback_size(
-        primary: &CellMetrics,
-        fallback_ref: FontRef<'_>,
-        base_font_size: f32,
-        scale_ctx: &mut ScaleContext,
-    ) -> f32 {
-        // start with metrics-based estimate
-        let mut size = compute_fallback_font_size(primary, fallback_ref, base_font_size);
+/// Rasterizes a glyph using the given font reference.
+///
+/// Extracted as a free function to work within the `with_font` callback,
+/// where the `FontRef` borrows from the database's mmap'd font data.
+/// Mutable state passed into the rasterization callback.
+struct RasterizeContext<'a> {
+    font_idx: usize,
+    grapheme: &'a str,
+    ch: char,
+    primary_count: usize,
+    cell_metrics: &'a CellMetrics,
+    font_size: f32,
+    scale_ctx: &'a mut ScaleContext,
+    fallback_sizes: &'a mut HashMap<usize, f32>,
+}
 
-        let block_id = fallback_ref.charmap().map('\u{2588}');
-        if block_id == 0 {
-            return size;
-        }
+fn rasterize_with_font(
+    font_ref: FontRef<'_>,
+    ctx: &mut RasterizeContext<'_>,
+) -> Result<RasterizedGlyph, Error> {
+    let padding = FontAtlasData::PADDING;
+    let cell_w = ctx.cell_metrics.width;
 
-        // refine: render █ and adjust to match primary cell dimensions
-        for _ in 0..3 {
-            let mut scaler = scale_ctx
-                .builder(fallback_ref)
-                .size(size)
-                .hint(true)
-                .build();
-
-            let image = Render::new(&[Source::Outline]).render(&mut scaler, block_id);
-
-            let Some(img) = image else { break };
-            let rendered_w = img.placement.width as f32;
-            let rendered_h = img.placement.height as f32;
-
-            if rendered_w <= 0.0 || rendered_h <= 0.0 {
-                break;
-            }
-
-            let w_ratio = primary.width as f32 / rendered_w;
-            let h_ratio = primary.height as f32 / rendered_h;
-            let ratio = w_ratio.min(h_ratio);
-
-            // converged: rendered size matches target within 1px
-            if (ratio - 1.0).abs() < 0.05 {
-                break;
-            }
-
-            size *= ratio;
-        }
-
-        size
+    let glyph_id = font_ref.charmap().map(ctx.ch);
+    if glyph_id == 0 {
+        return Ok(empty_glyph_from_metrics(ctx.cell_metrics));
     }
+
+    // determine double-width from unicode properties OR from the font's
+    // own advance width. PUA glyphs (e.g. Nerd Font icons) often have
+    // advance widths > 1 cell but unicode-width returns 1.
+    let is_double_width = if is_wide(ctx.grapheme) {
+        true
+    } else {
+        let glyph_metrics = font_ref.glyph_metrics(&[]).scale(ctx.font_size);
+        let advance = glyph_metrics.advance_width(glyph_id);
+        advance > cell_w as f32 * 1.5
+    };
+
+    let content_w = if is_double_width { cell_w * 2 } else { cell_w };
+    let content_h = ctx.cell_metrics.height;
+    let padded_w = (content_w + padding * 2) as u32;
+    let padded_h = (content_h + padding * 2) as u32;
+
+    let mut pixels = vec![0u8; (padded_w * padded_h * 4) as usize];
+
+    // scale fallback fonts to fit within the primary font's cell
+    let is_primary_font = ctx.font_idx < ctx.primary_count;
+    let effective_size = if is_primary_font {
+        ctx.font_size
+    } else {
+        // get or compute the per-font base scale (from █ refinement)
+        let base_size = if let Some(&cached) = ctx.fallback_sizes.get(&ctx.font_idx) {
+            cached
+        } else {
+            let size =
+                refine_fallback_size(ctx.cell_metrics, font_ref, ctx.font_size, ctx.scale_ctx);
+            ctx.fallback_sizes.insert(ctx.font_idx, size);
+            size
+        };
+
+        // further adjust per-glyph: scale so this glyph's advance width
+        // matches the target cell width (1x or 2x). Handles proportional
+        // fallback fonts where each glyph has a different advance.
+        let glyph_metrics = font_ref.glyph_metrics(&[]).scale(base_size);
+        let glyph_advance = glyph_metrics.advance_width(glyph_id);
+        if glyph_advance > 0.0 {
+            let target_w = content_w as f32;
+            let w_scale = target_w / glyph_advance;
+            if w_scale > 1.05 { base_size * w_scale } else { base_size }
+        } else {
+            base_size
+        }
+    };
+
+    // rasterize
+    let mut scaler = ctx
+        .scale_ctx
+        .builder(font_ref)
+        .size(effective_size)
+        .hint(true)
+        .build();
+
+    let image = Render::new(&[
+        Source::ColorOutline(0),
+        Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+        Source::Outline,
+    ])
+    .default_color([0xff, 0xff, 0xff, 0xff])
+    .render(&mut scaler, glyph_id);
+
+    let image = match image {
+        Some(img) => img,
+        None => return Ok(RasterizedGlyph::new(pixels, padded_w, padded_h)),
+    };
+
+    // always use the primary font's ascent for baseline placement,
+    // so all glyphs align to the same baseline regardless of font
+    let ascent = ctx.cell_metrics.ascent.round() as i32;
+
+    // Horizontal placement: always use the font's left bearing to
+    // preserve alignment between related glyphs (e.g. box-drawing
+    // characters ║ and ╢ share the same vertical stroke x-positions).
+    // Pixels that land outside the padded cell are clipped by the
+    // copy loop below.
+    let dst_x = padding + image.placement.left;
+    let dst_y = padding + (ascent - image.placement.top);
+
+    let src_w = image.placement.width as i32;
+    let src_h = image.placement.height as i32;
+
+    let is_color = image.content == Content::Color;
+    let bytes_per_src_pixel = if is_color { 4 } else { 1 };
+    let src_stride = src_w * bytes_per_src_pixel;
+    let dst_stride = padded_w as i32 * 4;
+
+    // precompute the valid row/col ranges, eliminating per-pixel bounds checks
+    let row_start = 0.max(-dst_y) as usize;
+    let row_end = src_h.min(padded_h as i32 - dst_y) as usize;
+    let col_start = 0.max(-dst_x) as usize;
+    let col_end = src_w.min(padded_w as i32 - dst_x) as usize;
+
+    for row in row_start..row_end {
+        let src_row_offset = (row as i32 * src_stride) as usize;
+        let dst_row_offset = ((dst_y + row as i32) * dst_stride) as usize;
+        let dst_col_base = (dst_x + col_start as i32) as usize * 4;
+
+        if is_color {
+            for col in col_start..col_end {
+                let src_idx = src_row_offset + col * 4;
+                let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
+                pixels[dst_idx..dst_idx + 4].copy_from_slice(&image.data[src_idx..src_idx + 4]);
+            }
+        } else {
+            for col in col_start..col_end {
+                let alpha = image.data[src_row_offset + col];
+
+                // avoiding an if alpha > 0 to not mess with the branch predictor
+                let v = 0xff * alpha.min(1);
+                let dst_idx = dst_row_offset + dst_col_base + (col - col_start) * 4;
+                pixels[dst_idx] = v;
+                pixels[dst_idx + 1] = v;
+                pixels[dst_idx + 2] = v;
+                pixels[dst_idx + 3] = alpha;
+            }
+        }
+    }
+
+    Ok(RasterizedGlyph {
+        pixels,
+        width: padded_w,
+        height: padded_h,
+        is_double_width,
+    })
+}
+
+/// Returns a fully transparent glyph sized to a single cell (with padding).
+fn empty_glyph_from_metrics(cell_metrics: &CellMetrics) -> RasterizedGlyph {
+    let padding = FontAtlasData::PADDING;
+    let pw = (cell_metrics.width + padding * 2) as u32;
+    let ph = (cell_metrics.height + padding * 2) as u32;
+    RasterizedGlyph::new(vec![0u8; (pw * ph * 4) as usize], pw, ph)
+}
+
+/// Computes the optimal font size for a fallback font by:
+/// 1. Starting with a metrics-based estimate
+/// 2. Rendering █ at that size to measure actual pixel dimensions
+/// 3. Adjusting the size so the rendered glyph fits the primary cell
+///
+/// This is called once per fallback font and cached.
+fn refine_fallback_size(
+    primary: &CellMetrics,
+    fallback_ref: FontRef<'_>,
+    base_font_size: f32,
+    scale_ctx: &mut ScaleContext,
+) -> f32 {
+    // start with metrics-based estimate
+    let mut size = compute_fallback_font_size(primary, fallback_ref, base_font_size);
+
+    let block_id = fallback_ref.charmap().map('\u{2588}');
+    if block_id == 0 {
+        return size;
+    }
+
+    // refine: render █ and adjust to match primary cell dimensions
+    for _ in 0..3 {
+        let mut scaler = scale_ctx
+            .builder(fallback_ref)
+            .size(size)
+            .hint(true)
+            .build();
+
+        let image = Render::new(&[Source::Outline]).render(&mut scaler, block_id);
+
+        let Some(img) = image else { break };
+        let rendered_w = img.placement.width as f32;
+        let rendered_h = img.placement.height as f32;
+
+        if rendered_w <= 0.0 || rendered_h <= 0.0 {
+            break;
+        }
+
+        let w_ratio = primary.width as f32 / rendered_w;
+        let h_ratio = primary.height as f32 / rendered_h;
+        let ratio = w_ratio.min(h_ratio);
+
+        // converged: rendered size matches target within 1px
+        if (ratio - 1.0).abs() < 0.05 {
+            break;
+        }
+
+        size *= ratio;
+    }
+
+    size
 }
 
 fn is_wide(grapheme: &str) -> bool {
@@ -890,9 +936,16 @@ mod tests {
         };
 
         // the primary font at its own size should produce scale ~1.0
-        let primary_ref = rasterizer.font_resolver.primary_font();
-        let scaled =
-            compute_fallback_font_size(&rasterizer.cell_metrics, primary_ref, rasterizer.font_size);
+        let scaled = rasterizer
+            .font_resolver
+            .with_primary_font(|primary_ref| {
+                compute_fallback_font_size(
+                    &rasterizer.cell_metrics,
+                    primary_ref,
+                    rasterizer.font_size,
+                )
+            })
+            .expect("primary font should be available");
 
         let ratio = scaled / rasterizer.font_size;
         assert!(
