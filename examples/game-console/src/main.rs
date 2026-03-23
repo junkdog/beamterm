@@ -967,7 +967,7 @@ impl GlWindow {
                 .build(event_loop, config_template, |configs| {
                     configs
                         .reduce(|accum, config| {
-                            if config.num_samples() > accum.num_samples() { config } else { accum }
+                            if config.num_samples() < accum.num_samples() { config } else { accum }
                         })
                         .unwrap()
                 })

@@ -38,9 +38,13 @@ impl GlWindow {
             DisplayBuilder::new()
                 .with_window_attributes(Some(window_attrs))
                 .build(event_loop, config_template, |configs| {
+                    // Pick the config with the fewest MSAA samples. MSAA provides
+                    // no benefit for terminal rendering (axis-aligned textured quads
+                    // with NEAREST filtering) and multiplies framebuffer memory by
+                    // the sample count — e.g. 16x MSAA at 4K ≈ 1.6 GB per window.
                     configs
                         .reduce(|accum, config| {
-                            if config.num_samples() > accum.num_samples() { config } else { accum }
+                            if config.num_samples() < accum.num_samples() { config } else { accum }
                         })
                         .unwrap()
                 })
