@@ -28,6 +28,7 @@ const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 192 layers
 /// - LRU-based slot allocation with eviction when full
 /// - Double-width glyphs (emoji, CJK) occupy 2 consecutive slots
 /// - Glyphs are rasterized on first use and cached in the texture
+#[must_use = "call `delete(gl)` before dropping to avoid GPU resource leaks"]
 pub struct DynamicFontAtlas<R: GlyphRasterizer> {
     texture: Texture,
     rasterizer: R,

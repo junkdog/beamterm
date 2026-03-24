@@ -22,6 +22,7 @@ use crate::error::Error;
 /// - Non-ASCII characters are stored in a hash map for layer lookup
 /// - All glyphs have uniform cell dimensions for consistent spacing
 #[derive(Debug)]
+#[must_use = "call `delete(gl)` before dropping to avoid GPU resource leaks"]
 pub struct StaticFontAtlas {
     /// The underlying texture
     texture: crate::gl::texture::Texture,

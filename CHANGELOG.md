@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - *(rasterizer)* Add beamterm-rasterizer for glyph rasterization on native targets
 - *(core)* Add feature-gated native dynamic font atlas and rasterizer (#101)
 - *(dynamic-atlas)* Increase wide glyph slots to 2048, doubling capacity (#107)
+- Add `#[must_use]` to builder methods and GPU resources
 
 ### 💼 Other
 

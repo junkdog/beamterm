@@ -39,6 +39,7 @@ impl Renderer {
     }
 
     /// Sets the background color for the canvas area outside the terminal grid.
+    #[must_use]
     pub fn canvas_padding_color(mut self, color: u32) -> Self {
         let r = ((color >> 16) & 0xFF) as f32 / 255.0;
         let g = ((color >> 8) & 0xFF) as f32 / 255.0;

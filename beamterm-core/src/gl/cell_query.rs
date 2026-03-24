@@ -80,6 +80,7 @@ impl CellQuery {
     ///
     /// # Arguments
     /// * `start` - Starting coordinates as (column, row)
+    #[must_use]
     pub fn start(mut self, start: (u16, u16)) -> Self {
         self.start = Some(start);
         self
@@ -89,6 +90,7 @@ impl CellQuery {
     ///
     /// # Arguments
     /// * `end` - Ending coordinates as (column, row)
+    #[must_use]
     pub fn end(mut self, end: (u16, u16)) -> Self {
         self.end = Some(end);
         self
@@ -118,6 +120,7 @@ impl CellQuery {
     ///
     /// When enabled, spaces at the end of each selected line are removed
     /// from the extracted text.
+    #[must_use]
     pub fn trim_trailing_whitespace(mut self, enabled: bool) -> Self {
         self.trim_trailing_whitespace = enabled;
         self

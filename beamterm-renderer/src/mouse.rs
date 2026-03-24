@@ -198,6 +198,7 @@ impl MouseSelectOptions {
     ///
     /// - `Linear`: Selects text following the natural reading order
     /// - `Block`: Selects a rectangular region of cells
+    #[must_use]
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
         self.selection_mode = mode;
         self
@@ -221,6 +222,7 @@ impl MouseSelectOptions {
     /// let options = MouseSelectOptions::new()
     ///     .require_modifier_keys(ModifierKeys::CONTROL | ModifierKeys::SHIFT);
     /// ```
+    #[must_use]
     pub fn require_modifier_keys(mut self, require_modifier_keys: ModifierKeys) -> Self {
         self.require_modifier_keys = require_modifier_keys;
         self
@@ -230,6 +232,7 @@ impl MouseSelectOptions {
     ///
     /// When enabled, trailing spaces at the end of each line are removed
     /// from the copied text.
+    #[must_use]
     pub fn trim_trailing_whitespace(mut self, trim: bool) -> Self {
         self.trim_trailing_whitespace = trim;
         self

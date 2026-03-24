@@ -579,6 +579,7 @@ impl TerminalBuilder {
     /// require the character set to be known at build time.
     ///
     /// For dynamic glyph rasterization at runtime, see [`dynamic_font_atlas`](Self::dynamic_font_atlas).
+    #[must_use]
     pub fn font_atlas(mut self, atlas: FontAtlasData) -> Self {
         self.atlas_kind = AtlasKind::Static(Some(atlas));
         self
@@ -597,6 +598,7 @@ impl TerminalBuilder {
     /// * `font_size` - Font size in pixels
     ///
     /// For pre-generated atlases with fixed character sets, see [`font_atlas`](Self::font_atlas).
+    #[must_use]
     pub fn dynamic_font_atlas(mut self, font_family: &[&str], font_size: f32) -> Self {
         self.atlas_kind = AtlasKind::Dynamic {
             font_family: font_family.iter().map(|&s| s.into()).collect(),
@@ -614,6 +616,7 @@ impl TerminalBuilder {
     /// * `font_family` - Font family names in priority order
     /// * `font_size` - Font size in pixels
     /// * `pattern` - The checkered pattern to use (1px or 2x2 pixels)
+    #[must_use]
     pub fn debug_dynamic_font_atlas(
         mut self,
         font_family: &[&str],
@@ -632,6 +635,7 @@ impl TerminalBuilder {
     ///
     /// When a character is not found in the font atlas, this glyph will be
     /// displayed instead. Defaults to a space character if not specified.
+    #[must_use]
     pub fn fallback_glyph(mut self, glyph: &str) -> Self {
         self.fallback_glyph = Some(glyph.into());
         self
@@ -642,6 +646,7 @@ impl TerminalBuilder {
     /// When the canvas dimensions don't align perfectly with the terminal cell grid,
     /// there may be unused pixels around the edges. This color fills those padding
     /// areas to maintain a consistent appearance.
+    #[must_use]
     pub fn canvas_padding_color(mut self, color: u32) -> Self {
         self.canvas_padding_color = color;
         self
@@ -651,6 +656,7 @@ impl TerminalBuilder {
     ///
     /// When enabled, a debug API will be available at `window.__beamterm_debug`
     /// with methods like `getMissingGlyphs()` for inspecting the terminal state.
+    #[must_use]
     pub fn enable_debug_api(mut self) -> Self {
         self.enable_debug_api = true;
         self
@@ -664,12 +670,14 @@ impl TerminalBuilder {
     ///
     /// When `true` (the default), the renderer sets `style.width` and `style.height`
     /// to match the logical size. When `false`, the canvas CSS size is left unchanged.
+    #[must_use]
     pub fn auto_resize_canvas_css(mut self, enabled: bool) -> Self {
         self.auto_resize_canvas_css = enabled;
         self
     }
 
     /// Sets a callback for handling terminal mouse input events.
+    #[must_use]
     pub fn mouse_input_handler<F>(mut self, callback: F) -> Self
     where
         F: FnMut(TerminalMouseEvent, &TerminalGrid) + 'static,
@@ -698,6 +706,7 @@ impl TerminalBuilder {
     ///     .build()
     ///     .unwrap();
     /// ```
+    #[must_use]
     pub fn mouse_selection_handler(mut self, configuration: MouseSelectOptions) -> Self {
         self.input_handler = Some(InputHandler::CopyOnSelect(configuration));
         self
