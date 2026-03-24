@@ -37,4 +37,4 @@ pub use selection::SelectionTracker;
 pub use static_atlas::StaticFontAtlas;
 pub use terminal_grid::{CellData, CellDynamic, TerminalGrid};
 #[doc(hidden)]
-pub use texture::{RasterizedGlyph, Texture};
+pub use texture::RasterizedGlyph;

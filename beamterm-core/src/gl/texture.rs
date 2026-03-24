@@ -186,11 +186,6 @@ impl Texture {
         Ok(())
     }
 
-    /// Returns the texture dimensions (width, height, layers)
-    pub fn dimensions(&self) -> (i32, i32, i32) {
-        self.dimensions
-    }
-
     pub fn bind(&self, gl: &glow::Context) {
         unsafe {
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(self.gl_texture));
