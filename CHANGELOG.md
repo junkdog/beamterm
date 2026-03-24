@@ -23,6 +23,13 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - *(core)* Eliminate RefCell usage in core
+- Make `FontAtlasData`, `LineDecoration` and `Glyph` fields private
+- [**breaking**] Replace bare tuples with `CellSize` and `TerminalSize`
+- Replace emojis crate with optimized implementation
+
+### ⚙️ Miscellaneous Tasks
+
+- Add Clone to Error enums
 
 ## [beamterm-v0.17.0] - 2026-03-11
 
