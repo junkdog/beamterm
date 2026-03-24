@@ -1,4 +1,4 @@
-use beamterm_data::{FontAtlasData, Glyph};
+use beamterm_data::{CellSize, FontAtlasData, Glyph};
 
 use crate::glyph_bounds::GlyphBounds;
 
@@ -47,8 +47,8 @@ impl RasterizationConfig {
         (self.texture_width * self.texture_height * self.layers) as usize
     }
 
-    pub(super) fn padded_cell_size(&self) -> (i32, i32) {
-        (
+    pub(super) fn padded_cell_size(&self) -> CellSize {
+        CellSize::new(
             self.bounds.width_with_padding(),
             self.bounds.height_with_padding(),
         )

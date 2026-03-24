@@ -123,8 +123,8 @@ impl NativeRasterizer {
     }
 
     /// Returns the cell size in pixels (without padding).
-    pub fn cell_size(&self) -> (i32, i32) {
-        (self.cell_metrics.width, self.cell_metrics.height)
+    pub fn cell_size(&self) -> beamterm_data::CellSize {
+        beamterm_data::CellSize::new(self.cell_metrics.width, self.cell_metrics.height)
     }
 
     /// Returns the underline decoration metrics.
@@ -468,7 +468,8 @@ mod tests {
             return;
         };
 
-        let (w, h) = rasterizer.cell_size();
+        let cs = rasterizer.cell_size();
+        let (w, h) = (cs.width, cs.height);
         assert!(w > 0, "cell width must be positive, got {w}");
         assert!(h > 0, "cell height must be positive, got {h}");
         // typical monospace cells at 16px: roughly 8-12 wide, 16-24 tall
@@ -484,7 +485,8 @@ mod tests {
         };
 
         let padding = FontAtlasData::PADDING;
-        let (cell_w, cell_h) = rasterizer.cell_size();
+        let cs = rasterizer.cell_size();
+        let (cell_w, cell_h) = (cs.width, cs.height);
         let padded_w = (cell_w + padding * 2) as u32;
         let padded_h = (cell_h + padding * 2) as u32;
 
@@ -521,7 +523,7 @@ mod tests {
         };
 
         let padding = FontAtlasData::PADDING;
-        let (cell_w, _cell_h) = rasterizer.cell_size();
+        let cell_w = rasterizer.cell_size().width;
         let single_padded_w = (cell_w + padding * 2) as u32;
         let double_padded_w = (cell_w * 2 + padding * 2) as u32;
 
@@ -592,10 +594,12 @@ mod tests {
             return;
         };
 
-        let (w1, h1) = rasterizer.cell_size();
+        let cs1 = rasterizer.cell_size();
+        let (w1, h1) = (cs1.width, cs1.height);
 
         rasterizer.update_font_size(32.0).unwrap();
-        let (w2, h2) = rasterizer.cell_size();
+        let cs2 = rasterizer.cell_size();
+        let (w2, h2) = (cs2.width, cs2.height);
 
         assert!(
             w2 > w1 && h2 > h1,
@@ -677,7 +681,8 @@ mod tests {
         );
 
         let padding = FontAtlasData::PADDING;
-        let (cell_w, cell_h) = rasterizer.cell_size();
+        let cs = rasterizer.cell_size();
+        let (cell_w, cell_h) = (cs.width, cs.height);
 
         let glyph = rasterizer
             .rasterize(symbol, FontStyle::Normal)
@@ -723,7 +728,8 @@ mod tests {
         };
 
         let padding = FontAtlasData::PADDING;
-        let (cell_w, cell_h) = rasterizer.cell_size();
+        let cs = rasterizer.cell_size();
+        let (cell_w, cell_h) = (cs.width, cs.height);
         let padded_w = (cell_w + padding * 2) as u32;
         let padded_h = (cell_h + padding * 2) as u32;
 

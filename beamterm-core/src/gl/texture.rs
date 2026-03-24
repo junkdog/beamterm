@@ -86,14 +86,14 @@ impl Texture {
     ///
     /// # Arguments
     /// * `gl` - GL context
-    /// * `cell_size` - (width, height) of each glyph cell in pixels
+    /// * `cell_size` - dimensions of each glyph cell in pixels
     /// * `initial_layers` - Number of texture layers to allocate initially
     pub fn for_dynamic_font_atlas(
         gl: &glow::Context,
-        cell_size: (i32, i32),
+        cell_size: beamterm_data::CellSize,
         initial_layers: i32,
     ) -> Result<Self, Error> {
-        let (cell_w, cell_h) = cell_size;
+        let (cell_w, cell_h) = (cell_size.width, cell_size.height);
 
         // Each layer holds 32 glyphs in a 1x32 vertical grid
         // Match static atlas layout: single cell width per layer
@@ -148,10 +148,10 @@ impl Texture {
         &self,
         gl: &glow::Context,
         glyph_id: u16,
-        padded_cell_size: (i32, i32),
+        padded_cell_size: beamterm_data::CellSize,
         rasterized: &RasterizedGlyph,
     ) -> Result<(), Error> {
-        let (_cell_w, cell_h) = padded_cell_size;
+        let cell_h = padded_cell_size.height;
 
         // Calculate position in texture array
         let layer = (glyph_id as i32) / GLYPHS_PER_LAYER;

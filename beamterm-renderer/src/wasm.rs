@@ -51,6 +51,13 @@ pub struct Size {
     pub height: u16,
 }
 
+#[wasm_bindgen(js_name = "TerminalSize")]
+#[derive(Debug, Clone, Copy)]
+pub struct WasmTerminalSize {
+    pub cols: u16,
+    pub rows: u16,
+}
+
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct Batch {
@@ -357,9 +364,9 @@ impl Batch {
     #[wasm_bindgen(js_name = "text")]
     pub fn text(&mut self, x: u16, y: u16, text: &str, style: &CellStyle) -> Result<(), JsValue> {
         let mut terminal_grid = self.terminal_grid.borrow_mut();
-        let (cols, rows) = terminal_grid.terminal_size();
+        let ts = terminal_grid.terminal_size();
 
-        if y >= rows {
+        if y >= ts.rows {
             return Ok(()); // oob, ignore
         }
 
@@ -373,7 +380,7 @@ impl Batch {
             }
 
             let current_col = x + col_offset;
-            if current_col >= cols {
+            if current_col >= ts.cols {
                 break;
             }
 
@@ -399,10 +406,10 @@ impl Batch {
         cell_data: &Cell,
     ) -> Result<(), JsValue> {
         let mut terminal_grid = self.terminal_grid.borrow_mut();
-        let (cols, rows) = terminal_grid.terminal_size();
+        let ts = terminal_grid.terminal_size();
 
-        let width = (x + width).min(cols).saturating_sub(x);
-        let height = (y + height).min(rows).saturating_sub(y);
+        let width = (x + width).min(ts.cols).saturating_sub(x);
+        let height = (y + height).min(ts.rows).saturating_sub(y);
 
         let fill_cell = cell_data.as_cell_data();
         for y in y..y + height {
@@ -420,11 +427,11 @@ impl Batch {
     #[wasm_bindgen]
     pub fn clear(&mut self, bg: u32) -> Result<(), JsValue> {
         let mut terminal_grid = self.terminal_grid.borrow_mut();
-        let (cols, rows) = terminal_grid.terminal_size();
+        let ts = terminal_grid.terminal_size();
 
         let clear_cell = CellData::new_with_style_bits(" ", 0, 0xFFFFFF, bg);
-        for y in 0..rows {
-            for x in 0..cols {
+        for y in 0..ts.rows {
+            for x in 0..ts.cols {
                 terminal_grid
                     .update_cell(x, y, clear_cell)
                     .map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -736,16 +743,16 @@ impl BeamtermRenderer {
 
     /// Get the terminal dimensions in cells
     #[wasm_bindgen(js_name = "terminalSize")]
-    pub fn terminal_size(&self) -> Size {
-        let (cols, rows) = self.terminal.terminal_size();
-        Size { width: cols, height: rows }
+    pub fn terminal_size(&self) -> WasmTerminalSize {
+        let ts = self.terminal.terminal_size();
+        WasmTerminalSize { cols: ts.cols, rows: ts.rows }
     }
 
     /// Get the cell size in pixels
     #[wasm_bindgen(js_name = "cellSize")]
     pub fn cell_size(&self) -> Size {
-        let (width, height) = self.terminal.cell_size();
-        Size { width: width as u16, height: height as u16 }
+        let cs = self.terminal.cell_size();
+        Size { width: cs.width as u16, height: cs.height as u16 }
     }
 
     /// Render the terminal to the canvas

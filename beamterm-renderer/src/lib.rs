@@ -12,8 +12,8 @@ pub mod mouse;
 // Re-export platform-agnostic types from beamterm-core
 pub use ::beamterm_data::{DebugSpacePattern, GlyphEffect};
 pub use beamterm_core::{
-    CursorPosition, FontAtlasData, FontStyle, GlslVersion, SerializationError, UrlMatch,
-    find_url_at_cursor, is_double_width, is_emoji,
+    CellSize, CursorPosition, FontAtlasData, FontStyle, GlslVersion, SerializationError,
+    TerminalSize, UrlMatch, find_url_at_cursor, is_double_width, is_emoji,
 };
 pub use terminal::*;
 

@@ -52,7 +52,7 @@ fn is_trailing_punctuation(ch: char) -> bool {
 ///
 /// Returns `None` if no URL is found at the cursor position.
 pub fn find_url_at_cursor(cursor: CursorPosition, grid: &TerminalGrid) -> Option<UrlMatch> {
-    let cols = grid.terminal_size().0;
+    let cols = grid.terminal_size().cols;
 
     // Find scheme start by scanning left
     let scheme_start = find_scheme_start(cursor, grid, cols)?;

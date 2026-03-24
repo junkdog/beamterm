@@ -1,6 +1,6 @@
 use compact_str::{CompactString, format_compact};
 
-use crate::{FontAtlasData, FontStyle, Glyph, LineDecoration};
+use crate::{CellSize, FontAtlasData, FontStyle, Glyph, LineDecoration};
 
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
 const ATLAS_VERSION: u8 = 0x03; // dictates the format of the serialized data
@@ -218,8 +218,8 @@ impl Serializable for FontAtlasData {
         ser.write_i32(self.texture_dimensions.1);
         ser.write_i32(self.texture_dimensions.2);
 
-        ser.write_i32(self.cell_size.0);
-        ser.write_i32(self.cell_size.1);
+        ser.write_i32(self.cell_size.width);
+        ser.write_i32(self.cell_size.height);
 
         ser.write_f32(self.underline.position);
         ser.write_f32(self.underline.thickness);
@@ -264,7 +264,7 @@ impl Serializable for FontAtlasData {
         let halfwidth_glyphs_per_layer = deser.read_u16()?;
 
         let texture_dimensions = (deser.read_i32()?, deser.read_i32()?, deser.read_i32()?);
-        let cell_size = (deser.read_i32()?, deser.read_i32()?);
+        let cell_size = CellSize::new(deser.read_i32()?, deser.read_i32()?);
 
         let underline = LineDecoration::new(deser.read_f32()?, deser.read_f32()?);
         let strikethrough = LineDecoration::new(deser.read_f32()?, deser.read_f32()?);
@@ -509,7 +509,7 @@ mod tests {
             font_size: 16.5,
             max_halfwidth_base_glyph_id: 328,
             texture_dimensions: (512, 256, 256),
-            cell_size: (12, 18),
+            cell_size: CellSize::new(12, 18),
             underline: LineDecoration::new(0.85, 5.0 / 100.0),
             strikethrough: LineDecoration::new(0.5, 5.0 / 100.0),
             glyphs,

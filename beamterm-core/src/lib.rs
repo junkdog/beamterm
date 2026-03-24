@@ -4,7 +4,9 @@ mod mat4;
 mod position;
 mod url;
 
-pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect, SerializationError};
+pub use ::beamterm_data::{
+    CellSize, DebugSpacePattern, FontAtlasData, GlyphEffect, SerializationError, TerminalSize,
+};
 pub use beamterm_data::FontStyle;
 pub use error::Error;
 pub use gl::{

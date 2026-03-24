@@ -274,7 +274,7 @@ impl TerminalGrid {
     /// # Returns
     /// Iterator yielding (cell_index, needs_newline_after) tuples.
     pub fn cell_iter(&self, selection: CellQuery) -> CellIterator {
-        let cols = self.terminal_size().0;
+        let cols = self.terminal_size().cols;
         let max_cells = self.cell_count();
 
         let (start, end) = selection.range().unwrap_or_default();

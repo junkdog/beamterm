@@ -297,13 +297,13 @@ impl TerminalMouseHandler {
         let grid_for_coords = grid.clone();
         let pixel_to_cell = move |event: &web_sys::MouseEvent| -> Option<(u16, u16)> {
             let g = grid_for_coords.try_borrow().ok()?;
-            let (cols, rows) = g.terminal_size();
+            let ts = g.terminal_size();
             let (cell_width, cell_height) = g.css_cell_size();
 
             let col = (event.offset_x() as f32 / cell_width).floor() as u16;
             let row = (event.offset_y() as f32 / cell_height).floor() as u16;
 
-            if col < cols && row < rows { Some((col, row)) } else { None }
+            if col < ts.cols && row < ts.rows { Some((col, row)) } else { None }
         };
 
         // Create unified event handler
@@ -648,11 +648,11 @@ impl Debug for TerminalMouseHandler {
 
 impl Debug for DefaultSelectionHandler {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let (cols, rows) = self.grid.borrow().terminal_size();
+        let ts = self.grid.borrow().terminal_size();
         write!(
             f,
             "DefaultSelectionHandler {{ options: {:?}, grid: {}x{} }}",
-            self.options, cols, rows
+            self.options, ts.cols, ts.rows
         )
     }
 }

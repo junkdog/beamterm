@@ -88,7 +88,8 @@ impl ApplicationHandler for App {
         )
         .expect("failed to create terminal grid");
 
-        let (term_cols, term_rows) = grid.terminal_size();
+        let ts = grid.terminal_size();
+        let (term_cols, term_rows) = (ts.cols, ts.rows);
 
         // --- PTY setup ---
         let pty_system = native_pty_system();
@@ -205,11 +206,14 @@ impl ApplicationHandler for App {
                         state.win.pixel_ratio(),
                     );
 
-                    let (cols, rows) = state.grid.terminal_size();
-                    state.parser.screen_mut().set_size(rows, cols);
+                    let ts = state.grid.terminal_size();
+                    state
+                        .parser
+                        .screen_mut()
+                        .set_size(ts.rows, ts.cols);
                     let _ = state.pty_master.resize(PtySize {
-                        rows,
-                        cols,
+                        rows: ts.rows,
+                        cols: ts.cols,
                         pixel_width: 0,
                         pixel_height: 0,
                     });
@@ -256,11 +260,14 @@ impl ApplicationHandler for App {
                         let new_size =
                             (state.font_size + delta).clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
                         if (new_size - state.font_size).abs() > f32::EPSILON {
-                            let (cols, rows) = change_font_size(state, new_size);
-                            state.parser.screen_mut().set_size(rows, cols);
+                            let ts = change_font_size(state, new_size);
+                            state
+                                .parser
+                                .screen_mut()
+                                .set_size(ts.rows, ts.cols);
                             let _ = state.pty_master.resize(PtySize {
-                                rows,
-                                cols,
+                                rows: ts.rows,
+                                cols: ts.cols,
                                 pixel_width: 0,
                                 pixel_height: 0,
                             });
@@ -365,7 +372,7 @@ impl ApplicationHandler for App {
     }
 }
 
-fn change_font_size(state: &mut AppState, new_size: f32) -> (u16, u16) {
+fn change_font_size(state: &mut AppState, new_size: f32) -> beamterm_core::TerminalSize {
     state.font_size = new_size;
     let atlas = create_atlas(&state.win.gl, new_size, state.win.pixel_ratio());
 

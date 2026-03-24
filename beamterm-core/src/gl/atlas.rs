@@ -40,7 +40,7 @@ pub trait Atlas: sealed::Sealed {
     fn get_base_glyph_id(&mut self, key: &str) -> Option<u16>;
 
     /// Returns the height of the atlas in pixels.
-    fn cell_size(&self) -> (i32, i32);
+    fn cell_size(&self) -> beamterm_data::CellSize;
 
     /// Binds the font atlas texture to the currently active texture unit.
     fn bind(&self, gl: &glow::Context);
@@ -149,7 +149,7 @@ pub trait Atlas: sealed::Sealed {
     ///
     /// - **Static atlas**: Same as `cell_size()` (texture is at fixed resolution)
     /// - **Dynamic atlas**: Physical cell size (before dividing by pixel_ratio)
-    fn texture_cell_size(&self) -> (i32, i32);
+    fn texture_cell_size(&self) -> beamterm_data::CellSize;
 }
 
 pub struct FontAtlas {
@@ -182,7 +182,7 @@ impl FontAtlas {
         self.inner.get_base_glyph_id(key)
     }
 
-    pub fn cell_size(&self) -> (i32, i32) {
+    pub fn cell_size(&self) -> beamterm_data::CellSize {
         self.inner.cell_size()
     }
 
@@ -261,7 +261,7 @@ impl FontAtlas {
     }
 
     /// Returns the texture cell size in physical pixels.
-    pub fn texture_cell_size(&self) -> (i32, i32) {
+    pub fn texture_cell_size(&self) -> beamterm_data::CellSize {
         self.inner.texture_cell_size()
     }
 }

@@ -160,7 +160,7 @@ impl Terminal {
     }
 
     /// Returns the terminal dimensions in cells.
-    pub fn terminal_size(&self) -> (u16, u16) {
+    pub fn terminal_size(&self) -> beamterm_data::TerminalSize {
         self.grid.borrow().terminal_size()
     }
 
@@ -175,7 +175,7 @@ impl Terminal {
     }
 
     /// Returns the size of each cell in pixels.
-    pub fn cell_size(&self) -> (i32, i32) {
+    pub fn cell_size(&self) -> beamterm_data::CellSize {
         self.grid.borrow().cell_size()
     }
 
@@ -866,11 +866,11 @@ impl TerminalDebugApi {
     /// Returns the terminal size in cells as an object with `cols` and `rows` fields.
     #[wasm_bindgen(js_name = "getTerminalSize")]
     pub fn get_terminal_size(&self) -> JsValue {
-        let (cols, rows) = self.grid.borrow().terminal_size();
+        let ts = self.grid.borrow().terminal_size();
         let obj = js_sys::Object::new();
 
-        js_sys::Reflect::set(&obj, &"cols".into(), &JsValue::from(cols)).unwrap();
-        js_sys::Reflect::set(&obj, &"rows".into(), &JsValue::from(rows)).unwrap();
+        js_sys::Reflect::set(&obj, &"cols".into(), &JsValue::from(ts.cols)).unwrap();
+        js_sys::Reflect::set(&obj, &"rows".into(), &JsValue::from(ts.rows)).unwrap();
 
         obj.into()
     }
@@ -912,11 +912,11 @@ impl TerminalDebugApi {
     /// Returns the cell size in pixels as an object with `width` and `height` fields.
     #[wasm_bindgen(js_name = "getCellSize")]
     pub fn get_cell_size(&self) -> JsValue {
-        let (width, height) = self.grid.borrow().atlas().cell_size();
+        let cs = self.grid.borrow().atlas().cell_size();
         let obj = js_sys::Object::new();
 
-        js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(width)).unwrap();
-        js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(height)).unwrap();
+        js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(cs.width)).unwrap();
+        js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(cs.height)).unwrap();
 
         obj.into()
     }

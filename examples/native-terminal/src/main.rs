@@ -164,7 +164,8 @@ const BORDER_FG: u32 = 0x00_62_72_a4; // dracula comment
 
 /// Populates the terminal grid with colorful demo content.
 fn populate_demo_content(grid: &mut TerminalGrid) {
-    let (cols, rows) = grid.terminal_size();
+    let ts = grid.terminal_size();
+    let (cols, rows) = (ts.cols, ts.rows);
     let cols = cols as usize;
     let rows = rows as usize;
 

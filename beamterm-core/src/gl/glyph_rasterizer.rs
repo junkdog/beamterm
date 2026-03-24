@@ -20,7 +20,7 @@ pub trait GlyphRasterizer {
     fn max_batch_size(&self) -> usize;
 
     /// Cell dimensions in physical pixels (without padding).
-    fn cell_size(&self) -> (i32, i32);
+    fn cell_size(&self) -> beamterm_data::CellSize;
 
     /// Whether a grapheme should be treated as double-width based on font metrics.
     ///

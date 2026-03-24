@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use compact_str::CompactString;
 
-use crate::{Deserializer, Glyph, Serializable, SerializationError};
+use crate::{CellSize, Deserializer, Glyph, Serializable, SerializationError};
 
 /// Font atlas data for GPU-accelerated terminal rendering.
 ///
@@ -24,7 +24,7 @@ pub struct FontAtlasData {
     /// Width, height and depth of the texture in pixels
     pub(crate) texture_dimensions: (i32, i32, i32),
     /// Width and height of each character cell
-    pub(crate) cell_size: (i32, i32),
+    pub(crate) cell_size: CellSize,
     /// Underline configuration
     pub(crate) underline: LineDecoration,
     /// Strikethrough configuration
@@ -59,7 +59,7 @@ impl FontAtlasData {
         font_size: f32,
         max_halfwidth_base_glyph_id: u16,
         texture_dimensions: (i32, i32, i32),
-        cell_size: (i32, i32),
+        cell_size: CellSize,
         underline: LineDecoration,
         strikethrough: LineDecoration,
         glyphs: Vec<Glyph>,
@@ -164,8 +164,8 @@ impl FontAtlasData {
     /// A tuple of (columns, rows) that fit in the viewport
     pub fn terminal_size(&self, viewport_width: i32, viewport_height: i32) -> (i32, i32) {
         (
-            viewport_width / self.cell_size.0,
-            viewport_height / self.cell_size.1,
+            viewport_width / self.cell_size.width,
+            viewport_height / self.cell_size.height,
         )
     }
 
@@ -175,8 +175,8 @@ impl FontAtlasData {
     /// to prevent texture bleeding artifacts during GPU rendering.
     ///
     /// # Returns
-    /// A tuple of (width, height) in pixels for each terminal cell
-    pub fn cell_size(&self) -> (i32, i32) {
+    /// The cell dimensions in pixels
+    pub fn cell_size(&self) -> CellSize {
         self.cell_size
     }
 }

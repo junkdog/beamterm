@@ -21,11 +21,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let atlas = FontAtlasData::from_binary(&data)?;
 
     let (tw, th, tl) = atlas.texture_dimensions();
-    let (cw, ch) = atlas.cell_size();
+    let cs = atlas.cell_size();
 
     println!("=== Font Atlas Grid Viewer ===");
     println!("Texture: {tw}x{th}x{tl} (1x32 vertical cells per layer)");
-    println!("Cell size: {cw}x{ch}");
+    println!("Cell size: {}x{}", cs.width, cs.height);
 
     // Calculate total number of slices
     let max_slice = atlas
@@ -53,9 +53,10 @@ fn find_glyph_symbol(atlas: &FontAtlasData, layer: u16, pos: u16) -> Option<&Gly
 fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::error::Error>> {
     let cells_per_row = 16; // Display 16 cells per row
     let rows = 32 / cells_per_row; // 2 rows of 16 cells
-    let (cell_width, cell_height) = atlas.cell_size();
-    let display_width = cell_width as usize * cells_per_row;
-    let cell_height = cell_height as usize;
+    let cs = atlas.cell_size();
+    let cell_width = cs.width as usize;
+    let display_width = cell_width * cells_per_row;
+    let cell_height = cs.height as usize;
 
     // Display each row of 16 cells
     for row in 0..rows {
@@ -68,8 +69,8 @@ fn render_layer(atlas: &FontAtlasData, layer: usize) -> Result<(), Box<dyn std::
         // Column markers
         write!(&mut output, "   ").ok();
         for x in 0..display_width {
-            if x % cell_width as usize == 0 {
-                let col = x / cell_width as usize;
+            if x % cell_width == 0 {
+                let col = x / cell_width;
                 write!(&mut output, "{}", format!("{col:X}").blue()).ok(); // Hex for 0-F
             } else {
                 write!(&mut output, " ").ok();
@@ -108,9 +109,9 @@ fn render_cell(
     let layer_height = layer_height as usize;
     let layer_width = layer_width as usize;
     let layer_offset = layer * layer_width * layer_height;
-    let (cell_width, cell_height) = atlas.cell_size();
-    let cell_width = cell_width as usize;
-    let cell_height = cell_height as usize;
+    let cs = atlas.cell_size();
+    let cell_width = cs.width as usize;
+    let cell_height = cs.height as usize;
     let texture_data = atlas.texture_data();
 
     // Vertical layout: calculate y offset for this cell in the texture

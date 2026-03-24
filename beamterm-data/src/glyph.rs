@@ -57,21 +57,19 @@ impl Glyph {
     /// The ID is used as a short-lived placeholder until the actual ID is assigned.
     pub const UNASSIGNED_ID: u16 = 0xFFFF;
 
-    /// Glyph ID mask - extracts the base glyph identifier (bits 0-9).
-    /// Supports 1024 unique base glyphs (0x000 to 0x3FF) in the texture atlas.
+    #[doc(hidden)]
     pub const GLYPH_ID_MASK: u16       = 0b0000_0011_1111_1111; // 0x03FF
-    /// Glyph ID mask for emoji - extracts the base glyph identifier (bits 0-11).
-    /// Supports 2048 emoji glyphs (0x000 to 0xFFF) occupying two slots each in the texture atlas.
+    #[doc(hidden)]
     pub const GLYPH_ID_EMOJI_MASK: u16 = 0b0001_1111_1111_1111; // 0x1FFF
-    /// Bold flag - selects the bold variant of the glyph from the texture atlas.
+    #[doc(hidden)]
     pub const BOLD_FLAG: u16           = 0b0000_0100_0000_0000; // 0x0400
-    /// Italic flag - selects the italic variant of the glyph from the texture atlas.
+    #[doc(hidden)]
     pub const ITALIC_FLAG: u16         = 0b0000_1000_0000_0000; // 0x0800
-    /// Emoji flag - indicates this glyph represents an emoji character requiring special handling.
+    #[doc(hidden)]
     pub const EMOJI_FLAG: u16          = 0b0001_0000_0000_0000; // 0x1000
-    /// Underline flag - renders a horizontal line below the character baseline.
+    #[doc(hidden)]
     pub const UNDERLINE_FLAG: u16      = 0b0010_0000_0000_0000; // 0x2000
-    /// Strikethrough flag - renders a horizontal line through the middle of the character.
+    #[doc(hidden)]
     pub const STRIKETHROUGH_FLAG: u16  = 0b0100_0000_0000_0000; // 0x4000
 }
 

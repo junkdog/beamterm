@@ -1,5 +1,5 @@
 use beamterm_core::gl::{GlyphRasterizer, RasterizedGlyph};
-use beamterm_data::{FontAtlasData, FontStyle, LineDecoration};
+use beamterm_data::{CellSize, FontAtlasData, FontStyle, LineDecoration};
 
 use super::canvas_rasterizer::CanvasRasterizer;
 use crate::error::Error;
@@ -10,7 +10,7 @@ use crate::error::Error;
 /// [`DynamicFontAtlas`](beamterm_core::gl::DynamicFontAtlas).
 pub(crate) struct CanvasGlyphRasterizer {
     inner: CanvasRasterizer,
-    cell_size: (i32, i32),
+    cell_size: CellSize,
 }
 
 impl CanvasGlyphRasterizer {
@@ -20,11 +20,11 @@ impl CanvasGlyphRasterizer {
         Ok(Self { inner, cell_size })
     }
 
-    fn measure_cell_size(rasterizer: &CanvasRasterizer) -> Result<(i32, i32), Error> {
+    fn measure_cell_size(rasterizer: &CanvasRasterizer) -> Result<CellSize, Error> {
         let reference_glyphs = rasterizer.rasterize(&[("\u{2588}", FontStyle::Normal)])?;
 
         if let Some(g) = reference_glyphs.first() {
-            Ok((
+            Ok(CellSize::new(
                 g.width as i32 - FontAtlasData::PADDING * 2,
                 g.height as i32 - FontAtlasData::PADDING * 2,
             ))
@@ -48,7 +48,7 @@ impl GlyphRasterizer for CanvasGlyphRasterizer {
         self.inner.max_batch_size()
     }
 
-    fn cell_size(&self) -> (i32, i32) {
+    fn cell_size(&self) -> CellSize {
         self.cell_size
     }
 

@@ -547,7 +547,8 @@ fn mat4_mul(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
 // ── console rendering ────────────────────────────────────────────────
 
 fn render_console(grid: &mut TerminalGrid, console: &GameConsole) {
-    let (cols, rows) = grid.terminal_size();
+    let ts = grid.terminal_size();
+    let (cols, rows) = (ts.cols, ts.rows);
     let cols = cols as usize;
     let rows = rows as usize;
 
@@ -764,7 +765,8 @@ impl ApplicationHandler for App {
         let cube_renderer = CubeRenderer::new(&win.gl);
 
         let init_ms = init_start.elapsed().as_secs_f64() * 1000.0;
-        let (cols, rows) = grid.terminal_size();
+        let ts = grid.terminal_size();
+        let (cols, rows) = (ts.cols, ts.rows);
 
         let mut console = GameConsole::new();
         console.push_log(

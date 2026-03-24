@@ -1,6 +1,6 @@
 use std::{cmp::min, fmt::Debug};
 
-use beamterm_data::{FontAtlasData, FontStyle, Glyph, GlyphEffect};
+use beamterm_data::{CellSize, FontAtlasData, FontStyle, Glyph, GlyphEffect, TerminalSize};
 use compact_str::CompactString;
 use glow::HasContext;
 
@@ -32,7 +32,7 @@ pub struct TerminalGrid {
     /// Terminal cell instance data
     cells: Vec<CellDynamic>,
     /// Terminal size in cells
-    terminal_size: (u16, u16),
+    terminal_size: TerminalSize,
     /// Size of the canvas in pixels (physical)
     canvas_size_px: (i32, i32),
     /// Current device pixel ratio
@@ -92,7 +92,7 @@ impl GpuResources {
         gl: &glow::Context,
         cell_pos: &[CellStatic],
         cell_data: &[CellDynamic],
-        cell_size: (i32, i32),
+        cell_size: CellSize,
         glsl_version: &crate::GlslVersion,
     ) -> Result<Self, Error> {
         // Create and setup the Vertex Array Object
@@ -194,8 +194,8 @@ impl TerminalBuffers {
     }
 
     /// Updates the vertex buffer with new cell dimensions.
-    fn update_vertex_buffer(&self, gl: &glow::Context, cell_size: (i32, i32)) {
-        let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
+    fn update_vertex_buffer(&self, gl: &glow::Context, cell_size: CellSize) {
+        let (w, h) = (cell_size.width as f32, cell_size.height as f32);
 
         #[rustfmt::skip]
         let vertices: [f32; 16] = [
@@ -228,12 +228,9 @@ impl TerminalGrid {
         glsl_version: &crate::GlslVersion,
     ) -> Result<Self, Error> {
         let cell_scale = atlas.cell_scale_for_dpr(pixel_ratio);
-        let base_cell_size = atlas.cell_size();
-        let cell_size = (
-            (base_cell_size.0 as f32 * cell_scale).round() as i32,
-            (base_cell_size.1 as f32 * cell_scale).round() as i32,
-        );
-        let (cols, rows) = (screen_size.0 / cell_size.0, screen_size.1 / cell_size.1);
+        let cell_size = atlas.cell_size().scale(cell_scale);
+        let cols = screen_size.0 / cell_size.width;
+        let rows = screen_size.1 / cell_size.height;
 
         let space_glyph = atlas.space_glyph_id();
         let cell_data = create_terminal_cell_data(cols, rows, space_glyph);
@@ -241,7 +238,7 @@ impl TerminalGrid {
 
         let grid = Self {
             gpu: GpuResources::new(gl, &cell_pos, &cell_data, cell_size, glsl_version)?,
-            terminal_size: (cols as u16, rows as u16),
+            terminal_size: TerminalSize::new(cols as u16, rows as u16),
             canvas_size_px: screen_size,
             pixel_ratio,
             cells: cell_data,
@@ -268,13 +265,9 @@ impl TerminalGrid {
     }
 
     /// Returns the effective cell size for layout (base cell size * cell scale).
-    fn effective_cell_size(&self) -> (i32, i32) {
+    fn effective_cell_size(&self) -> CellSize {
         let cell_scale = self.atlas.cell_scale_for_dpr(self.pixel_ratio);
-        let base = self.atlas.cell_size();
-        (
-            (base.0 as f32 * cell_scale).round() as i32,
-            (base.1 as f32 * cell_scale).round() as i32,
-        )
+        self.atlas.cell_size().scale(cell_scale)
     }
 
     /// Sets the fallback glyph for missing characters.
@@ -391,7 +384,7 @@ impl TerminalGrid {
     }
 
     /// Returns the effective cell dimensions in pixels (base size * cell scale).
-    pub fn cell_size(&self) -> (i32, i32) {
+    pub fn cell_size(&self) -> CellSize {
         self.effective_cell_size()
     }
 
@@ -400,15 +393,18 @@ impl TerminalGrid {
     /// Use this for converting browser mouse coordinates (which are in CSS pixels)
     /// to terminal grid coordinates.
     pub fn css_cell_size(&self) -> (f32, f32) {
-        let (w, h) = self.effective_cell_size();
+        let cs = self.effective_cell_size();
         if self.pixel_ratio <= 0.0 {
-            return (w as f32, h as f32);
+            return (cs.width as f32, cs.height as f32);
         }
-        (w as f32 / self.pixel_ratio, h as f32 / self.pixel_ratio)
+        (
+            cs.width as f32 / self.pixel_ratio,
+            cs.height as f32 / self.pixel_ratio,
+        )
     }
 
     /// Returns the size of the terminal grid in cells.
-    pub fn terminal_size(&self) -> (u16, u16) {
+    pub fn terminal_size(&self) -> TerminalSize {
         self.terminal_size
     }
 
@@ -428,7 +424,7 @@ impl TerminalGrid {
 
     /// Returns a mutable reference to the cell data at the specified cell coordinates.
     pub fn cell_data_mut(&mut self, x: u16, y: u16) -> Option<&mut CellDynamic> {
-        let (cols, _) = self.terminal_size;
+        let cols = self.terminal_size.cols;
         let idx = y as usize * cols as usize + x as usize;
         self.dirty_regions.mark(idx);
         self.cells.get_mut(idx)
@@ -462,7 +458,7 @@ impl TerminalGrid {
     /// Returns `None` for non-ASCII characters or out-of-bounds positions.
     /// This is an optimized path for URL detection that avoids string allocation.
     pub(crate) fn get_ascii_char_at(&self, cursor: CursorPosition) -> Option<char> {
-        let idx = cursor.row as usize * self.terminal_size.0 as usize + cursor.col as usize;
+        let idx = cursor.row as usize * self.terminal_size.cols as usize + cursor.col as usize;
         if idx < self.cells.len() {
             let glyph_id = self.cells[idx].glyph_id();
             self.atlas.get_ascii_char(glyph_id)
@@ -557,7 +553,7 @@ impl TerminalGrid {
         &mut self,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
     ) -> Result<(), Error> {
-        let cols = self.terminal_size.0 as usize;
+        let cols = self.terminal_size.cols as usize;
         let cells_by_index = cells.map(|(x, y, data)| (y as usize * cols + x as usize, data));
 
         self.update_cells_by_index(cells_by_index)
@@ -618,7 +614,7 @@ impl TerminalGrid {
     }
 
     pub fn update_cell(&mut self, x: u16, y: u16, cell_data: CellData) -> Result<(), Error> {
-        let (cols, _) = self.terminal_size;
+        let cols = self.terminal_size.cols;
         let idx = y as usize * cols as usize + x as usize;
         self.update_cell_by_index(idx, cell_data)
     }
@@ -711,9 +707,9 @@ impl TerminalGrid {
         // Update the UBO with new screen size
         self.upload_ubo_data(gl);
 
-        let cols = (canvas_size.0 / cell_size.0).max(1);
-        let rows = (canvas_size.1 / cell_size.1).max(1);
-        if self.terminal_size == (cols as u16, rows as u16) {
+        let cols = (canvas_size.0 / cell_size.width).max(1);
+        let rows = (canvas_size.1 / cell_size.height).max(1);
+        if self.terminal_size == TerminalSize::new(cols as u16, rows as u16) {
             return Ok(()); // no change in terminal size
         }
 
@@ -727,7 +723,10 @@ impl TerminalGrid {
         }
 
         // resize cell data vector
-        let current_size = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
+        let current_size = (
+            self.terminal_size.cols as i32,
+            self.terminal_size.rows as i32,
+        );
         let cell_data = self.resize_cell_grid(current_size, (cols, rows));
         self.cells = cell_data;
 
@@ -740,7 +739,7 @@ impl TerminalGrid {
         // unbind VAO
         unsafe { gl.bind_vertex_array(None) };
 
-        self.terminal_size = (cols as u16, rows as u16);
+        self.terminal_size = TerminalSize::new(cols as u16, rows as u16);
         self.dirty_regions = DirtyRegions::new(self.cells.len());
 
         Ok(())
@@ -756,7 +755,10 @@ impl TerminalGrid {
         glsl_version: &crate::GlslVersion,
     ) -> Result<(), Error> {
         let cell_size = self.effective_cell_size();
-        let (cols, rows) = (self.terminal_size.0 as i32, self.terminal_size.1 as i32);
+        let (cols, rows) = (
+            self.terminal_size.cols as i32,
+            self.terminal_size.rows as i32,
+        );
         let cell_pos = CellStatic::create_grid(cols, rows);
 
         // Recreate all GPU resources (old ones are invalid after context loss)
@@ -821,9 +823,9 @@ fn setup_buffers(
     vao: glow::VertexArray,
     cell_pos: &[CellStatic],
     cell_data: &[CellDynamic],
-    cell_size: (i32, i32),
+    cell_size: CellSize,
 ) -> Result<TerminalBuffers, Error> {
-    let (w, h) = (cell_size.0 as f32, cell_size.1 as f32);
+    let (w, h) = (cell_size.width as f32, cell_size.height as f32);
 
     #[rustfmt::skip]
     let vertices = [
@@ -1197,12 +1199,12 @@ struct CellFragmentUbo {
 impl CellVertexUbo {
     pub const BINDING_POINT: u32 = 0;
 
-    fn new(canvas_size: (i32, i32), cell_size: (i32, i32)) -> Self {
+    fn new(canvas_size: (i32, i32), cell_size: CellSize) -> Self {
         let projection =
             Mat4::orthographic_from_size(canvas_size.0 as f32, canvas_size.1 as f32).data;
         Self {
             projection,
-            cell_size: [cell_size.0 as f32, cell_size.1 as f32],
+            cell_size: [cell_size.width as f32, cell_size.height as f32],
             _padding: [0.0; 2], // padding to ensure proper alignment
         }
     }
@@ -1213,14 +1215,14 @@ impl CellFragmentUbo {
 
     fn new(atlas: &FontAtlas, bg_alpha: f32) -> Self {
         // Use texture cell size for padding calculation (physical pixels in texture)
-        let texture_cell_size = atlas.texture_cell_size();
+        let tcs = atlas.texture_cell_size();
         let underline = atlas.underline();
         let strikethrough = atlas.strikethrough();
 
         Self {
             padding_frac: [
-                FontAtlasData::PADDING as f32 / texture_cell_size.0 as f32,
-                FontAtlasData::PADDING as f32 / texture_cell_size.1 as f32,
+                FontAtlasData::PADDING as f32 / tcs.width as f32,
+                FontAtlasData::PADDING as f32 / tcs.height as f32,
             ],
             underline_pos: underline.position(),
             underline_thickness: underline.thickness(),

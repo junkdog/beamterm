@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Not};
 
-use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
+use beamterm_data::{CellSize, DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use compact_str::{CompactString, ToCompactString};
 
 use super::{
@@ -34,7 +34,7 @@ pub struct DynamicFontAtlas<R: GlyphRasterizer> {
     cache: GlyphCache,
     symbol_lookup: HashMap<u16, CompactString>,
     glyphs_pending_upload: PendingUploads,
-    physical_cell_size: (i32, i32),
+    physical_cell_size: CellSize,
     glyph_tracker: GlyphTracker,
     underline: LineDecoration,
     strikethrough: LineDecoration,
@@ -72,9 +72,9 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
         let underline = rasterizer.underline();
         let strikethrough = rasterizer.strikethrough();
 
-        let padded_cell_size = (
-            physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            physical_cell_size.1 + FontAtlasData::PADDING * 2,
+        let padded_cell_size = CellSize::new(
+            physical_cell_size.width + FontAtlasData::PADDING * 2,
+            physical_cell_size.height + FontAtlasData::PADDING * 2,
         );
         let texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
@@ -129,12 +129,12 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
         gl: &glow::Context,
         pending: Vec<PendingGlyph>,
     ) -> Result<(), Error> {
-        let padded_cell_size = (
-            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
+        let padded_cell_size = CellSize::new(
+            self.physical_cell_size.width + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.height + FontAtlasData::PADDING * 2,
         );
-        let cell_w = padded_cell_size.0 as u32;
-        let cell_h = padded_cell_size.1 as u32;
+        let cell_w = padded_cell_size.width as u32;
+        let cell_h = padded_cell_size.height as u32;
 
         let graphemes: Vec<(&str, FontStyle)> = pending
             .iter()
@@ -189,7 +189,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
             .map(|slot| slot.slot_id())
     }
 
-    fn cell_size(&self) -> (i32, i32) {
+    fn cell_size(&self) -> CellSize {
         self.physical_cell_size
     }
 
@@ -243,9 +243,9 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.texture.delete(gl);
 
-        let padded_cell_size = (
-            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
+        let padded_cell_size = CellSize::new(
+            self.physical_cell_size.width + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.height + FontAtlasData::PADDING * 2,
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
@@ -318,9 +318,9 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         self.strikethrough = self.rasterizer.strikethrough();
 
         self.texture.delete(gl);
-        let padded_cell_size = (
-            self.physical_cell_size.0 + FontAtlasData::PADDING * 2,
-            self.physical_cell_size.1 + FontAtlasData::PADDING * 2,
+        let padded_cell_size = CellSize::new(
+            self.physical_cell_size.width + FontAtlasData::PADDING * 2,
+            self.physical_cell_size.height + FontAtlasData::PADDING * 2,
         );
         self.texture = Texture::for_dynamic_font_atlas(gl, padded_cell_size, NUM_LAYERS)?;
 
@@ -336,7 +336,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         1.0
     }
 
-    fn texture_cell_size(&self) -> (i32, i32) {
+    fn texture_cell_size(&self) -> CellSize {
         self.physical_cell_size
     }
 }

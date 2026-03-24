@@ -670,10 +670,10 @@ impl AtlasFontGenerator {
         texture: &mut [u32],
     ) {
         let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
-        let (cell_w, cell_h) = config.padded_cell_size();
+        let cell_size = config.padded_cell_size();
 
         for (x, y, color) in pixels {
-            if x < 0 || x >= cell_w || y < 0 || y >= cell_h {
+            if x < 0 || x >= cell_size.width || y < 0 || y >= cell_size.height {
                 continue;
             }
 

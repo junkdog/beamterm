@@ -51,7 +51,7 @@ impl GlyphRasterizer for NativeGlyphRasterizer {
         usize::MAX
     }
 
-    fn cell_size(&self) -> (i32, i32) {
+    fn cell_size(&self) -> beamterm_data::CellSize {
         self.inner.cell_size()
     }
 

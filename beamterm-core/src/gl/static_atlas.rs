@@ -30,7 +30,7 @@ pub struct StaticFontAtlas {
     /// Base glyph identifier to symbol mapping
     symbol_lookup: HashMap<u16, CompactString>,
     /// The size of each character cell in pixels
-    cell_size: (i32, i32),
+    cell_size: beamterm_data::CellSize,
     /// Underline configuration
     underline: beamterm_data::LineDecoration,
     /// Strikethrough configuration
@@ -48,7 +48,7 @@ impl StaticFontAtlas {
     pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, &config)?;
 
-        let (cell_width, cell_height) = config.cell_size();
+        let beamterm_data::CellSize { width: cell_width, height: cell_height } = config.cell_size();
         let mut layers = HashMap::new();
         let mut symbol_lookup = HashMap::new();
 
@@ -70,7 +70,7 @@ impl StaticFontAtlas {
             glyph_coords: layers,
             last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id(),
             symbol_lookup,
-            cell_size: (cell_width, cell_height),
+            cell_size: beamterm_data::CellSize::new(cell_width, cell_height),
             underline: config.underline(),
             strikethrough: config.strikethrough(),
             glyph_tracker: GlyphTracker::new(),
@@ -107,11 +107,10 @@ impl Atlas for StaticFontAtlas {
         }
     }
 
-    fn cell_size(&self) -> (i32, i32) {
-        let (w, h) = self.cell_size;
-        (
-            w - 2 * FontAtlasData::PADDING,
-            h - 2 * FontAtlasData::PADDING,
+    fn cell_size(&self) -> beamterm_data::CellSize {
+        beamterm_data::CellSize::new(
+            self.cell_size.width - 2 * FontAtlasData::PADDING,
+            self.cell_size.height - 2 * FontAtlasData::PADDING,
         )
     }
 
@@ -250,7 +249,7 @@ impl Atlas for StaticFontAtlas {
         if pixel_ratio <= 0.5 { 0.5 } else { pixel_ratio.round().max(1.0) }
     }
 
-    fn texture_cell_size(&self) -> (i32, i32) {
+    fn texture_cell_size(&self) -> beamterm_data::CellSize {
         // Static atlas texture size equals cell_size (fixed resolution)
         self.cell_size()
     }

@@ -98,8 +98,8 @@ fn main() -> Result<()> {
     println!("Font size: {:.3}", atlas.font_size());
     let (tw, th, tl) = atlas.texture_dimensions();
     println!("Texture size: {tw}x{th}x{tl}");
-    let (cw, ch) = atlas.cell_size();
-    println!("Cell size: {cw}x{ch}");
+    let cs = atlas.cell_size();
+    println!("Cell size: {}x{}", cs.width, cs.height);
     let glyphs = atlas.glyphs();
     println!("Total glyph count: {}", glyphs.len());
     println!(
