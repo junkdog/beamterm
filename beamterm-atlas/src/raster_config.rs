@@ -21,7 +21,7 @@ impl RasterizationConfig {
         let slice_width = Self::GRID_WIDTH * (inner_cell_w + 2 * FontAtlasData::PADDING);
         let slice_height = Self::GRID_HEIGHT * (inner_cell_h + 2 * FontAtlasData::PADDING);
 
-        let max_id = glyphs.iter().map(|g| g.id).max().unwrap_or(0) as i32;
+        let max_id = glyphs.iter().map(Glyph::id).max().unwrap_or(0) as i32;
         let layers = max_id / Self::GLYPHS_PER_SLICE + 1;
 
         Self {

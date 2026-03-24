@@ -38,7 +38,7 @@ pub struct Texture {
 
 impl Texture {
     pub fn from_font_atlas_data(gl: &glow::Context, atlas: &FontAtlasData) -> Result<Self, Error> {
-        let (width, height, layers) = atlas.texture_dimensions;
+        let (width, height, layers) = atlas.texture_dimensions();
 
         // prepare texture
         let gl_texture = unsafe { gl.create_texture() }.map_err(Error::texture_creation_failed)?;
@@ -65,13 +65,13 @@ impl Texture {
                 layers, // texture size
                 glow::RGBA,
                 glow::UNSIGNED_BYTE,
-                glow::PixelUnpackData::Slice(Some(&atlas.texture_data)),
+                glow::PixelUnpackData::Slice(Some(atlas.texture_data())),
             );
         }
 
         Self::setup_sampling(gl);
 
-        let (width, height, layers) = atlas.texture_dimensions;
+        let (width, height, layers) = atlas.texture_dimensions();
         Ok(Self { gl_texture, dimensions: (width, height, layers) })
     }
 

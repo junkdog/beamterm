@@ -35,6 +35,6 @@ pub(super) trait AtlasCoordinateProvider {
 
 impl AtlasCoordinateProvider for Glyph {
     fn atlas_coordinate(&self) -> AtlasCoordinate {
-        self.id.into()
+        self.id().into()
     }
 }

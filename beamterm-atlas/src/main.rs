@@ -95,35 +95,23 @@ fn main() -> Result<()> {
     let atlas = &bitmap_font.atlas_data;
     println!("\nBitmap font generated!");
     println!("Font family: {}", selected_font.name);
-    println!("Font size: {:.3}", atlas.font_size);
-    println!(
-        "Texture size: {}x{}x{}",
-        atlas.texture_dimensions.0, atlas.texture_dimensions.1, atlas.texture_dimensions.2
-    );
-    println!(
-        "Cell size: {}x{}",
-        bitmap_font.atlas_data.cell_size.0, bitmap_font.atlas_data.cell_size.1
-    );
-    let rasterized_glyphs = bitmap_font.atlas_data.glyphs;
-    println!("Total glyph count: {}", rasterized_glyphs.len());
+    println!("Font size: {:.3}", atlas.font_size());
+    let (tw, th, tl) = atlas.texture_dimensions();
+    println!("Texture size: {tw}x{th}x{tl}");
+    let (cw, ch) = atlas.cell_size();
+    println!("Cell size: {cw}x{ch}");
+    let glyphs = atlas.glyphs();
+    println!("Total glyph count: {}", glyphs.len());
     println!(
         "Glyph count per variant: {} (emoji: {})",
-        rasterized_glyphs
-            .iter()
-            .filter(|g| !g.is_emoji)
-            .count()
-            / FontStyle::ALL.len(),
-        rasterized_glyphs
-            .iter()
-            .filter(|g| g.is_emoji)
-            .count()
-            / 2 // each emoji occupies two glyphs
+        glyphs.iter().filter(|g| !g.is_emoji()).count() / FontStyle::ALL.len(),
+        glyphs.iter().filter(|g| g.is_emoji()).count() / 2 // each emoji occupies two glyphs
     );
     println!(
         "Longest grapheme in bytes: {}",
-        rasterized_glyphs
+        glyphs
             .iter()
-            .map(|g| g.symbol.len())
+            .map(|g| g.symbol().len())
             .max()
             .unwrap_or(0)
     );
@@ -387,7 +375,7 @@ fn report_missing_glyphs(
 
             if !glyphs.is_empty() {
                 // Sort glyphs by symbol for consistent output
-                glyphs.sort_by_key(|g| &g.symbol);
+                glyphs.sort_by(|a, b| a.symbol.cmp(&b.symbol));
 
                 println!("  {style:?}:");
 

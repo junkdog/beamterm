@@ -557,31 +557,31 @@ mod tests {
         let strikethrough = rasterizer.strikethrough();
 
         assert!(
-            (0.0..=1.0).contains(&underline.position),
+            (0.0..=1.0).contains(&underline.position()),
             "underline position should be 0.0-1.0, got {}",
-            underline.position
+            underline.position()
         );
         assert!(
-            underline.thickness > 0.0,
+            underline.thickness() > 0.0,
             "underline thickness should be positive"
         );
 
         assert!(
-            (0.0..=1.0).contains(&strikethrough.position),
+            (0.0..=1.0).contains(&strikethrough.position()),
             "strikethrough position should be 0.0-1.0, got {}",
-            strikethrough.position
+            strikethrough.position()
         );
         assert!(
-            strikethrough.thickness > 0.0,
+            strikethrough.thickness() > 0.0,
             "strikethrough thickness should be positive"
         );
 
         // strikethrough should be above underline (lower position value)
         assert!(
-            strikethrough.position < underline.position,
+            strikethrough.position() < underline.position(),
             "strikethrough ({}) should be above underline ({})",
-            strikethrough.position,
-            underline.position
+            strikethrough.position(),
+            underline.position()
         );
     }
 

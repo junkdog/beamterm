@@ -2,7 +2,6 @@ use std::{collections::HashSet, ops::RangeInclusive};
 
 use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
 use color_eyre::Report;
-use compact_str::ToCompactString;
 use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
 use itertools::Itertools;
 use tracing::{debug, info};
@@ -401,9 +400,9 @@ impl AtlasFontGenerator {
         let glyphs: Vec<_> = glyphs
             .into_iter()
             .filter(|g| {
-                let is_fullwidth = g.symbol.width() == 2;
-                let is_double_width = g.is_emoji || is_fullwidth;
-                !is_double_width || g.id & 1 == 0 // keep left half only
+                let is_fullwidth = g.symbol().width() == 2;
+                let is_double_width = g.is_emoji() || is_fullwidth;
+                !is_double_width || g.id() & 1 == 0 // keep left half only
             })
             .collect();
 
@@ -411,17 +410,17 @@ impl AtlasFontGenerator {
         println!("  Cell height: {cell_height}");
         println!(
             "  Underline - Provided: {:.4} ({:.1}px) -> Actual: {:.4} ({:.1}px)",
-            self.underline.position,
-            cell_height * self.underline.position,
-            nudged_underline.position,
-            cell_height * nudged_underline.position
+            self.underline.position(),
+            cell_height * self.underline.position(),
+            nudged_underline.position(),
+            cell_height * nudged_underline.position()
         );
         println!(
             "  Strikethrough - Provided: {:.4} ({:.1}px) -> Actual: {:.4} ({:.1}px)",
-            self.strikethrough.position,
-            cell_height * self.strikethrough.position,
-            nudged_strikethrough.position,
-            cell_height * nudged_strikethrough.position
+            self.strikethrough.position(),
+            cell_height * self.strikethrough.position(),
+            nudged_strikethrough.position(),
+            cell_height * nudged_strikethrough.position()
         );
 
         info!(
@@ -429,34 +428,30 @@ impl AtlasFontGenerator {
             glyph_count = glyphs.len(),
             texture_size_bytes = texture_data.len(),
             cell_height = cell_height,
-            underline_provided_pos = self.underline.position,
-            underline_provided_pixel = cell_height * self.underline.position,
-            underline_actual_pos = nudged_underline.position,
-            underline_actual_pixel = cell_height * nudged_underline.position,
-            strikethrough_provided_pos = self.strikethrough.position,
-            strikethrough_provided_pixel = cell_height * self.strikethrough.position,
-            strikethrough_actual_pos = nudged_strikethrough.position,
-            strikethrough_actual_pixel = cell_height * nudged_strikethrough.position,
+            underline_provided_pos = self.underline.position(),
+            underline_provided_pixel = cell_height * self.underline.position(),
+            underline_actual_pos = nudged_underline.position(),
+            underline_actual_pixel = cell_height * nudged_underline.position(),
+            strikethrough_provided_pos = self.strikethrough.position(),
+            strikethrough_provided_pixel = cell_height * self.strikethrough.position(),
+            strikethrough_actual_pos = nudged_strikethrough.position(),
+            strikethrough_actual_pixel = cell_height * nudged_strikethrough.position(),
             "Font generation completed successfully"
         );
 
         Ok((
             BitmapFont {
-                atlas_data: FontAtlasData {
-                    font_name: self.font_family_name.clone().into(),
-                    font_size: self.metrics.font_size,
-                    max_halfwidth_base_glyph_id: halfwidth_glyphs_per_layer,
-                    texture_dimensions: (
-                        config.texture_width,
-                        config.texture_height,
-                        config.layers,
-                    ),
-                    cell_size: config.padded_cell_size(),
-                    underline: nudged_underline,
-                    strikethrough: nudged_strikethrough,
+                atlas_data: FontAtlasData::new(
+                    self.font_family_name.clone().into(),
+                    self.metrics.font_size,
+                    halfwidth_glyphs_per_layer,
+                    (config.texture_width, config.texture_height, config.layers),
+                    config.padded_cell_size(),
+                    nudged_underline,
+                    nudged_strikethrough,
                     glyphs,
                     texture_data,
-                },
+                ),
             },
             fallback_stats,
         ))
@@ -473,25 +468,25 @@ impl AtlasFontGenerator {
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) -> Option<FallbackGlyph> {
-        let is_fullwidth = glyph.symbol.width() == 2;
+        let is_fullwidth = glyph.symbol().width() == 2;
 
         debug!(
-            symbol = %glyph.symbol,
-            style = ?glyph.style,
-            glyph_id = format_args!("0x{:04X}", glyph.id),
-            is_emoji = glyph.is_emoji,
+            symbol = %glyph.symbol(),
+            style = ?glyph.style(),
+            glyph_id = format_args!("0x{:04X}", glyph.id()),
+            is_emoji = glyph.is_emoji(),
             is_fullwidth = is_fullwidth,
             "Rasterizing glyph"
         );
 
-        let font_id = if glyph.is_emoji || is_fullwidth {
+        let font_id = if glyph.is_emoji() || is_fullwidth {
             // Render double-width glyph at 2× width and split into left/right halves
             let bounds = config.double_width_glyph_bounds();
-            let bitmap = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
+            let bitmap = self.rasterize_symbol(glyph.symbol(), glyph.style(), bounds);
             let cell_w = config.glyph_bounds().width();
             let font_id = bitmap.font_id;
 
-            let half_bitmap = if glyph.id & 1 == 0 {
+            let half_bitmap = if glyph.id() & 1 == 0 {
                 GlyphBitmap::split_left(&bitmap, cell_w)
             } else {
                 GlyphBitmap::split_right(&bitmap, cell_w)
@@ -508,7 +503,7 @@ impl AtlasFontGenerator {
         } else {
             // Normal glyph rendering
             let glyph_bitmap =
-                self.rasterize_symbol(&glyph.symbol, glyph.style, config.glyph_bounds());
+                self.rasterize_symbol(glyph.symbol(), glyph.style(), config.glyph_bounds());
             let font_id = glyph_bitmap.font_id;
 
             self.render_pixels_to_texture(
@@ -522,10 +517,10 @@ impl AtlasFontGenerator {
         };
 
         // Check if this glyph used a fallback font (skip emoji - they use a separate font)
-        if !glyph.is_emoji && !self.is_expected_font(font_id) {
+        if !glyph.is_emoji() && !self.is_expected_font(font_id) {
             Some(FallbackGlyph {
-                symbol: glyph.symbol.to_string(),
-                style: glyph.style,
+                symbol: glyph.symbol().to_string(),
+                style: glyph.style(),
                 fallback_font_name: self.font_name_for_id(font_id),
             })
         } else {
@@ -538,10 +533,10 @@ impl AtlasFontGenerator {
         decoration: LineDecoration,
         cell_height: f32,
     ) -> LineDecoration {
-        let pixel_pos = cell_height * decoration.position;
+        let pixel_pos = cell_height * decoration.position();
         let nudged_pixel = (pixel_pos - 0.5).round() + 0.5;
         let nudged_position = nudged_pixel / cell_height;
-        LineDecoration::new(nudged_position, decoration.thickness)
+        LineDecoration::new(nudged_position, decoration.thickness())
     }
 
     /// Rasterizes a single symbol with the specified style into a bitmap.
@@ -624,23 +619,23 @@ impl AtlasFontGenerator {
     ) -> (Buffer, fontdb::ID) {
         // Use emoji font if glyph is emoji, otherwise use main font
         // Emoji fonts typically only have Normal style, not Bold/Italic
-        let (font_family, font_style) = if glyph.is_emoji {
+        let (font_family, font_style) = if glyph.is_emoji() {
             (&self.emoji_font_family_name, FontStyle::Normal)
         } else {
-            (&self.font_family_name, glyph.style)
+            (&self.font_family_name, glyph.style())
         };
 
-        if glyph.is_emoji {
+        if glyph.is_emoji() {
             info!(
-                symbol = %glyph.symbol,
-                codepoint = format_args!("U+{:04X}", glyph.symbol.chars().next().unwrap_or('\0') as u32),
+                symbol = %glyph.symbol(),
+                codepoint = format_args!("U+{:04X}", glyph.symbol().chars().next().unwrap_or('\0') as u32),
                 font_family = %font_family,
                 font_style = ?font_style,
                 "Rendering emoji glyph"
             );
         }
 
-        create_rasterizer(&glyph.symbol)
+        create_rasterizer(glyph.symbol())
             .font_family_name(font_family)
             .font_style(font_style)
             .monospace_width(cell_w as u32)
@@ -724,13 +719,7 @@ impl AtlasFontGenerator {
     ///
     /// Updates `self.metrics.font_size` to the optimized value.
     pub fn calculate_optimized_cell_dimensions(&mut self) -> GlyphBounds {
-        let reference_glyph = Glyph {
-            id: 0,
-            symbol: "\u{2588}".to_compact_string(), // Full block character
-            style: FontStyle::Normal,
-            pixel_coords: (0, 0),
-            is_emoji: false,
-        };
+        let reference_glyph = Glyph::new_with_id(0, "\u{2588}", FontStyle::Normal, (0, 0));
 
         let mut dynamic_metrics = self.metrics;
         let mut best_fitness = f32::INFINITY;
@@ -745,9 +734,9 @@ impl AtlasFontGenerator {
             dynamic_metrics.font_size = self.metrics.font_size * adjustment;
             dynamic_metrics.line_height = dynamic_metrics.font_size * self.line_height;
 
-            let (mut buffer, _font_id) = create_rasterizer(&reference_glyph.symbol) // Full block character
+            let (mut buffer, _font_id) = create_rasterizer(reference_glyph.symbol()) // Full block character
                 .font_family_name(&self.font_family_name)
-                .font_style(reference_glyph.style)
+                .font_style(reference_glyph.style())
                 .rasterize(&mut self.font_system, dynamic_metrics)
                 .expect("glyph to rasterize to Buffer");
 
@@ -854,9 +843,9 @@ impl AtlasFontGenerator {
         glyph: &Glyph,
         bounds: GlyphBounds,
     ) -> Vec<(i32, i32, Color)> {
-        let (mut buffer, _font_id) = create_rasterizer(&glyph.symbol)
+        let (mut buffer, _font_id) = create_rasterizer(glyph.symbol())
             .font_family_name(&self.font_family_name)
-            .font_style(glyph.style)
+            .font_style(glyph.style())
             .rasterize(&mut self.font_system, self.metrics)
             .expect("glyph to rasterize to Buffer");
 
@@ -903,23 +892,23 @@ impl AtlasFontGenerator {
             total_checked += 1;
 
             // skip intentionally empty glyphs (space characters)
-            if is_empty_character(&glyph.symbol) {
+            if is_empty_character(glyph.symbol()) {
                 continue;
             }
 
             // Try to rasterize the glyph - if it produces no visible pixels, it's missing
-            let rasterized = self.rasterize_symbol(&glyph.symbol, glyph.style, bounds);
+            let rasterized = self.rasterize_symbol(glyph.symbol(), glyph.style(), bounds);
             let is_supported = !rasterized.data.is_empty();
 
             if !is_supported {
                 debug!(
-                    symbol = %glyph.symbol,
-                    style = ?glyph.style,
+                    symbol = %glyph.symbol(),
+                    style = ?glyph.style(),
                     "Glyph not supported - rasterization produced no pixels"
                 );
                 missing_glyphs.push(MissingGlyph {
-                    symbol: glyph.symbol.to_string(),
-                    style: glyph.style,
+                    symbol: glyph.symbol().to_string(),
+                    style: glyph.style(),
                 });
             }
         }

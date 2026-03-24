@@ -48,7 +48,7 @@ impl StaticFontAtlas {
     pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, &config)?;
 
-        let (cell_width, cell_height) = config.cell_size;
+        let (cell_width, cell_height) = config.cell_size();
         let mut layers = HashMap::new();
         let mut symbol_lookup = HashMap::new();
 
@@ -57,22 +57,22 @@ impl StaticFontAtlas {
         //
         // emoji are (currently all) double-width and occupy two consecutive glyph ids,
         // but we only store the first id in the lookup.
-        config.glyphs.iter()
-            .filter(|g| g.style == FontStyle::Normal) // only normal style glyphs
-            .filter(|g| !g.is_ascii())                // only non-ascii glyphs
+        config.glyphs().iter()
+            .filter(|g| g.style() == FontStyle::Normal) // only normal style glyphs
+            .filter(|g| !g.is_ascii())                  // only non-ascii glyphs
             .for_each(|g| {
-                symbol_lookup.insert(g.id, g.symbol.clone());
-                layers.insert(g.symbol.clone(), g.id);
+                symbol_lookup.insert(g.id(), g.symbol().into());
+                layers.insert(CompactString::from(g.symbol()), g.id());
             });
 
         Ok(Self {
             texture,
             glyph_coords: layers,
-            last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id,
+            last_halfwidth_base_glyph_id: config.max_halfwidth_base_glyph_id(),
             symbol_lookup,
             cell_size: (cell_width, cell_height),
-            underline: config.underline,
-            strikethrough: config.strikethrough,
+            underline: config.underline(),
+            strikethrough: config.strikethrough(),
             glyph_tracker: GlyphTracker::new(),
             atlas_data: config,
         })

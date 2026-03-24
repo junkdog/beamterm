@@ -12,27 +12,27 @@ use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable, Se
 #[derive(Clone, PartialEq)]
 pub struct FontAtlasData {
     /// The name of the font
-    pub font_name: CompactString,
+    pub(crate) font_name: CompactString,
     /// The font size in points
-    pub font_size: f32,
+    pub(crate) font_size: f32,
     /// The number of single-cell (halfwidth) glyphs per layer, before fullwidth glyphs begin.
     ///
     /// Fullwidth glyphs (e.g., CJK characters) are assigned IDs starting from this value,
     /// aligned to even boundaries. This allows the renderer to distinguish halfwidth from
     /// fullwidth glyphs by comparing against this threshold.
-    pub max_halfwidth_base_glyph_id: u16,
+    pub(crate) max_halfwidth_base_glyph_id: u16,
     /// Width, height and depth of the texture in pixels
-    pub texture_dimensions: (i32, i32, i32),
+    pub(crate) texture_dimensions: (i32, i32, i32),
     /// Width and height of each character cell
-    pub cell_size: (i32, i32),
+    pub(crate) cell_size: (i32, i32),
     /// Underline configuration
-    pub underline: LineDecoration,
+    pub(crate) underline: LineDecoration,
     /// Strikethrough configuration
-    pub strikethrough: LineDecoration,
+    pub(crate) strikethrough: LineDecoration,
     /// The glyphs in the font
-    pub glyphs: Vec<Glyph>,
+    pub(crate) glyphs: Vec<Glyph>,
     /// The 3d texture data containing the font glyphs
-    pub texture_data: Vec<u8>,
+    pub(crate) texture_data: Vec<u8>,
 }
 
 impl Debug for FontAtlasData {
@@ -51,6 +51,87 @@ impl Debug for FontAtlasData {
 impl FontAtlasData {
     pub const PADDING: i32 = 1;
     pub const CELLS_PER_SLICE: i32 = 32;
+
+    /// Creates a new font atlas with the given parameters.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        font_name: CompactString,
+        font_size: f32,
+        max_halfwidth_base_glyph_id: u16,
+        texture_dimensions: (i32, i32, i32),
+        cell_size: (i32, i32),
+        underline: LineDecoration,
+        strikethrough: LineDecoration,
+        glyphs: Vec<Glyph>,
+        texture_data: Vec<u8>,
+    ) -> Self {
+        Self {
+            font_name,
+            font_size,
+            max_halfwidth_base_glyph_id,
+            texture_dimensions,
+            cell_size,
+            underline,
+            strikethrough,
+            glyphs,
+            texture_data,
+        }
+    }
+
+    /// Returns the font name.
+    #[inline]
+    pub fn font_name(&self) -> &str {
+        &self.font_name
+    }
+
+    /// Returns the font size in points.
+    #[inline]
+    pub fn font_size(&self) -> f32 {
+        self.font_size
+    }
+
+    /// Returns the maximum halfwidth base glyph ID.
+    ///
+    /// Fullwidth glyphs are assigned IDs starting from this value.
+    #[inline]
+    pub fn max_halfwidth_base_glyph_id(&self) -> u16 {
+        self.max_halfwidth_base_glyph_id
+    }
+
+    /// Returns the texture dimensions as (width, height, layers).
+    #[inline]
+    pub fn texture_dimensions(&self) -> (i32, i32, i32) {
+        self.texture_dimensions
+    }
+
+    /// Returns the underline decoration configuration.
+    #[inline]
+    pub fn underline(&self) -> LineDecoration {
+        self.underline
+    }
+
+    /// Returns the strikethrough decoration configuration.
+    #[inline]
+    pub fn strikethrough(&self) -> LineDecoration {
+        self.strikethrough
+    }
+
+    /// Returns a slice of all glyphs in the atlas.
+    #[inline]
+    pub fn glyphs(&self) -> &[Glyph] {
+        &self.glyphs
+    }
+
+    /// Returns the raw texture data.
+    #[inline]
+    pub fn texture_data(&self) -> &[u8] {
+        &self.texture_data
+    }
+
+    /// Consumes the atlas and returns its glyphs.
+    pub fn into_glyphs(self) -> Vec<Glyph> {
+        self.glyphs
+    }
 
     /// Deserializes a font atlas from binary format.
     ///
@@ -111,9 +192,9 @@ impl Default for FontAtlasData {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LineDecoration {
     /// 0.0 to 1.0, where 0.0 is the top of the text line and 1.0 is the bottom.
-    pub position: f32,
+    pub(crate) position: f32,
     /// Thickness of the line as a fraction of the cell height (0.0 to 1.0)
-    pub thickness: f32,
+    pub(crate) thickness: f32,
 }
 
 impl LineDecoration {
@@ -122,6 +203,18 @@ impl LineDecoration {
             position: position.clamp(0.0, 1.0),
             thickness: thickness.clamp(0.0, 1.0),
         }
+    }
+
+    /// Returns the vertical position as a fraction of cell height (0.0 to 1.0).
+    #[inline]
+    pub fn position(&self) -> f32 {
+        self.position
+    }
+
+    /// Returns the thickness as a fraction of cell height (0.0 to 1.0).
+    #[inline]
+    pub fn thickness(&self) -> f32 {
+        self.thickness
     }
 }
 

@@ -88,13 +88,14 @@ impl GraphemeSet {
             glyphs.push(Glyph::new_emoji(id + 1, c, (0, 0)));
         }
 
-        glyphs.sort_by_key(|g| g.id);
+        glyphs.sort_by_key(Glyph::id);
 
         // update glyphs with actual texture coordinates
         for glyph in &mut glyphs {
-            glyph.pixel_coords = glyph
+            let coords = glyph
                 .atlas_coordinate()
                 .to_pixel_xy(cell_dimensions);
+            glyph.set_pixel_coords(coords);
         }
 
         glyphs

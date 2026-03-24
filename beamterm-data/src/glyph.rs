@@ -41,15 +41,15 @@ use crate::serialization::SerializationError;
 #[derive(Debug, Eq, Clone, PartialEq)]
 pub struct Glyph {
     /// The glyph ID; encodes the 3d texture coordinates
-    pub id: u16,
+    pub(crate) id: u16,
     /// The style of the glyph, e.g., bold, italic
-    pub style: FontStyle,
+    pub(crate) style: FontStyle,
     /// The character
-    pub symbol: CompactString,
+    pub(crate) symbol: CompactString,
     /// The pixel coordinates of the glyph in the texture
-    pub pixel_coords: (i32, i32),
+    pub(crate) pixel_coords: (i32, i32),
     /// Indicates if the glyph is an emoji
-    pub is_emoji: bool,
+    pub(crate) is_emoji: bool,
 }
 
 #[rustfmt::skip]
@@ -76,6 +76,42 @@ impl Glyph {
 }
 
 impl Glyph {
+    /// Returns the glyph ID encoding texture coordinates and style flags.
+    #[inline]
+    pub fn id(&self) -> u16 {
+        self.id
+    }
+
+    /// Returns the font style of this glyph.
+    #[inline]
+    pub fn style(&self) -> FontStyle {
+        self.style
+    }
+
+    /// Returns the character or grapheme this glyph represents.
+    #[inline]
+    pub fn symbol(&self) -> &str {
+        &self.symbol
+    }
+
+    /// Returns the pixel coordinates of the glyph in the texture.
+    #[inline]
+    pub fn pixel_coords(&self) -> (i32, i32) {
+        self.pixel_coords
+    }
+
+    /// Returns true if this glyph is an emoji.
+    #[inline]
+    pub fn is_emoji(&self) -> bool {
+        self.is_emoji
+    }
+
+    /// Sets the pixel coordinates of the glyph in the texture.
+    #[inline]
+    pub fn set_pixel_coords(&mut self, pixel_coords: (i32, i32)) {
+        self.pixel_coords = pixel_coords;
+    }
+
     /// Creates a new glyph with the specified symbol and pixel coordinates.
     pub fn new(symbol: &str, style: FontStyle, pixel_coords: (i32, i32)) -> Self {
         let first_char = symbol.chars().next().unwrap();
@@ -138,7 +174,7 @@ impl Glyph {
     ///
     /// // Bold 'A' (0x0441) -> base ID 0x41
     /// let bold_a = Glyph::new_with_id(0x41, "A", FontStyle::Bold, (0, 0));
-    /// assert_eq!(bold_a.id, 0x441);
+    /// assert_eq!(bold_a.id(), 0x441);
     /// assert_eq!(bold_a.base_id(), 0x041);
     ///
     /// // Emoji retains full ID
