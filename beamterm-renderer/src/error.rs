@@ -1,5 +1,5 @@
 /// Error categories.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
     /// Failed to initialize WebGL context or retrieve DOM elements.

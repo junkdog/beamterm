@@ -1,5 +1,5 @@
 /// Error categories for the core rendering engine.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
     /// Shader compilation, linking, or program creation errors.
