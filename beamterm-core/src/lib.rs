@@ -46,27 +46,117 @@ impl GlslVersion {
     }
 }
 
-/// Checks if a grapheme is an emoji-presentation-by-default character.
+/// Checks if a grapheme is an emoji that should use color font rendering.
 ///
-/// Text-presentation-by-default characters (e.g., `\u{25B6}`, `\u{23ED}`, `\u{23F9}`, `\u{25AA}`) are
-/// recognized by the `emojis` crate but should only be treated as emoji when
-/// explicitly followed by the variation selector `\u{FE0F}`. Without it, they
-/// are regular text glyphs.
+/// Uses UTF-8 byte-level checks and a codepoint table to avoid calling
+/// `unicode-width` for single-codepoint strings (the common case). Only
+/// multi-codepoint sequences (ZWJ, flags, keycaps, text + FE0F) fall
+/// through to a `width()` check.
 pub fn is_emoji(s: &str) -> bool {
-    match emojis::get(s) {
-        Some(emoji) => {
-            // If the canonical form contains FE0F, the base character is
-            // text-presentation-by-default and should only be emoji when
-            // the caller explicitly includes the variant selector.
-            if emoji.as_str().contains('\u{FE0F}') { s.contains('\u{FE0F}') } else { true }
-        },
-        None => false,
+    let bytes = s.as_bytes();
+    let first_byte = match bytes.first() {
+        Some(&b) => b,
+        None => return false,
+    };
+
+    // ASCII (1 byte, U+0000–U+007F): single ASCII is never emoji, but
+    // multi-codepoint sequences starting with ASCII can be (e.g. keycap "1️⃣").
+    if first_byte < 0x80 {
+        return s.len() > 1 && s.width() >= 2;
     }
+
+    // 2-byte UTF-8 (U+0080–U+07FF): no emoji exist in this range.
+    if first_byte < 0xE0 {
+        return s.len() > 2 && s.width() >= 2;
+    }
+
+    // 3+ byte UTF-8: decode the first codepoint.
+    // SAFETY: we verified the string is non-empty and starts with a 3+ byte sequence.
+    let first = unsafe { s.chars().next().unwrap_unchecked() };
+    let first_len = first.len_utf8();
+
+    // Single codepoint
+    if s.len() == first_len {
+        // 3-byte (BMP, U+0800–U+FFFF): emoji table is exact — skip width().
+        // 4-byte (SMP, U+10000+): range check is broad, verify with width().
+        return if first_len == 3 {
+            is_emoji_presentation(first)
+        } else {
+            s.width() >= 2 && is_emoji_presentation(first)
+        };
+    }
+
+    // Multi-codepoint: emoji if wide (ZWJ, flags, skin tones, text + FE0F).
+    s.width() >= 2
 }
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).
 pub fn is_double_width(grapheme: &str) -> bool {
-    grapheme.len() > 1 && (is_emoji(grapheme) || grapheme.width() == 2)
+    grapheme.width() >= 2
+}
+
+/// Returns `true` for characters with emoji-presentation-by-default that
+/// `unicode-width` reports as width 2. This covers BMP emoji (60 code
+/// points) and SMP emoji (U+1F000–U+1FFFF), excluding CJK Enclosed
+/// Ideographic Supplement characters that are wide but not emoji.
+///
+/// Derived from cross-referencing every entry in the `emojis` 0.8 crate
+/// against `unicode-width` 0.2 — see `tests/enumerate_emojis_crate.rs`.
+fn is_emoji_presentation(c: char) -> bool {
+    let cp = c as u32;
+
+    match cp {
+        // BMP emoji with default emoji presentation (60 code points, U+231A–U+2B55).
+        0x231A..=0x2B55 => matches!(
+            cp,
+            0x231A..=0x231B   // ⌚⌛
+            | 0x23E9..=0x23EC // ⏩⏪⏫⏬
+            | 0x23F0           // ⏰
+            | 0x23F3           // ⏳
+            | 0x25FD..=0x25FE // ◽◾
+            | 0x2614..=0x2615 // ☔☕
+            | 0x2648..=0x2653 // ♈..♓
+            | 0x267F           // ♿
+            | 0x2693           // ⚓
+            | 0x26A1           // ⚡
+            | 0x26AA..=0x26AB // ⚪⚫
+            | 0x26BD..=0x26BE // ⚽⚾
+            | 0x26C4..=0x26C5 // ⛄⛅
+            | 0x26CE           // ⛎
+            | 0x26D4           // ⛔
+            | 0x26EA           // ⛪
+            | 0x26F2..=0x26F3 // ⛲⛳
+            | 0x26F5           // ⛵
+            | 0x26FA           // ⛺
+            | 0x26FD           // ⛽
+            | 0x2705           // ✅
+            | 0x270A..=0x270B // ✊✋
+            | 0x2728           // ✨
+            | 0x274C           // ❌
+            | 0x274E           // ❎
+            | 0x2753..=0x2755 // ❓❔❕
+            | 0x2757           // ❗
+            | 0x2795..=0x2797 // ➕➖➗
+            | 0x27B0           // ➰
+            | 0x27BF           // ➿
+            | 0x2B1B..=0x2B1C // ⬛⬜
+            | 0x2B50           // ⭐
+            | 0x2B55           // ⭕
+        ),
+        // SMP emoji: nearly all characters in U+1F000–U+1FFFF are emoji.
+        // Exclude CJK Enclosed Ideographic Supplement (EAW=W text symbols).
+        0x1F000..=0x1FFFF => !matches!(
+            cp,
+            0x1F200
+                | 0x1F202..=0x1F219
+                | 0x1F21B..=0x1F22E
+                | 0x1F230..=0x1F231
+                | 0x1F237
+                | 0x1F23B..=0x1F24F
+                | 0x1F260..=0x1F265
+        ),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -94,7 +184,7 @@ mod tests {
         assert!(!is_emoji("\u{25AB}"));
         assert!(!is_emoji("\u{25FC}"));
 
-        // Not recognized by emojis crate at all
+        // Not emoji
         assert!(!is_emoji("A"));
         assert!(!is_emoji("\u{2588}"));
     }

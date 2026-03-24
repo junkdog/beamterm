@@ -226,7 +226,6 @@ dependencies = [
  "compact_str",
  "cosmic-text",
  "directories",
- "emojis",
  "fontdb",
  "itertools 0.14.0",
  "tracing",
@@ -267,7 +266,6 @@ version = "0.17.0"
 dependencies = [
  "beamterm-data",
  "criterion",
- "emojis",
  "fontdb",
  "swash",
  "thiserror 2.0.18",
