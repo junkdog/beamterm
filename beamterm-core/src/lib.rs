@@ -4,9 +4,7 @@ mod mat4;
 mod position;
 mod url;
 
-pub use ::beamterm_data::{
-    DebugSpacePattern, FontAtlasData, FontAtlasDeserializationError, GlyphEffect,
-};
+pub use ::beamterm_data::{DebugSpacePattern, FontAtlasData, GlyphEffect, SerializationError};
 pub use beamterm_data::FontStyle;
 pub use error::Error;
 pub use gl::{

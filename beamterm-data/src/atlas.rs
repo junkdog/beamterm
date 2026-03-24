@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use compact_str::CompactString;
 
-use crate::{Deserializer, FontAtlasDeserializationError, Glyph, Serializable, SerializationError};
+use crate::{Deserializer, Glyph, Serializable, SerializationError};
 
 /// Font atlas data for GPU-accelerated terminal rendering.
 ///
@@ -140,11 +140,9 @@ impl FontAtlasData {
     ///
     /// # Returns
     /// The deserialized font atlas or an error if deserialization fails
-    pub fn from_binary(serialized: &[u8]) -> Result<Self, FontAtlasDeserializationError> {
+    pub fn from_binary(serialized: &[u8]) -> Result<Self, SerializationError> {
         let mut deserializer = Deserializer::new(serialized);
-        FontAtlasData::deserialize(&mut deserializer).map_err(|e| FontAtlasDeserializationError {
-            message: format!("Failed to deserialize font atlas: {e}"),
-        })
+        FontAtlasData::deserialize(&mut deserializer)
     }
 
     /// Serializes the font atlas to binary format.
