@@ -30,7 +30,7 @@ class BatchAPIDemo {
         this.renderer = new BeamtermRenderer('#terminal');
         this.renderer.enableSelection(SelectionMode.Block, true);
         this.size = this.renderer.terminalSize();
-        console.log(`✅ Terminal: ${this.size.width}×${this.size.height} cells`);
+        console.log(`✅ Terminal: ${this.size.cols}×${this.size.rows} cells`);
 
         // Set up canvas size
         const canvas = document.getElementById('terminal');
@@ -104,7 +104,7 @@ class BatchAPIDemo {
         y++;
 
         // Navigation hint
-        batch.text(1, this.size.height - 3, "Press SPACE to switch screens",
+        batch.text(1, this.size.rows - 3, "Press SPACE to switch screens",
             style().bold().fg(0x7aa2f7));
     }
 
@@ -169,7 +169,7 @@ class BatchAPIDemo {
         batch.text(3, y++, "• Helper functions: const bold = () => style().bold()", style().fg(0xa9b1d6));
 
         // Essential pattern
-        const patternY = this.size.height - 6;
+        const patternY = this.size.rows - 6;
         batch.text(1, patternY, "Essential Pattern:", style().bold().fg(0x7dcfff));
         batch.text(1, patternY + 1, "1. const batch = renderer.batch()", style().fg(0xa9b1d6));
         batch.text(1, patternY + 2, "2. batch.clear/text/cell/cells/fill...", style().fg(0xa9b1d6));
@@ -195,7 +195,7 @@ class BatchAPIDemo {
             const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
             const spinnerChar = spinnerChars[Math.floor(frame / 6) % spinnerChars.length];
 
-            batch.cell(this.size.width - 2, 1, cell(spinnerChar, style().fg(0x7aa2f7)));
+            batch.cell(this.size.cols - 2, 1, cell(spinnerChar, style().fg(0x7aa2f7)));
 
             batch.flush();
             this.renderer.render();

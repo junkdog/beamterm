@@ -36,8 +36,8 @@ class TerminalApp {
         this.renderer = renderer;
         this.fontSettings = fontSettings;
         const size = renderer.terminalSize();
-        this.cols = size.width;
-        this.rows = size.height;
+        this.cols = size.cols;
+        this.rows = size.rows;
     }
 
     public updateFontSettings(settings: FontSettings): void {
@@ -50,8 +50,8 @@ class TerminalApp {
 
         // Update terminal size after atlas change (cell size may have changed)
         const size = this.renderer.terminalSize();
-        this.cols = size.width;
-        this.rows = size.height;
+        this.cols = size.cols;
+        this.rows = size.rows;
     }
 
     public replaceWithStaticAtlas(): void {
@@ -59,8 +59,8 @@ class TerminalApp {
         this.fontSettings = { family: 'Hack (embedded)', size: 15, mode: 'static' };
 
         const size = this.renderer.terminalSize();
-        this.cols = size.width;
-        this.rows = size.height;
+        this.cols = size.cols;
+        this.rows = size.rows;
     }
 
     public render(): void {
@@ -81,8 +81,8 @@ class TerminalApp {
         this.renderer.enableSelection(SelectionMode.Block, true);
         const size = this.renderer.terminalSize();
 
-        this.cols = size.width;
-        this.rows = size.height;
+        this.cols = size.cols;
+        this.rows = size.rows;
 
         this.render();
     }

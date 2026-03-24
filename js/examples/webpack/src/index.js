@@ -13,7 +13,7 @@ async function main() {
         const renderer = new BeamtermRenderer('#terminal');
         renderer.enableSelection(SelectionMode.Block, true);
         const size = renderer.terminalSize();
-        console.log(`✅ Terminal created: ${size.width}x${size.height}`);
+        console.log(`✅ Terminal created: ${size.cols}x${size.rows}`);
 
         // Create demo app
         const app = new TerminalDemo(renderer);
@@ -89,7 +89,7 @@ class TerminalDemo {
         const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
         const spinnerChar = spinnerChars[(this.frame >> 3) % spinnerChars.length];
         let spinnerStyle = style().fg(0x7aa2f7).bg(0x24283b);
-        batch.cell(this.size.width - 2, this.size.height - 2, cell(spinnerChar, spinnerStyle));
+        batch.cell(this.size.cols - 2, this.size.rows - 2, cell(spinnerChar, spinnerStyle));
 
         // Render the frame
         this.renderer.render();
@@ -104,23 +104,23 @@ class TerminalDemo {
         const borderCells = [];
 
         // Top and bottom borders
-        for (let x = 0; x < this.size.width; x++) {
+        for (let x = 0; x < this.size.cols; x++) {
             borderCells.push([x, 0, { symbol: '─', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
-            borderCells.push([x, this.size.height - 1, { symbol: '─', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
+            borderCells.push([x, this.size.rows - 1, { symbol: '─', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
         }
 
         // Left and right borders
-        for (let y = 0; y < this.size.height; y++) {
+        for (let y = 0; y < this.size.rows; y++) {
             borderCells.push([0, y, { symbol: '│', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
-            borderCells.push([this.size.width - 1, y, { symbol: '│', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
+            borderCells.push([this.size.cols - 1, y, { symbol: '│', style: borderStyle.bits, fg: borderColor, bg: bgColor }]);
         }
 
         // Corners
         const corners = [
             { pos: [0, 0], char: '┌' },
-            { pos: [this.size.width - 1, 0], char: '┐' },
-            { pos: [0, this.size.height - 1], char: '└' },
-            { pos: [this.size.width - 1, this.size.height - 1], char: '┘' }
+            { pos: [this.size.cols - 1, 0], char: '┐' },
+            { pos: [0, this.size.rows - 1], char: '└' },
+            { pos: [this.size.cols - 1, this.size.rows - 1], char: '┘' }
         ];
 
         corners.forEach(({ pos: [x, y], char }) => {
@@ -133,13 +133,13 @@ class TerminalDemo {
 
     drawHeader(batch) {
         const title = " 🚀 beamterm Webpack Example ";
-        const startX = Math.floor((this.size.width - title.length) / 2);
+        const startX = Math.floor((this.size.cols - title.length) / 2);
 
         batch.text(startX, 0, title, style().bold().fg(0x7aa2f7).bg(0x1a1b26));
 
         // Version info
         const version = "v0.1.0";
-        batch.text(this.size.width - version.length - 2, 0, version, style().bold().fg(0x7aa2f7).bg(0x1a1b26));
+        batch.text(this.size.cols - version.length - 2, 0, version, style().bold().fg(0x7aa2f7).bg(0x1a1b26));
     }
 
     drawContent(batch) {
@@ -150,7 +150,7 @@ class TerminalDemo {
         ];
 
         content.forEach(({ text, y, style }) => {
-            const x = Math.floor((this.size.width - text.length) / 2);
+            const x = Math.floor((this.size.cols - text.length) / 2);
             batch.text(x, y, text, style.bg(0x1a1b26));
         });
 
@@ -230,22 +230,22 @@ class TerminalDemo {
     }
 
     drawStatusBar(batch, fps) {
-        const y = this.size.height - 2;
+        const y = this.size.rows - 2;
 
         // Status bar background
         const statusBg = [];
-        for (let x = 1; x < this.size.width - 1; x++) {
+        for (let x = 1; x < this.size.cols - 1; x++) {
             statusBg.push([x, y, { symbol: ' ', style: 0, fg: 0xc0caf5, bg: 0x24283b }]);
         }
         batch.cells(statusBg);
 
         // Status text
-        const status = ` FPS: ${fps.tick().toFixed(1)} | Cells: ${this.size.width * this.size.height} | Frame: ${this.frame} `;
+        const status = ` FPS: ${fps.tick().toFixed(1)} | Cells: ${this.size.cols * this.size.rows} | Frame: ${this.frame} `;
         batch.text(2, y, status, style().fg(0xc0caf5).bg(0x24283b));
 
         // Right-aligned info
         const info = "Press F11 for fullscreen ";
-        batch.text(this.size.width - info.length - 3, y, info, style().fg(0xa9b1d6).bg(0x24283b));
+        batch.text(this.size.cols - info.length - 3, y, info, style().fg(0xa9b1d6).bg(0x24283b));
     }
 
     startAnimation(fps) {
@@ -265,7 +265,7 @@ class TerminalDemo {
 
         const waveCells = [];
 
-        for (let x = 1; x < this.size.width - 1; x++) {
+        for (let x = 1; x < this.size.cols - 1; x++) {
             const offset = (this.frame / 2 + x * 2) % waveChars.length;
             const charIndex = Math.floor(offset) % waveChars.length;
             const colorIndex = Math.floor((this.frame / 10 + x) % waveColors.length);

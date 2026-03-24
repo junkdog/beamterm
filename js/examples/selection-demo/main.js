@@ -96,7 +96,7 @@ class SelectionDemo {
             this.renderer = new BeamtermRenderer('#terminal');
             this.size = this.renderer.terminalSize();
             
-            console.log('✅ Terminal initialized:', `${this.size.width}×${this.size.height} cells`);
+            console.log('✅ Terminal initialized:', `${this.size.cols}×${this.size.rows} cells`);
 
             // Set up canvas size
             const canvas = document.getElementById('terminal');
@@ -323,7 +323,7 @@ class SelectionDemo {
         });
 
         // Status line at bottom
-        y = this.size.height - 2;
+        y = this.size.rows - 2;
         batch.text(2, y, "Status: Ready - Enable selection to start testing", style().bold().fg(0x565f89));
     }
 
@@ -350,7 +350,7 @@ class SelectionDemo {
             const statusChar = hasSelection ? '📋' : (this.selectionEnabled ? '🖱️' : spinnerChar);
             const statusColor = hasSelection ? 0x9ece6a : (this.selectionEnabled ? 0x7aa2f7 : 0x565f89);
 
-            batch.cell(this.size.width - 3, 1, cell(statusChar, style().fg(statusColor)));
+            batch.cell(this.size.cols - 3, 1, cell(statusChar, style().fg(statusColor)));
 
             // Highlight hovered cell when selection is disabled
             if (!this.selectionEnabled && this.hoveredCell) {
