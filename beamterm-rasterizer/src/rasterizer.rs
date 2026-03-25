@@ -277,12 +277,16 @@ fn rasterize_with_font(
         }
     };
 
-    // rasterize
+    // rasterize without hinting: hinting applies per-glyph grid fitting
+    // that shifts strokes to inconsistent pixel positions between related
+    // glyphs (e.g. ═ and ╝ horizontal strokes landing on different rows).
+    // unhinted rendering preserves the font's designed stroke positions
+    // for consistent alignment across all glyphs.
     let mut scaler = ctx
         .scale_ctx
         .builder(font_ref)
         .size(effective_size)
-        .hint(true)
+        .hint(false)
         .build();
 
     let image = Render::new(&[
@@ -1002,6 +1006,59 @@ mod tests {
                 corner_br.contains(col),
                 "╝ must include ║'s column {col}; ║={vert_double:?}, ╝={corner_br:?}"
             );
+        }
+    }
+
+    /// Helper: find rows with visible pixels at a specific column range.
+    fn stroke_rows_in_col_range(glyph: &RasterizedGlyph, col_start: u32, col_end: u32) -> Vec<u32> {
+        let w = glyph.width;
+        let h = glyph.height;
+        let mut rows = Vec::new();
+        for y in 0..h {
+            let has_pixel_in_range = (col_start..col_end).any(|x| {
+                let idx = ((y * w + x) * 4 + 3) as usize;
+                idx < glyph.pixels.len() && glyph.pixels[idx] > 0
+            });
+            if has_pixel_in_range {
+                rows.push(y);
+            }
+        }
+        rows
+    }
+
+    /// Box-drawing characters that share horizontal strokes (e.g. ═ and ╝)
+    /// must have those strokes at the same rows within the padded cell.
+    #[test]
+    fn box_drawing_horizontal_stroke_alignment() {
+        let Some(mut rasterizer) = test_rasterizer() else {
+            eprintln!("skipping: no monospace font found");
+            return;
+        };
+
+        for size in [10.0_f32, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 20.0, 24.0] {
+            rasterizer.update_font_size(size).unwrap();
+
+            let eq_glyph = rasterizer
+                .rasterize("═", FontStyle::Normal)
+                .unwrap();
+            let corner_glyph = rasterizer
+                .rasterize("╝", FontStyle::Normal)
+                .unwrap();
+
+            // find rows with visible pixels at column 0 (where both
+            // characters should have horizontal strokes)
+            let eq_rows = stroke_rows_in_col_range(&eq_glyph, 0, 1);
+            let corner_rows = stroke_rows_in_col_range(&corner_glyph, 0, 1);
+
+            // every row that has a horizontal stroke in ═ must also
+            // have a horizontal stroke in ╝ at the connecting edge
+            for row in &eq_rows {
+                assert!(
+                    corner_rows.contains(row),
+                    "size={size}: ═ has stroke at row {row} but ╝ does not; \
+                     ═ rows={eq_rows:?}, ╝ rows={corner_rows:?}"
+                );
+            }
         }
     }
 
