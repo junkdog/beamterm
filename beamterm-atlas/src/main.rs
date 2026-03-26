@@ -15,7 +15,7 @@ use color_eyre::eyre::{Context, Result};
 
 use crate::{
     atlas_generator::{AtlasFontGenerator, FallbackGlyphStats},
-    cli::Cli,
+    cli::{Cli, Command, GenerateArgs, InspectArgs},
     logging::{LoggingConfig, init_logging},
 };
 
@@ -36,14 +36,21 @@ fn main() -> Result<()> {
     // parse command line arguments
     let cli = Cli::parse();
 
+    match cli.command {
+        Command::Generate(args) => cmd_generate(args),
+        Command::Inspect(args) => cmd_inspect(args),
+    }
+}
+
+fn cmd_generate(args: GenerateArgs) -> Result<()> {
     // handle --list-fonts flag
-    if cli.list_fonts {
-        Cli::display_font_list();
+    if args.list_fonts {
+        GenerateArgs::display_font_list();
         return Ok(());
     }
 
     // validate CLI arguments
-    cli.validate()?;
+    args.validate()?;
 
     // discover available fonts
     let discovery = FontDiscovery::new();
@@ -58,42 +65,97 @@ fn main() -> Result<()> {
     }
 
     // Validate and resolve emoji font name
-    let emoji_font_name = resolve_emoji_font_name(&cli.emoji_font, &discovery)?;
-    let selected_font = cli.select_font(&available_fonts)?;
+    let emoji_font_name = resolve_emoji_font_name(&args.emoji_font, &discovery)?;
+    let selected_font = args.select_font(&available_fonts)?;
 
     // print configuration summary
-    cli.print_summary(&selected_font.name);
+    args.print_summary(&selected_font.name);
 
-    let underline = LineDecoration::new(cli.underline_position, cli.underline_thickness / 100.0);
+    let underline = LineDecoration::new(args.underline_position, args.underline_thickness / 100.0);
     let strikethrough = LineDecoration::new(
-        cli.strikethrough_position,
-        cli.strikethrough_thickness / 100.0,
+        args.strikethrough_position,
+        args.strikethrough_thickness / 100.0,
     );
 
     // Generate the font
     let mut generator = AtlasFontGenerator::new_with_family(
         selected_font.name.clone(),
         emoji_font_name,
-        cli.font_size,
-        cli.line_height,
+        args.font_size,
+        args.line_height,
         underline,
         strikethrough,
-        cli.debug_space_pattern,
+        args.debug_space_pattern,
     )?;
 
-    let ranges = if cli.ranges.is_empty() {
+    let ranges = if args.ranges.is_empty() {
         default_unicode_ranges()
     } else {
-        cli.ranges.clone()
+        args.ranges.clone()
     };
 
-    let additional_symbols = cli.read_symbols_file()?;
+    let additional_symbols = args.read_symbols_file()?;
     let (bitmap_font, fallback_stats) = generator.generate(&ranges, &additional_symbols)?;
-    bitmap_font.save(&cli.output)?;
+    bitmap_font.save(&args.output)?;
 
     let atlas = &bitmap_font.atlas_data;
-    println!("\nBitmap font generated!");
-    println!("Font family: {}", selected_font.name);
+    print_atlas_summary(atlas);
+
+    // Report fallback glyphs if any
+    report_fallback_glyphs(&fallback_stats);
+
+    // Check for missing glyphs if requested
+    if args.check_missing {
+        report_missing_glyphs(&mut generator, &ranges, &additional_symbols)?;
+    }
+
+    // Dump atlas as PNG if requested
+    if let Some(png_path) = &args.dump_png {
+        dump_png::dump_atlas_png(atlas, png_path)?;
+    }
+
+    Ok(())
+}
+
+fn cmd_inspect(args: InspectArgs) -> Result<()> {
+    let data = std::fs::read(&args.atlas_path)
+        .wrap_err_with(|| format!("Failed to read atlas file '{}'", args.atlas_path.display()))?;
+
+    let atlas = FontAtlasData::from_binary(&data)
+        .wrap_err_with(|| format!("Failed to parse atlas file '{}'", args.atlas_path.display()))?;
+
+    println!("Atlas: {}", args.atlas_path.display());
+    print_atlas_summary(&atlas);
+
+    let underline = atlas.underline();
+    let strikethrough = atlas.strikethrough();
+    println!(
+        "Underline: position {:.0}%, thickness {:.1}%",
+        underline.position() * 100.0,
+        underline.thickness() * 100.0
+    );
+    println!(
+        "Strikethrough: position {:.0}%, thickness {:.1}%",
+        strikethrough.position() * 100.0,
+        strikethrough.thickness() * 100.0
+    );
+
+    let texture_data = atlas.texture_data();
+    println!(
+        "Texture data size: {:.1} MiB",
+        texture_data.len() as f64 / (1024.0 * 1024.0)
+    );
+
+    // Dump atlas as PNG if requested
+    if let Some(png_path) = &args.dump_png {
+        dump_png::dump_atlas_png(&atlas, png_path)?;
+    }
+
+    Ok(())
+}
+
+fn print_atlas_summary(atlas: &FontAtlasData) {
+    println!("\nFont family: {}", atlas.font_name());
     println!("Font size: {:.3}", atlas.font_size());
     let (tw, th, tl) = atlas.texture_dimensions();
     println!("Texture size: {tw}x{th}x{tl}");
@@ -114,21 +176,6 @@ fn main() -> Result<()> {
             .max()
             .unwrap_or(0)
     );
-
-    // Report fallback glyphs if any
-    report_fallback_glyphs(&fallback_stats);
-
-    // Check for missing glyphs if requested
-    if cli.check_missing {
-        report_missing_glyphs(&mut generator, &ranges, &additional_symbols)?;
-    }
-
-    // Dump atlas as PNG if requested
-    if let Some(png_path) = &cli.dump_png {
-        dump_png::dump_atlas_png(atlas, png_path)?;
-    }
-
-    Ok(())
 }
 
 fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
@@ -395,7 +442,7 @@ fn report_missing_glyphs(
                                 if first_char.is_control() || first_char.is_whitespace() {
                                     format!("U+{codepoint:04X}")
                                 } else {
-                                    format!("'{}'", glyph.symbol)
+                                    format!("'{}' ", glyph.symbol)
                                 };
                             format!("{display_symbol} (0x{codepoint:04X})")
                         })

@@ -2,7 +2,7 @@ use std::{ops::RangeInclusive, path::PathBuf};
 
 use beamterm_data::DebugSpacePattern;
 use beamterm_rasterizer::{FontDiscovery, FontFamily};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::{Report, eyre::eyre};
 
 #[derive(Parser, Debug)]
@@ -12,6 +12,20 @@ use color_eyre::{Report, eyre::eyre};
     long_about = "Generates GPU-optimized texture arrays from TTF/OTF fonts for high-performance terminal rendering"
 )]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Generate a font atlas from a system font
+    Generate(GenerateArgs),
+    /// Inspect an existing .atlas file
+    Inspect(InspectArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct GenerateArgs {
     /// Font selection: name (partial match) or 1-based index
     #[arg(value_name = "FONT", required_unless_present = "list_fonts")]
     pub font: Option<String>,
@@ -58,7 +72,7 @@ pub struct Cli {
     #[arg(long, default_value = "0.5", value_name = "FRACTION")]
     pub strikethrough_position: f32,
 
-    /// Strikethrough thickness as percentage of cell height  
+    /// Strikethrough thickness as percentage of cell height
     #[arg(long, default_value = "5.0", value_name = "PERCENT")]
     pub strikethrough_thickness: f32,
 
@@ -80,6 +94,17 @@ pub struct Cli {
     pub debug_space_pattern: Option<DebugSpacePattern>,
 }
 
+#[derive(Parser, Debug)]
+pub struct InspectArgs {
+    /// Path to the .atlas file to inspect
+    #[arg(value_name = "ATLAS_FILE")]
+    pub atlas_path: PathBuf,
+
+    /// Dump the atlas texture as a PNG file (all layers tiled vertically)
+    #[arg(long, value_name = "PATH")]
+    pub dump_png: Option<String>,
+}
+
 fn parse_debug_space_pattern(s: &str) -> Result<DebugSpacePattern, String> {
     match s {
         "1" | "1px" => Ok(DebugSpacePattern::OnePixel),
@@ -90,7 +115,7 @@ fn parse_debug_space_pattern(s: &str) -> Result<DebugSpacePattern, String> {
     }
 }
 
-impl Cli {
+impl GenerateArgs {
     /// Selects a font based on the CLI arguments and available fonts
     pub fn select_font<'a>(
         &self,
@@ -271,12 +296,11 @@ fn validate_file_exists(s: &str) -> Result<PathBuf, String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_cli_validation() {
-        let cli = Cli {
+    fn default_generate_args() -> GenerateArgs {
+        GenerateArgs {
             font: Some("test".to_string()),
             emoji_font: "Noto Color Emoji".to_string(),
-            symbols_file: Some(PathBuf::from("/dev/null")),
+            symbols_file: None,
             ranges: vec![],
             font_size: 15.0,
             line_height: 1.0,
@@ -289,54 +313,30 @@ mod tests {
             check_missing: false,
             debug_space_pattern: None,
             dump_png: None,
+        }
+    }
+
+    #[test]
+    fn test_cli_validation() {
+        let args = GenerateArgs {
+            symbols_file: Some(PathBuf::from("/dev/null")),
+            ..default_generate_args()
         };
 
-        assert!(cli.validate().is_ok());
+        assert!(args.validate().is_ok());
     }
 
     #[test]
     fn test_invalid_font_size() {
-        let cli = Cli {
-            font: Some("test".to_string()),
-            emoji_font: "Noto Color Emoji".to_string(),
-            symbols_file: None,
-            ranges: vec![],
-            font_size: -1.0,
-            line_height: 1.0,
-            output: "test.atlas".to_string(),
-            underline_position: 0.85,
-            underline_thickness: 5.0,
-            strikethrough_position: 0.5,
-            strikethrough_thickness: 5.0,
-            list_fonts: false,
-            check_missing: false,
-            debug_space_pattern: None,
-            dump_png: None,
-        };
+        let args = GenerateArgs { font_size: -1.0, ..default_generate_args() };
 
-        assert!(cli.validate().is_err());
+        assert!(args.validate().is_err());
     }
 
     #[test]
     fn test_invalid_position() {
-        let cli = Cli {
-            font: Some("test".to_string()),
-            emoji_font: "Noto Color Emoji".to_string(),
-            symbols_file: None,
-            ranges: vec![],
-            font_size: 15.0,
-            line_height: 1.0,
-            output: "test.atlas".to_string(),
-            underline_position: 1.5, // Invalid: > 1.0
-            underline_thickness: 5.0,
-            strikethrough_position: 0.5,
-            strikethrough_thickness: 5.0,
-            list_fonts: false,
-            check_missing: false,
-            debug_space_pattern: None,
-            dump_png: None,
-        };
+        let args = GenerateArgs { underline_position: 1.5, ..default_generate_args() };
 
-        assert!(cli.validate().is_err());
+        assert!(args.validate().is_err());
     }
 }

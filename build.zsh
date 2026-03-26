@@ -181,7 +181,7 @@ cmd_atlas() {
 
     # If no args provided, use defaults
     if [[ $# -eq 0 ]]; then
-        cargo run --release --bin beamterm-atlas -- Hack \
+        cargo run --release --bin beamterm-atlas -- generate Hack \
             --line-height 1.0 \
             --font-size 15.0 \
             --emoji-font "Noto Color Emoji" \
