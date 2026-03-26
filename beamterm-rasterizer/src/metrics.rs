@@ -7,15 +7,20 @@ use crate::error::Error;
 
 /// Cell dimensions and decoration metrics for a font at a given size.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct CellMetrics {
+pub struct CellMetrics {
     /// Cell width in pixels.
     pub width: i32,
     /// Cell height in pixels.
     pub height: i32,
-    /// Ascent in pixels (distance from top of cell to baseline).
+    /// Ascent in pixels (distance from top of cell to baseline), from font metrics.
     pub ascent: f32,
-    /// Descent in pixels (distance from baseline to bottom of cell).
+    /// Descent in pixels (distance from baseline to bottom of cell), from font metrics.
     pub descent: f32,
+    /// Pixel-exact baseline offset from the rendered reference glyph (█).
+    /// This is `placement.top` from the unhinted render and should be used
+    /// for vertical glyph placement instead of `ascent.round()`, which can
+    /// differ by ±1px and cause gaps at cell edges.
+    pub baseline_y: i32,
     /// Underline position as a fraction of cell height (0.0 = top, 1.0 = bottom).
     pub underline_position: f32,
     /// Underline thickness as a fraction of cell height.
@@ -26,15 +31,13 @@ pub(crate) struct CellMetrics {
     pub strikethrough_thickness: f32,
 }
 
-/// Measures cell metrics using the font's advance width and rasterized height.
+/// Measures cell metrics for the terminal grid.
 ///
-/// Cell width comes from the font's monospace advance width (via glyph metrics),
-/// which defines the actual character cell. This is more reliable than the
-/// rasterized image width of `█`, which may be narrower than the advance.
-///
-/// Cell height comes from rasterizing `█` (U+2588) to get the actual pixel
-/// height, falling back to ascent + descent from font metrics.
-pub(crate) fn measure_cell_metrics(
+/// Cell width comes from the advance width (ceiled to ensure no sub-pixel gaps).
+/// Cell height and baseline come from a hinted render of `█` (U+2588).
+/// Block elements (U+2580-U+259F) are synthesized programmatically in the
+/// rasterizer, so cell dimensions don't need to match any rendered block glyph.
+pub fn measure_cell_metrics(
     font_ref: FontRef<'_>,
     font_size: f32,
     scale_ctx: &mut ScaleContext,
@@ -42,18 +45,21 @@ pub(crate) fn measure_cell_metrics(
     let font_metrics = font_ref.metrics(&[]).scale(font_size);
     let glyph_metrics = font_ref.glyph_metrics(&[]).scale(font_size);
 
-    // cell width = monospace advance width (consistent for all glyphs)
     let block_id = font_ref.charmap().map('\u{2588}');
+
+    // cell width from the advance width: this is the canonical monospace cell
+    // width. Block elements are synthesized programmatically (not rendered from
+    // the font), so the cell width doesn't need to match any rendered glyph.
     let advance_w = if block_id != 0 {
         glyph_metrics.advance_width(block_id)
     } else {
-        // fallback: use average_width from font metrics
         font_metrics.average_width
     };
-    let cell_width = advance_w.round() as i32;
+    let cell_width = advance_w.ceil() as i32;
 
-    // cell height = rasterized █ height, or ascent + descent
-    let cell_height = if block_id != 0 {
+    // cell height and baseline from hinted render of █: these define the
+    // vertical grid and baseline placement for all glyphs.
+    let (cell_height, baseline_y) = if block_id != 0 {
         let mut scaler = scale_ctx
             .builder(font_ref)
             .size(font_size)
@@ -63,11 +69,17 @@ pub(crate) fn measure_cell_metrics(
         let image = Render::new(&[Source::Outline]).render(&mut scaler, block_id);
 
         match image {
-            Some(img) if img.placement.height > 0 => img.placement.height as i32,
-            _ => (font_metrics.ascent + font_metrics.descent.abs()).ceil() as i32,
+            Some(img) if img.placement.height > 0 => {
+                (img.placement.height as i32, img.placement.top)
+            },
+            _ => {
+                let h = (font_metrics.ascent + font_metrics.descent.abs()).ceil() as i32;
+                (h, font_metrics.ascent.round() as i32)
+            },
         }
     } else {
-        (font_metrics.ascent + font_metrics.descent.abs()).ceil() as i32
+        let h = (font_metrics.ascent + font_metrics.descent.abs()).ceil() as i32;
+        (h, font_metrics.ascent.round() as i32)
     };
 
     if cell_width <= 0 || cell_height <= 0 {
@@ -93,6 +105,7 @@ pub(crate) fn measure_cell_metrics(
         height: cell_height,
         ascent,
         descent,
+        baseline_y,
         underline_position: underline_pos.clamp(0.0, 1.0),
         underline_thickness: stroke_thickness,
         strikethrough_position: strikethrough_pos.clamp(0.0, 1.0),
@@ -109,7 +122,7 @@ pub(crate) fn measure_cell_metrics(
 ///
 /// If the advance-width-scaled glyphs would exceed the cell height, the
 /// scale is reduced to fit vertically as well.
-pub(crate) fn compute_fallback_font_size(
+pub fn compute_fallback_font_size(
     primary: &CellMetrics,
     fallback_ref: FontRef<'_>,
     base_font_size: f32,

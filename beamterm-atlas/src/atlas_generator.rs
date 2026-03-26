@@ -1,23 +1,18 @@
 use std::{collections::HashSet, ops::RangeInclusive};
 
 use beamterm_data::{DebugSpacePattern, FontAtlasData, FontStyle, Glyph, LineDecoration};
+use beamterm_rasterizer::{NativeRasterizer, RasterizedGlyph};
 use color_eyre::Report;
-use cosmic_text::{Buffer, Color, FontSystem, Metrics, SwashCache};
-use itertools::Itertools;
 use tracing::{debug, info};
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
     bitmap_font::BitmapFont,
     coordinate::{AtlasCoordinate, AtlasCoordinateProvider},
-    font_discovery::{FontDiscovery, FontFamily},
     glyph_bounds::{GlyphBounds, measure_glyph_bounds},
-    glyph_rasterizer::create_rasterizer,
-    grapheme::{GraphemeSet, is_emoji},
+    grapheme::GraphemeSet,
     raster_config::RasterizationConfig,
 };
-
-const WHITE: Color = Color::rgb(0xff, 0xff, 0xff);
 
 /// A glyph that failed to render in a specific font style.
 #[derive(Debug, Clone)]
@@ -72,108 +67,93 @@ pub struct FallbackGlyphStats {
 
 /// A rasterized glyph with pixel data and bounding box information.
 pub struct GlyphBitmap {
-    /// Pixel data as (x, y, color) tuples.
-    pub data: Vec<(i32, i32, Color)>,
-    /// The bounding box of the rendered glyph.
+    /// The rasterized glyph from beamterm-rasterizer.
+    pub glyph: RasterizedGlyph,
+    /// The bounding box of the rendered glyph (content area, excluding padding).
     pub bounds: GlyphBounds,
-    /// The font ID used for rasterization.
-    pub font_id: fontdb::ID,
 }
 
 impl GlyphBitmap {
-    /// Adds a checkered pattern to empty pixels for debugging visibility.
-    #[allow(dead_code)]
-    pub fn debug_checkered(self) -> Self {
-        let width = self.bounds.width();
-        let height = self.bounds.height();
-
-        let existing_pixels: HashSet<_> = self
-            .data
-            .iter()
-            .map(|(x, y, _)| (*x, *y))
-            .collect();
-
-        let mut data = self.data;
-
-        (0..width)
-            .cartesian_product(0..height)
-            .filter(|&(x, y)| !existing_pixels.contains(&(x, y)))
-            .for_each(|(x, y)| match (x + y) % 8 {
-                0 => data.push((x, y, Color::rgb(0x7F, 0x00, 0x7F))),
-                2 => data.push((x, y, Color::rgb(0x00, 0x7F, 0x7F))),
-                4 => data.push((x, y, Color::rgb(0x00, 0x7F, 0x00))),
-                6 => data.push((x, y, Color::rgb(0x7F, 0x7F, 0x00))),
-                _ => (),
-            });
-
-        Self { data, ..self }
-    }
-
-    /// Splits double-width emoji pixels into left half (x < split_point).
+    /// Splits double-width glyph pixels into left half.
     fn split_left(source: &GlyphBitmap, cell_w: i32) -> Self {
-        let data: Vec<_> = source
-            .data
-            .iter()
-            .copied()
-            .filter(|(x, _, _)| *x < cell_w)
-            .collect();
+        let padding = FontAtlasData::PADDING;
+        let dst_w = (cell_w + 2 * padding) as u32;
+        let dst_h = source.glyph.height;
+        let src_w = source.glyph.width;
+        let mut pixels = vec![0u8; (dst_w * dst_h * 4) as usize];
 
-        let bounds = Self::calculate_bounds(&data, cell_w);
-        Self { data, bounds, font_id: source.font_id }
+        for y in 0..dst_h {
+            for x in 0..dst_w.min(src_w) {
+                let src_idx = ((y * src_w + x) * 4) as usize;
+                let dst_idx = ((y * dst_w + x) * 4) as usize;
+                if src_idx + 4 <= source.glyph.pixels.len() && dst_idx + 4 <= pixels.len() {
+                    pixels[dst_idx..dst_idx + 4]
+                        .copy_from_slice(&source.glyph.pixels[src_idx..src_idx + 4]);
+                }
+            }
+        }
+
+        let bounds = GlyphBounds {
+            min_x: 0,
+            max_x: cell_w - 1,
+            min_y: source.bounds.min_y,
+            max_y: source.bounds.max_y,
+        };
+
+        Self {
+            glyph: RasterizedGlyph {
+                pixels,
+                width: dst_w,
+                height: dst_h,
+                is_double_width: false,
+                is_fallback: source.glyph.is_fallback,
+                fallback_font_name: source.glyph.fallback_font_name.clone(),
+            },
+            bounds,
+        }
     }
 
-    /// Splits double-width emoji pixels into right half (x >= split_point), normalized to 0-based.
+    /// Splits double-width glyph pixels into right half.
     fn split_right(source: &GlyphBitmap, cell_w: i32) -> Self {
-        let data: Vec<_> = source.data
-            .iter()
-            .copied()
-            .filter(|(x, _, _)| *x >= cell_w)
-            .map(|(x, y, c)| (x - cell_w, y, c)) // Normalize x to 0-based
-            .collect();
+        let padding = FontAtlasData::PADDING;
+        let dst_w = (cell_w + 2 * padding) as u32;
+        let dst_h = source.glyph.height;
+        let src_w = source.glyph.width;
+        let src_offset = cell_w as u32; // start of right half in source
+        let mut pixels = vec![0u8; (dst_w * dst_h * 4) as usize];
 
-        let bounds = Self::calculate_bounds(&data, cell_w);
-        Self { data, bounds, font_id: source.font_id }
-    }
+        for y in 0..dst_h {
+            for dst_x in 0..dst_w {
+                let src_x = src_offset + dst_x;
+                if src_x < src_w {
+                    let src_idx = ((y * src_w + src_x) * 4) as usize;
+                    let dst_idx = ((y * dst_w + dst_x) * 4) as usize;
+                    if src_idx + 4 <= source.glyph.pixels.len() && dst_idx + 4 <= pixels.len() {
+                        pixels[dst_idx..dst_idx + 4]
+                            .copy_from_slice(&source.glyph.pixels[src_idx..src_idx + 4]);
+                    }
+                }
+            }
+        }
 
-    fn pixels(&self) -> Vec<(i32, i32, Color)> {
-        self.data
-            .iter()
-            .copied()
-            .map(|(x, y, color)| {
-                (
-                    x + FontAtlasData::PADDING,
-                    y + FontAtlasData::PADDING,
-                    color,
-                )
-            })
-            .collect()
-    }
+        let bounds = GlyphBounds {
+            min_x: 0,
+            max_x: cell_w - 1,
+            min_y: source.bounds.min_y,
+            max_y: source.bounds.max_y,
+        };
 
-    /// Calculates bounding box from pixel data.
-    fn calculate_bounds(pixels: &[(i32, i32, Color)], cell_w: i32) -> GlyphBounds {
-        let min_x = pixels
-            .iter()
-            .map(|(x, _, _)| *x)
-            .min()
-            .unwrap_or(0);
-        let max_x = pixels
-            .iter()
-            .map(|(x, _, _)| *x)
-            .max()
-            .unwrap_or(0)
-            .max(cell_w - 1);
-        let min_y = pixels
-            .iter()
-            .map(|(_, y, _)| *y)
-            .min()
-            .unwrap_or(0);
-        let max_y = pixels
-            .iter()
-            .map(|(_, y, _)| *y)
-            .max()
-            .unwrap_or(0);
-
-        GlyphBounds { min_x, max_x, min_y, max_y }
+        Self {
+            glyph: RasterizedGlyph {
+                pixels,
+                width: dst_w,
+                height: dst_h,
+                is_double_width: false,
+                is_fallback: source.glyph.is_fallback,
+                fallback_font_name: source.glyph.fallback_font_name.clone(),
+            },
+            bounds,
+        }
     }
 }
 
@@ -182,78 +162,37 @@ impl GlyphBitmap {
 /// This is the main entry point for font atlas generation. It manages font loading,
 /// glyph rasterization, and texture packing for efficient GPU rendering.
 pub struct AtlasFontGenerator {
-    font_system: FontSystem,
-    cache: SwashCache,
+    rasterizer: NativeRasterizer,
+    font_size: f32,
     line_height: f32,
-    metrics: Metrics,
     underline: LineDecoration,
     strikethrough: LineDecoration,
     font_family_name: String,
-    emoji_font_family_name: String,
     debug_space_pattern: Option<DebugSpacePattern>,
 }
 
 impl AtlasFontGenerator {
-    /// Returns true if the font_id belongs to the expected font family (by name).
-    fn is_expected_font(&self, font_id: fontdb::ID) -> bool {
-        let font_name = self.font_name_for_id(font_id);
-        font_name.eq_ignore_ascii_case(&self.font_family_name)
-    }
-
-    /// Looks up the font family name for a given font ID.
-    fn font_name_for_id(&self, font_id: fontdb::ID) -> String {
-        self.font_system
-            .db()
-            .face(font_id)
-            .and_then(|face| face.families.first())
-            .map(|(name, _)| name.clone())
-            .unwrap_or_else(|| format!("Unknown (ID: {font_id:?})"))
-    }
-
     /// Measures the dimensions of a font by rasterizing the full block character (█).
-    /// Returns None if the glyph is not present in the requested font (i.e., falls back).
-    fn measure_font_dimensions(&mut self, font_family: &str) -> Option<FontDimensions> {
-        let (mut buffer, font_id) = create_rasterizer("\u{2588}")
-            .font_family_name(font_family)
-            .font_style(FontStyle::Normal)
-            .rasterize(&mut self.font_system, self.metrics)
-            .expect("reference glyph to rasterize");
+    /// Returns None if the glyph produces no visible pixels.
+    fn measure_font_dimensions_for(rasterizer: &mut NativeRasterizer) -> Option<FontDimensions> {
+        let glyph = rasterizer
+            .rasterize("\u{2588}", FontStyle::Normal)
+            .ok()?;
 
-        // Verify the glyph came from the requested font
-        let actual_font_name = self.font_name_for_id(font_id);
-        if !actual_font_name.eq_ignore_ascii_case(font_family) {
-            debug!(
-                requested = font_family,
-                actual = actual_font_name,
-                "Reference glyph (█) not present in font, using fallback"
-            );
+        let bounds = measure_glyph_bounds(&glyph);
+        if bounds.width() <= 0 || bounds.height() <= 0 {
             return None;
         }
-
-        let mut buffer = buffer.borrow_with(&mut self.font_system);
-        let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
 
         Some(FontDimensions { width: bounds.width(), height: bounds.height() })
     }
 
     /// Creates a new atlas font generator with the specified font family and rendering parameters.
     ///
-    /// # Arguments
-    ///
-    /// * `font_family` - The font family to use for glyph rasterization
-    /// * `emoji_font_family_name` - Emoji font family name to use for emoji glyphs (defaults to "Noto Color Emoji")
-    /// * `font_size` - Base font size in points
-    /// * `line_height` - Line height multiplier (e.g., 1.2 for 120% line height)
-    /// * `underline` - Underline decoration position and thickness
-    /// * `strikethrough` - Strikethrough decoration position and thickness
-    /// * `debug_space_pattern` - Optional checkered pattern for space glyph debugging
-    ///
-    /// # Returns
-    ///
-    /// Returns a configured generator ready to produce bitmap fonts, or an error if the font family
-    /// cannot be loaded.
+    /// Note: `line_height` is applied in `calculate_optimized_cell_dimensions()`
+    /// after the optimal font size is determined.
     pub fn new_with_family(
-        font_family: FontFamily,
+        font_family_name: String,
         emoji_font_family_name: String,
         font_size: f32,
         line_height: f32,
@@ -262,52 +201,27 @@ impl AtlasFontGenerator {
         debug_space_pattern: Option<DebugSpacePattern>,
     ) -> Result<Self, Report> {
         info!(
-            font_family = %font_family.name,
+            font_family = %font_family_name,
             font_size = font_size,
             line_height = line_height,
             "Creating bitmap font generator"
         );
 
-        let discovery = FontDiscovery::new();
-        let mut font_system = discovery.into_font_system();
-
-        // verify the font family is loaded
-        debug!(font_family = %font_family.name, "Loading font family");
-        FontDiscovery::load_font_family(&mut font_system, &font_family)?;
-
-        let metrics = Metrics::new(font_size, font_size * line_height);
-        let cache = SwashCache::new();
+        let rasterizer =
+            NativeRasterizer::new(&[&font_family_name, &emoji_font_family_name], font_size)?;
 
         Ok(Self {
-            font_system,
-            cache,
-            metrics,
+            rasterizer,
+            font_size,
             line_height,
             underline,
             strikethrough,
-            font_family_name: font_family.name.clone(),
-            emoji_font_family_name,
+            font_family_name,
             debug_space_pattern,
         })
     }
 
     /// Generates a complete bitmap font atlas from Unicode ranges and emoji.
-    ///
-    /// This is the main entry point for font atlas generation. It:
-    /// 1. Calculates optimal cell dimensions for all font styles
-    /// 2. Categorizes glyphs and allocates IDs
-    /// 3. Rasterizes all glyphs into a 3D texture array
-    /// 4. Packages everything into a [`BitmapFont`] ready for GPU upload
-    ///
-    /// # Arguments
-    ///
-    /// * `unicode_ranges` - Unicode character ranges to include (e.g., Basic Latin, Symbols)
-    /// * `other_symbols` - String containing emoji and other emoji characters to rasterize
-    ///
-    /// # Returns
-    ///
-    /// A tuple of [`BitmapFont`] containing the atlas texture data and glyph metadata,
-    /// and [`FallbackGlyphStats`] with information about glyphs that used fallback fonts.
     pub fn generate(
         &mut self,
         unicode_ranges: &[RangeInclusive<char>],
@@ -318,7 +232,7 @@ impl AtlasFontGenerator {
             "Starting font generation"
         );
 
-        // calculate texture dimensions using all font styles to ensure proper cell sizing
+        // calculate texture dimensions using optimized cell dimensions
         let bounds = self.calculate_optimized_cell_dimensions();
 
         // categorize and allocate IDs
@@ -328,7 +242,6 @@ impl AtlasFontGenerator {
 
         debug!(glyph_count = glyphs.len(), "Generated glyph set");
 
-        // let test_glyphs = create_test_glyphs_for_cell_calculation();
         let config = RasterizationConfig::new(bounds, &glyphs);
         info!(
             bounds = ?bounds,
@@ -356,9 +269,9 @@ impl AtlasFontGenerator {
         // Measure font dimensions for primary and fallback fonts
         if !fallback_stats.fallback_glyphs.is_empty() {
             fallback_stats.primary_font_dimensions =
-                self.measure_font_dimensions(&self.font_family_name.clone());
+                Self::measure_font_dimensions_for(&mut self.rasterizer);
 
-            // Collect unique fallback font names and measure each
+            // Collect unique fallback font names
             let unique_fallback_fonts: HashSet<_> = fallback_stats
                 .fallback_glyphs
                 .iter()
@@ -366,16 +279,22 @@ impl AtlasFontGenerator {
                 .collect();
 
             for font_name in unique_fallback_fonts {
-                if let Some(dimensions) = self.measure_font_dimensions(&font_name) {
-                    fallback_stats
-                        .fallback_font_dimensions
-                        .push((font_name, dimensions));
-                } else {
-                    // Font doesn't have █, skip dimension reporting for this font
-                    info!(
-                        font = font_name,
-                        "Skipping dimension measurement - font lacks reference glyph (█)"
-                    );
+                // Create a temporary rasterizer for the fallback font to measure its dimensions
+                if let Ok(mut fallback_rasterizer) =
+                    NativeRasterizer::new(&[&font_name], self.font_size)
+                {
+                    if let Some(dimensions) =
+                        Self::measure_font_dimensions_for(&mut fallback_rasterizer)
+                    {
+                        fallback_stats
+                            .fallback_font_dimensions
+                            .push((font_name, dimensions));
+                    } else {
+                        info!(
+                            font = font_name,
+                            "Skipping dimension measurement - font lacks reference glyph (█)"
+                        );
+                    }
                 }
             }
 
@@ -443,7 +362,7 @@ impl AtlasFontGenerator {
             BitmapFont {
                 atlas_data: FontAtlasData::new(
                     self.font_family_name.clone().into(),
-                    self.metrics.font_size,
+                    self.font_size,
                     halfwidth_glyphs_per_layer,
                     (config.texture_width, config.texture_height, config.layers),
                     config.padded_cell_size(),
@@ -479,49 +398,43 @@ impl AtlasFontGenerator {
             "Rasterizing glyph"
         );
 
-        let font_id = if glyph.is_emoji() || is_fullwidth {
+        let bitmap = if glyph.is_emoji() || is_fullwidth {
             // Render double-width glyph at 2× width and split into left/right halves
-            let bounds = config.double_width_glyph_bounds();
-            let bitmap = self.rasterize_symbol(glyph.symbol(), glyph.style(), bounds);
+            let full_bitmap = self.rasterize_symbol(
+                glyph.symbol(),
+                glyph.style(),
+                config.double_width_glyph_bounds(),
+            );
             let cell_w = config.glyph_bounds().width();
-            let font_id = bitmap.font_id;
 
             let half_bitmap = if glyph.id() & 1 == 0 {
-                GlyphBitmap::split_left(&bitmap, cell_w)
+                GlyphBitmap::split_left(&full_bitmap, cell_w)
             } else {
-                GlyphBitmap::split_right(&bitmap, cell_w)
+                GlyphBitmap::split_right(&full_bitmap, cell_w)
             };
 
-            self.render_pixels_to_texture(
-                half_bitmap.pixels(),
-                glyph.atlas_coordinate(),
-                config,
-                texture,
-            );
+            self.render_pixels_to_texture(&half_bitmap, glyph.atlas_coordinate(), config, texture);
 
-            font_id
+            full_bitmap
         } else {
             // Normal glyph rendering
-            let glyph_bitmap =
+            let bitmap =
                 self.rasterize_symbol(glyph.symbol(), glyph.style(), config.glyph_bounds());
-            let font_id = glyph_bitmap.font_id;
 
-            self.render_pixels_to_texture(
-                glyph_bitmap.pixels(),
-                glyph.atlas_coordinate(),
-                config,
-                texture,
-            );
+            self.render_pixels_to_texture(&bitmap, glyph.atlas_coordinate(), config, texture);
 
-            font_id
+            bitmap
         };
 
         // Check if this glyph used a fallback font (skip emoji - they use a separate font)
-        if !glyph.is_emoji() && !self.is_expected_font(font_id) {
+        if !glyph.is_emoji() && bitmap.glyph.is_fallback {
             Some(FallbackGlyph {
                 symbol: glyph.symbol().to_string(),
                 style: glyph.style(),
-                fallback_font_name: self.font_name_for_id(font_id),
+                fallback_font_name: bitmap
+                    .glyph
+                    .fallback_font_name
+                    .unwrap_or_else(|| "Unknown".to_string()),
             })
         } else {
             None
@@ -540,21 +453,6 @@ impl AtlasFontGenerator {
     }
 
     /// Rasterizes a single symbol with the specified style into a bitmap.
-    ///
-    /// # Arguments
-    ///
-    /// * `symbol` - The character or grapheme to rasterize
-    /// * `style` - Font style (Normal, Bold, Italic, BoldItalic)
-    /// * `bounds` - Target glyph bounds for rendering
-    ///
-    /// # Returns
-    ///
-    /// A [`GlyphBitmap`] containing pixel data and actual bounds.
-    ///
-    /// # Note
-    ///
-    /// For emoji, this uses a different rendering path with dynamic scaling
-    /// to ensure proper sizing and display.
     pub fn rasterize_symbol(
         &mut self,
         symbol: &str,
@@ -568,27 +466,28 @@ impl AtlasFontGenerator {
             return Self::generate_checkered_bitmap(bounds, pattern);
         }
 
-        let glyph = if is_emoji(symbol) {
-            Glyph::new_emoji(0, symbol, (0, 0))
-        } else {
-            Glyph::new(symbol, style, (0, 0))
-        };
+        let rasterized = self
+            .rasterizer
+            .rasterize(symbol, style)
+            .unwrap_or_else(|_| {
+                // Return empty glyph on rasterization failure
+                let padding = FontAtlasData::PADDING;
+                let w = (bounds.width() + 2 * padding) as u32;
+                let h = (bounds.height() + 2 * padding) as u32;
+                RasterizedGlyph::new(vec![0u8; (w * h * 4) as usize], w, h)
+            });
 
-        let (mut buffer, font_id) = self.render_to_buffer(&glyph, bounds.width(), bounds.height());
-        let mut buffer = buffer.borrow_with(&mut self.font_system);
-
-        let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
-
-        GlyphBitmap { data: pixels, bounds, font_id }
+        GlyphBitmap { glyph: rasterized, bounds }
     }
 
     /// Generates a checkered bitmap to validate pixel-perfect rendering of cell dimensions.
     fn generate_checkered_bitmap(bounds: GlyphBounds, pattern: DebugSpacePattern) -> GlyphBitmap {
         let width = bounds.width();
         let height = bounds.height();
-        let mut pixels = Vec::new();
-
-        let white = Color::rgba(0xff, 0xff, 0xff, 0xff); // White with full alpha
+        let padding = FontAtlasData::PADDING;
+        let padded_w = (width + 2 * padding) as u32;
+        let padded_h = (height + 2 * padding) as u32;
+        let mut pixels = vec![0u8; (padded_w * padded_h * 4) as usize];
 
         for y in 0..height {
             for x in 0..width {
@@ -596,95 +495,57 @@ impl AtlasFontGenerator {
                     DebugSpacePattern::OnePixel => (x + y) % 2 == 0,
                     DebugSpacePattern::TwoByTwo => ((x / 2) + (y / 2)) % 2 == 0,
                 };
-                // Only emit white pixels; black (transparent) pixels are implicit
                 if is_white {
-                    pixels.push((x, y, white));
+                    let px = (x + padding) as u32;
+                    let py = (y + padding) as u32;
+                    let idx = ((py * padded_w + px) * 4) as usize;
+                    if idx + 4 <= pixels.len() {
+                        pixels[idx] = 0xff;
+                        pixels[idx + 1] = 0xff;
+                        pixels[idx + 2] = 0xff;
+                        pixels[idx + 3] = 0xff;
+                    }
                 }
             }
         }
 
-        GlyphBitmap { data: pixels, bounds, font_id: fontdb::ID::dummy() }
-    }
-
-    /// Creates a cosmic-text buffer with the glyph rendered.
-    ///
-    /// The `cell_w` parameter determines the rendering width:
-    /// - For normal glyphs: single cell width
-    /// - For double-width emoji: 2× cell width (via `double_width_glyph_bounds()`)
-    fn render_to_buffer(
-        &mut self,
-        glyph: &Glyph,
-        cell_w: i32,
-        _cell_h: i32,
-    ) -> (Buffer, fontdb::ID) {
-        // Use emoji font if glyph is emoji, otherwise use main font
-        // Emoji fonts typically only have Normal style, not Bold/Italic
-        let (font_family, font_style) = if glyph.is_emoji() {
-            (&self.emoji_font_family_name, FontStyle::Normal)
-        } else {
-            (&self.font_family_name, glyph.style())
-        };
-
-        if glyph.is_emoji() {
-            info!(
-                symbol = %glyph.symbol(),
-                codepoint = format_args!("U+{:04X}", glyph.symbol().chars().next().unwrap_or('\0') as u32),
-                font_family = %font_family,
-                font_style = ?font_style,
-                "Rendering emoji glyph"
-            );
+        GlyphBitmap {
+            glyph: RasterizedGlyph::new(pixels, padded_w, padded_h),
+            bounds,
         }
-
-        create_rasterizer(glyph.symbol())
-            .font_family_name(font_family)
-            .font_style(font_style)
-            .monospace_width(cell_w as u32)
-            .rasterize(&mut self.font_system, self.metrics)
-            .expect("glyph to rasterize to Buffer")
     }
 
-    /// Extracts pixel data from a cosmic-text buffer within the specified bounds.
-    fn collect_glyph_pixels(
-        buffer: &mut cosmic_text::BorrowedWithFontSystem<Buffer>,
-        cache: &mut SwashCache,
-        bounds: GlyphBounds,
-    ) -> Vec<(i32, i32, Color)> {
-        let mut pixels = Vec::new();
-
-        buffer.draw(cache, WHITE, |x, y, _w, _h, color| {
-            if color.a() > 0 && bounds.contains(x, y) {
-                // let (x, y) = bounds.normalize_xy(x, y);
-                pixels.push((x, y, color));
-            }
-        });
-
-        pixels
-    }
-
-    /// Writes pixel data into the 3D texture array at the specified cell position and layer.
+    /// Writes pixel data from a GlyphBitmap into the 3D texture array.
     fn render_pixels_to_texture(
         &self,
-        pixels: Vec<(i32, i32, Color)>,
+        bitmap: &GlyphBitmap,
         coord: AtlasCoordinate,
         config: &RasterizationConfig,
         texture: &mut [u32],
     ) {
         let cell_offset = coord.cell_offset_in_px(config.glyph_bounds());
         let cell_size = config.padded_cell_size();
+        let src_w = bitmap.glyph.width as i32;
 
-        for (x, y, color) in pixels {
-            if x < 0 || x >= cell_size.width || y < 0 || y >= cell_size.height {
+        for (i, px) in bitmap.glyph.pixels.chunks(4).enumerate() {
+            if px[3] == 0 {
                 continue;
             }
 
-            let px = x + cell_offset.0;
-            let py = y + cell_offset.1;
+            let src_x = (i as i32) % src_w;
+            let src_y = (i as i32) / src_w;
 
-            if px >= 0 && px < config.texture_width && py >= 0 && py < config.texture_height {
-                let idx = self.texture_index(px, py, coord.layer as i32, config);
+            // Map pixel to texture coordinates
+            let tx = src_x + cell_offset.0;
+            let ty = src_y + cell_offset.1;
+
+            // x is clamped to cell width (prevents bleeding into adjacent cells),
+            // y is clamped to texture height (cells are stacked vertically in the texture)
+            if tx >= 0 && tx < cell_size.width && ty >= 0 && ty < config.texture_height {
+                let idx = self.texture_index(tx, ty, coord.layer as i32, config);
 
                 if idx < texture.len() {
-                    let [r, g, b, a] = color.as_rgba().map(|c| c as u32);
+                    let (r, g, b, a) = (px[0] as u32, px[1] as u32, px[2] as u32, px[3] as u32);
                     texture[idx] = r << 24 | g << 16 | b << 8 | a;
                 }
             }
@@ -697,189 +558,44 @@ impl AtlasFontGenerator {
             as usize
     }
 
-    /// Calculates optimal cell dimensions by iteratively tuning font size for crisp edges.
+    /// Calculates cell dimensions by rendering █ at the current font size.
     ///
-    /// This function renders a full block character (U+2588) at various font sizes to find
-    /// the configuration that produces the cleanest edge alignment. It minimizes antialiasing
-    /// artifacts by finding dimensions where edge pixels have intensities close to 0.0 or 1.0.
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Renders the block character at 512 different font sizes (±12.8% range)
-    /// 2. Measures edge pixel intensities on right and bottom edges
-    /// 3. Calculates fitness as deviation from integer intensity values (0.0 or 1.0)
-    /// 4. Selects the font size with minimal edge deviation
-    /// 5. Optimizes final bounds by trimming faint edges (intensity < 0.1)
-    ///
-    /// # Returns
-    ///
-    /// Optimized [`GlyphBounds`] with the font size adjusted for crisp rendering.
-    ///
-    /// # Side Effects
-    ///
-    /// Updates `self.metrics.font_size` to the optimized value.
+    /// Since █ is synthesized programmatically (not rendered from the font),
+    /// its edges are always pixel-perfect — no font size optimization needed.
     pub fn calculate_optimized_cell_dimensions(&mut self) -> GlyphBounds {
-        let reference_glyph = Glyph::new_with_id(0, "\u{2588}", FontStyle::Normal, (0, 0));
+        let glyph = self
+            .rasterizer
+            .rasterize("\u{2588}", FontStyle::Normal)
+            .expect("reference glyph to rasterize");
 
-        let mut dynamic_metrics = self.metrics;
-        let mut best_fitness = f32::INFINITY;
-        let mut best_bounds = GlyphBounds::empty();
-        let mut best_metrics = self.metrics;
+        let mut bounds = measure_glyph_bounds(&glyph);
 
-        let iterations = 512; // Number of steps to optimize
-        for step in 0..iterations {
-            // Adjust font size for next iteration
-            let adjustment = 1.0 + ((step - iterations / 2) as f32 * 0.00025);
-
-            dynamic_metrics.font_size = self.metrics.font_size * adjustment;
-            dynamic_metrics.line_height = dynamic_metrics.font_size * self.line_height;
-
-            let (mut buffer, _font_id) = create_rasterizer(reference_glyph.symbol()) // Full block character
-                .font_family_name(&self.font_family_name)
-                .font_style(reference_glyph.style())
-                .rasterize(&mut self.font_system, dynamic_metrics)
-                .expect("glyph to rasterize to Buffer");
-
-            let mut buffer = buffer.borrow_with(&mut self.font_system);
-            let bounds = measure_glyph_bounds(&mut buffer, &mut self.cache);
-
-            let pixels = Self::collect_glyph_pixels(&mut buffer, &mut self.cache, bounds);
-
-            // Calculate edge intensity fitness with font size deviation penalty
-            let right_intensity = Self::calculate_edge_intensity(&pixels, bounds, true);
-            let bottom_intensity = Self::calculate_edge_intensity(&pixels, bounds, false);
-
-            // Fitness is the worst deviation from integer values (0.0 or 1.0)
-            let right_frac = right_intensity % 1.0;
-            let bottom_frac = bottom_intensity % 1.0;
-            let right_deviation = right_frac.min(1.0 - right_frac);
-            let bottom_deviation = bottom_frac.min(1.0 - bottom_frac);
-            let edge_fitness = right_deviation.max(bottom_deviation);
-
-            debug!(
-                "Step {}: font_size={:.4}, right_intensity={:.4}, bottom_intensity={:.4}, edge_fitness={:.4}, bounds={:?}",
-                step,
-                dynamic_metrics.font_size,
-                right_intensity,
-                bottom_intensity,
-                edge_fitness,
-                bounds
+        // Apply line height multiplier to cell height
+        if self.line_height > 1.0 {
+            let extra = ((bounds.height() as f32 * (self.line_height - 1.0)).round()) as i32;
+            bounds.max_y += extra;
+            info!(
+                line_height = self.line_height,
+                extra_pixels = extra,
+                "Applied line height scaling"
             );
-
-            if edge_fitness < best_fitness {
-                best_fitness = edge_fitness;
-                best_bounds = bounds;
-                best_metrics = dynamic_metrics;
-                debug!(
-                    "New best fitness, error score: {:.4} at font_size={:.4}",
-                    best_fitness, dynamic_metrics.font_size
-                );
-            }
         }
 
-        // Optimize final bounds based on edge intensities
         info!(
-            "Optimizing bounds for overdraw, error score: {:.4}",
-            best_fitness
+            font_size = self.font_size,
+            ?bounds,
+            "Cell dimensions calculated"
         );
-        info!(
-            "font size update to {:.4} from {:.4}",
-            best_metrics.font_size, self.metrics.font_size
-        );
-        self.metrics = best_metrics;
-
-        Self::optimize_bounds_for_overdraw(
-            best_bounds,
-            &self.reference_glyph_pixels(&reference_glyph, best_bounds),
-        )
-    }
-
-    /// Calculates average pixel intensity along the right or bottom edge of a glyph.
-    fn calculate_edge_intensity(
-        pixels: &[(i32, i32, Color)],
-        bounds: GlyphBounds,
-        is_right_edge: bool,
-    ) -> f32 {
-        let mut total_intensity = 0.0;
-        let mut pixel_count = 0;
-
-        for &(x, y, color) in pixels {
-            let is_edge_pixel =
-                if is_right_edge { x == bounds.width() - 1 } else { y == bounds.height() - 1 };
-
-            if is_edge_pixel {
-                // Convert color to intensity (0.0 - 1.0)
-                let intensity = color.a() as f32 / 255.0;
-                total_intensity += intensity;
-                pixel_count += 1;
-            }
-        }
-
-        if pixel_count > 0 { total_intensity / pixel_count as f32 } else { 0.0 }
-    }
-
-    /// Shrinks bounds by removing edges with very faint pixel intensity (< 0.1).
-    fn optimize_bounds_for_overdraw(
-        mut bounds: GlyphBounds,
-        pixels: &[(i32, i32, Color)],
-    ) -> GlyphBounds {
-        let right_intensity = Self::calculate_edge_intensity(pixels, bounds, true);
-        let bottom_intensity = Self::calculate_edge_intensity(pixels, bounds, false);
-
-        // If edge intensity is approaching 0.0 (very faint), shrink the dimension
-        if right_intensity < 0.1 {
-            bounds = bounds.shrink_width(1);
-        }
-        if bottom_intensity < 0.1 {
-            bounds = bounds.shrink_height(1);
-        }
 
         bounds
     }
 
-    /// Renders a glyph and returns its pixel data for analysis or optimization.
-    fn reference_glyph_pixels(
-        &mut self,
-        glyph: &Glyph,
-        bounds: GlyphBounds,
-    ) -> Vec<(i32, i32, Color)> {
-        let (mut buffer, _font_id) = create_rasterizer(glyph.symbol())
-            .font_family_name(&self.font_family_name)
-            .font_style(glyph.style())
-            .rasterize(&mut self.font_system, self.metrics)
-            .expect("glyph to rasterize to Buffer");
-
-        Self::collect_glyph_pixels(
-            &mut buffer.borrow_with(&mut self.font_system),
-            &mut self.cache,
-            bounds,
-        )
-    }
-
     /// Checks which glyphs are missing from the font by attempting to rasterize them.
-    ///
-    /// # Arguments
-    ///
-    /// * `chars` - String containing characters to check for font support
-    ///
-    /// # Returns
-    ///
-    /// A [`MissingGlyphReport`] containing:
-    /// - List of glyphs that failed to render (produced no pixels)
-    /// - Total number of glyphs checked (excluding emoji)
-    /// - Font family name
-    ///
-    /// # Algorithm
-    ///
-    /// Attempts to rasterize each character in all font styles. If rasterization produces
-    /// no visible pixels, the glyph is considered missing from the font. Emoji glyphs are
-    /// skipped as they use a different rendering path.
     pub fn check_missing_glyphs(
         &mut self,
         ranges: &[RangeInclusive<char>],
         additional_symbols: &str,
     ) -> Result<MissingGlyphReport, Report> {
-        // Use the same glyph bounds as the main generation
         let bounds = self.calculate_optimized_cell_dimensions();
 
         let grapheme_set = GraphemeSet::new(ranges, additional_symbols)?;
@@ -891,16 +607,18 @@ impl AtlasFontGenerator {
         for glyph in &glyphs {
             total_checked += 1;
 
-            // skip intentionally empty glyphs (space characters)
             if is_empty_character(glyph.symbol()) {
                 continue;
             }
 
-            // Try to rasterize the glyph - if it produces no visible pixels, it's missing
             let rasterized = self.rasterize_symbol(glyph.symbol(), glyph.style(), bounds);
-            let is_supported = !rasterized.data.is_empty();
+            let has_pixels = rasterized
+                .glyph
+                .pixels
+                .chunks(4)
+                .any(|px| px[3] > 0);
 
-            if !is_supported {
+            if !has_pixels {
                 debug!(
                     symbol = %glyph.symbol(),
                     style = ?glyph.style(),
@@ -955,29 +673,27 @@ fn is_empty_character(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use beamterm_rasterizer::FontDiscovery;
+
     use super::*;
-    use crate::font_discovery::FontDiscovery;
 
     #[test]
     fn test_space_character_detection() {
-        // Test common space characters
-        assert!(is_empty_character(" ")); // U+0020 SPACE
-        assert!(is_empty_character("\u{00A0}")); // NO-BREAK SPACE
-        assert!(is_empty_character("\u{2003}")); // EM SPACE
-        assert!(is_empty_character("\u{200B}")); // ZERO WIDTH SPACE
-        assert!(is_empty_character("\u{3000}")); // IDEOGRAPHIC SPACE
+        assert!(is_empty_character(" "));
+        assert!(is_empty_character("\u{00A0}"));
+        assert!(is_empty_character("\u{2003}"));
+        assert!(is_empty_character("\u{200B}"));
+        assert!(is_empty_character("\u{3000}"));
 
-        // Test non-space characters
         assert!(!is_empty_character("A"));
         assert!(!is_empty_character("0"));
         assert!(!is_empty_character("█"));
-        assert!(!is_empty_character("")); // Empty string
-        assert!(!is_empty_character("AB")); // Multi-char
+        assert!(!is_empty_character(""));
+        assert!(!is_empty_character("AB"));
     }
 
     #[test]
     fn test_missing_glyph_detection() {
-        // Create a font discovery instance and get available fonts
         let discovery = FontDiscovery::new();
         let available_fonts = discovery.discover_complete_monospace_families();
 
@@ -986,12 +702,10 @@ mod tests {
             return;
         }
 
-        // Use the first available font
-        let font_family = available_fonts[0].clone();
+        let font_family = &available_fonts[0];
 
-        // Create a generator
         let mut generator = AtlasFontGenerator::new_with_family(
-            font_family.clone(),
+            font_family.name.clone(),
             "Noto Color Emoji".to_string(),
             15.0,
             1.0,
@@ -1001,24 +715,18 @@ mod tests {
         )
         .expect("Failed to create generator");
 
-        // Test with ranges that don't duplicate ASCII
-        // Using Latin Extended-A range for non-overlapping chars
-        let test_ranges = vec!['\u{0100}'..='\u{0105}']; // Ā-ą (6 chars)
+        let test_ranges = vec!['\u{0100}'..='\u{0105}'];
         let report = generator
             .check_missing_glyphs(&test_ranges, "")
             .unwrap();
 
-        // Verify basic properties of the report
         assert_eq!(report.font_family_name, font_family.name);
-        // ASCII (95 chars) + Latin Extended-A (6 chars) = 101 chars * 4 styles = 404 glyphs
         assert_eq!(report.total_checked, 404);
 
-        // The missing count should be reasonable
         let coverage_percent = ((report.total_checked - report.missing_glyphs.len()) as f64
             / report.total_checked as f64)
             * 100.0;
 
-        // Coverage may be lower due to Latin Extended-A chars, so we accept > 80%
         assert!(
             coverage_percent > 95.0,
             "Font coverage should be above 95%, got {coverage_percent:.1}%",

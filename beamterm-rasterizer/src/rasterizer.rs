@@ -25,15 +25,35 @@ pub struct RasterizedGlyph {
     /// True if the glyph occupies two cells (detected from the font's
     /// advance width, not just unicode-width).
     pub is_double_width: bool,
+    /// True if the glyph was rendered using a fallback font instead
+    /// of the primary font family.
+    pub is_fallback: bool,
+    /// Name of the font family that rendered this glyph, if it was
+    /// a fallback font (i.e., not the primary font).
+    pub fallback_font_name: Option<String>,
 }
 
 impl RasterizedGlyph {
     pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
-        Self { pixels, width, height, is_double_width: false }
+        Self {
+            pixels,
+            width,
+            height,
+            is_double_width: false,
+            is_fallback: false,
+            fallback_font_name: None,
+        }
     }
 
     pub fn new_wide(pixels: Vec<u8>, width: u32, height: u32) -> Self {
-        Self { pixels, width, height, is_double_width: true }
+        Self {
+            pixels,
+            width,
+            height,
+            is_double_width: true,
+            is_fallback: false,
+            fallback_font_name: None,
+        }
     }
 }
 
@@ -117,9 +137,23 @@ impl NativeRasterizer {
             fallback_sizes: &mut self.fallback_sizes,
         };
 
-        resolver
+        let mut result = resolver
             .with_font(font_idx, |font_ref| rasterize_with_font(font_ref, &mut ctx))
-            .unwrap_or_else(|| Ok(empty_glyph_from_metrics(&self.cell_metrics)))
+            .unwrap_or_else(|| Ok(empty_glyph_from_metrics(&self.cell_metrics)))?;
+
+        // tag fallback info
+        let is_fallback = font_idx >= self.font_resolver.primary_count();
+        result.is_fallback = is_fallback;
+        if is_fallback {
+            result.fallback_font_name = self.font_resolver.font_family_name(font_idx);
+        }
+
+        Ok(result)
+    }
+
+    /// Returns the cell metrics for the primary font.
+    pub fn cell_metrics(&self) -> &CellMetrics {
+        &self.cell_metrics
     }
 
     /// Returns the cell size in pixels (without padding).
@@ -225,6 +259,12 @@ fn rasterize_with_font(
     let padding = FontAtlasData::PADDING;
     let cell_w = ctx.cell_metrics.width;
 
+    // █ is synthesized: it has no interior edges, only cell boundaries
+    // that must be fully opaque. Font rendering produces AA edges (~4 alpha).
+    if let Some(glyph) = synthesize_full_block(ctx.ch, ctx.cell_metrics) {
+        return Ok(glyph);
+    }
+
     let glyph_id = font_ref.charmap().map(ctx.ch);
     if glyph_id == 0 {
         return Ok(empty_glyph_from_metrics(ctx.cell_metrics));
@@ -282,6 +322,7 @@ fn rasterize_with_font(
     // glyphs (e.g. ═ and ╝ horizontal strokes landing on different rows).
     // unhinted rendering preserves the font's designed stroke positions
     // for consistent alignment across all glyphs.
+    // (block elements are synthesized above and never reach this path.)
     let mut scaler = ctx
         .scale_ctx
         .builder(font_ref)
@@ -302,9 +343,9 @@ fn rasterize_with_font(
         None => return Ok(RasterizedGlyph::new(pixels, padded_w, padded_h)),
     };
 
-    // always use the primary font's ascent for baseline placement,
-    // so all glyphs align to the same baseline regardless of font
-    let ascent = ctx.cell_metrics.ascent.round() as i32;
+    // use the pixel-exact baseline offset from the rendered reference glyph (█),
+    // so all glyphs align to the same baseline and █ fills the cell exactly
+    let ascent = ctx.cell_metrics.baseline_y;
 
     // Horizontal placement: always use the font's left bearing to
     // preserve alignment between related glyphs (e.g. box-drawing
@@ -354,11 +395,19 @@ fn rasterize_with_font(
         }
     }
 
+    // for box-drawing and block elements, extend cell-edge pixels by copying
+    // from the adjacent interior pixel, so lines connect between cells
+    if needs_edge_boost(ctx.ch) {
+        extend_cell_edges(&mut pixels, padded_w, padded_h, content_w, content_h);
+    }
+
     Ok(RasterizedGlyph {
         pixels,
         width: padded_w,
         height: padded_h,
         is_double_width,
+        is_fallback: false,
+        fallback_font_name: None,
     })
 }
 
@@ -421,6 +470,108 @@ fn refine_fallback_size(
     }
 
     size
+}
+
+/// Synthesizes █ (U+2588) programmatically. This is the only block element
+/// that needs full synthesis — it has no interior edges, just cell boundaries
+/// that must be fully opaque. All other block/box-drawing characters are
+/// rendered from the font with cell-edge alpha boosting.
+fn synthesize_full_block(ch: char, metrics: &CellMetrics) -> Option<RasterizedGlyph> {
+    if ch != '\u{2588}' {
+        return None;
+    }
+
+    let padding = FontAtlasData::PADDING;
+    let cell_w = metrics.width;
+    let cell_h = metrics.height;
+    let padded_w = (cell_w + padding * 2) as u32;
+    let padded_h = (cell_h + padding * 2) as u32;
+    let stride = padded_w as usize * 4;
+
+    let mut pixels = vec![0u8; stride * padded_h as usize];
+    for row in 0..cell_h {
+        for col in 0..cell_w {
+            let idx = ((padding + row) as usize * stride) + (padding + col) as usize * 4;
+            pixels[idx] = 0xff;
+            pixels[idx + 1] = 0xff;
+            pixels[idx + 2] = 0xff;
+            pixels[idx + 3] = 0xff;
+        }
+    }
+
+    Some(RasterizedGlyph::new(pixels, padded_w, padded_h))
+}
+
+/// Returns true for characters where lines/fills must connect seamlessly
+/// at cell boundaries: Box Drawing (U+2500-U+257F) and Block Elements
+/// (U+2580-U+259F). For these, cell-edge pixels with alpha > 0 are
+/// boosted to 255 after rendering to eliminate anti-aliased gaps.
+fn needs_edge_boost(ch: char) -> bool {
+    ('\u{2500}'..='\u{259F}').contains(&ch)
+}
+
+/// Extends cell-edge pixels by copying RGBA from the nearest interior neighbor.
+/// For edge pixels with alpha > 0 but low coverage (from anti-aliasing), this
+/// replaces the faint fringe with a proper continuation of the adjacent interior
+/// pixel, ensuring lines connect seamlessly between cells.
+fn extend_cell_edges(pixels: &mut [u8], padded_w: u32, padded_h: u32, cell_w: i32, cell_h: i32) {
+    let padding = FontAtlasData::PADDING;
+    let stride = padded_w as usize * 4;
+
+    let left_col = padding as usize;
+    let right_col = (padding + cell_w - 1) as usize;
+    let top_row = padding as usize;
+    let bottom_row = (padding + cell_h - 1) as usize;
+
+    // extend left/right edge columns from their interior neighbor
+    for row in top_row..=(bottom_row.min(padded_h as usize - 1)) {
+        // left edge ← copy from column left_col + 1
+        let edge = row * stride + left_col * 4;
+        let neighbor = row * stride + (left_col + 1) * 4;
+        if edge + 3 < pixels.len()
+            && neighbor + 3 < pixels.len()
+            && pixels[edge + 3] > 0
+            && pixels[neighbor + 3] > pixels[edge + 3]
+        {
+            pixels.copy_within(neighbor..neighbor + 4, edge);
+        }
+
+        // right edge ← copy from column right_col - 1
+        let edge = row * stride + right_col * 4;
+        let neighbor = row * stride + (right_col - 1) * 4;
+        if edge + 3 < pixels.len()
+            && neighbor + 3 < pixels.len()
+            && pixels[edge + 3] > 0
+            && pixels[neighbor + 3] > pixels[edge + 3]
+        {
+            pixels.copy_within(neighbor..neighbor + 4, edge);
+        }
+    }
+
+    // extend top/bottom edge rows from their interior neighbor
+    for col in left_col..=(right_col.min(padded_w as usize - 1)) {
+        // top edge ← copy from row top_row + 1
+        let edge = top_row * stride + col * 4;
+        let neighbor = (top_row + 1) * stride + col * 4;
+        if edge + 3 < pixels.len()
+            && neighbor + 3 < pixels.len()
+            && pixels[edge + 3] > 0
+            && pixels[neighbor + 3] > pixels[edge + 3]
+        {
+            pixels.copy_within(neighbor..neighbor + 4, edge);
+        }
+
+        // bottom edge ← copy from row bottom_row - 1
+        let edge = bottom_row * stride + col * 4;
+        let neighbor = (bottom_row - 1) * stride + col * 4;
+        if edge + 3 < pixels.len()
+            && neighbor + 3 < pixels.len()
+            && pixels[edge + 3] > 0
+            && pixels[neighbor + 3] > pixels[edge + 3]
+        {
+            pixels.copy_within(neighbor..neighbor + 4, edge);
+        }
+    }
 }
 
 fn is_wide(grapheme: &str) -> bool {
@@ -1057,6 +1208,149 @@ mod tests {
                     corner_rows.contains(row),
                     "size={size}: ═ has stroke at row {row} but ╝ does not; \
                      ═ rows={eq_rows:?}, ╝ rows={corner_rows:?}"
+                );
+            }
+        }
+    }
+
+    /// Adjacent full-block characters must connect without gaps. The rendered
+    /// █ must have strong alpha (≥128) at all four edges of the content area,
+    /// not just non-zero. Anti-aliased fringes with low alpha still look like
+    /// gaps when adjacent cells both have weak edges.
+    #[test]
+    fn full_block_fills_cell_edges() {
+        let Some(mut rasterizer) = test_rasterizer() else {
+            eprintln!("skipping: no monospace font found");
+            return;
+        };
+
+        let padding = FontAtlasData::PADDING as u32;
+        let min_alpha: u8 = 128;
+
+        for size in [10.0_f32, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 18.0, 20.0, 24.0] {
+            rasterizer.update_font_size(size).unwrap();
+
+            let cs = rasterizer.cell_size();
+            let (cell_w, cell_h) = (cs.width as u32, cs.height as u32);
+
+            let glyph = rasterizer
+                .rasterize("\u{2588}", FontStyle::Normal)
+                .unwrap();
+
+            let w = glyph.width;
+
+            // max alpha in a column within content rows
+            let col_max_alpha = |col: u32| -> u8 {
+                (padding..padding + cell_h)
+                    .map(|row| {
+                        let idx = ((row * w + col) * 4 + 3) as usize;
+                        if idx < glyph.pixels.len() { glyph.pixels[idx] } else { 0 }
+                    })
+                    .max()
+                    .unwrap_or(0)
+            };
+
+            // max alpha in a row within content columns
+            let row_max_alpha = |row: u32| -> u8 {
+                (padding..padding + cell_w)
+                    .map(|col| {
+                        let idx = ((row * w + col) * 4 + 3) as usize;
+                        if idx < glyph.pixels.len() { glyph.pixels[idx] } else { 0 }
+                    })
+                    .max()
+                    .unwrap_or(0)
+            };
+
+            let left_col = padding;
+            let right_col = padding + cell_w - 1;
+            let top_row = padding;
+            let bottom_row = padding + cell_h - 1;
+
+            let left_a = col_max_alpha(left_col);
+            let right_a = col_max_alpha(right_col);
+            let top_a = row_max_alpha(top_row);
+            let bottom_a = row_max_alpha(bottom_row);
+
+            eprintln!(
+                "size={size}: cell={cell_w}x{cell_h}, edge alpha: L={left_a} R={right_a} T={top_a} B={bottom_a}"
+            );
+
+            assert!(
+                left_a >= min_alpha,
+                "size={size}: █ left edge alpha={left_a} < {min_alpha}, \
+                 adjacent cells would have a visible left gap"
+            );
+            assert!(
+                right_a >= min_alpha,
+                "size={size}: █ right edge alpha={right_a} < {min_alpha}, \
+                 adjacent cells would have a visible right gap"
+            );
+            assert!(
+                top_a >= min_alpha,
+                "size={size}: █ top edge alpha={top_a} < {min_alpha}, \
+                 adjacent cells would have a visible top gap"
+            );
+            assert!(
+                bottom_a >= min_alpha,
+                "size={size}: █ bottom edge alpha={bottom_a} < {min_alpha}, \
+                 adjacent cells would have a visible bottom gap"
+            );
+        }
+    }
+
+    /// Box-drawing horizontal lines (═, ─, etc.) must connect at cell
+    /// boundaries. The edge-boost ensures left/right edge pixels have
+    /// alpha=255 after rendering.
+    #[test]
+    fn box_drawing_horizontal_edges_connect() {
+        let Some(mut rasterizer) = test_rasterizer() else {
+            eprintln!("skipping: no monospace font found");
+            return;
+        };
+
+        let padding = FontAtlasData::PADDING as u32;
+        let min_alpha: u8 = 128;
+
+        let glyphs =
+            [("─", "light horizontal"), ("═", "double horizontal"), ("━", "heavy horizontal")];
+
+        for size in [10.0_f32, 14.0, 16.0, 20.0, 24.0] {
+            rasterizer.update_font_size(size).unwrap();
+            let cs = rasterizer.cell_size();
+            let (cell_w, cell_h) = (cs.width as u32, cs.height as u32);
+
+            for &(ch, name) in &glyphs {
+                let glyph = rasterizer
+                    .rasterize(ch, FontStyle::Normal)
+                    .unwrap();
+                let w = glyph.width;
+
+                let left_col = padding;
+                let right_col = padding + cell_w - 1;
+
+                let left_max = (padding..padding + cell_h)
+                    .map(|row| {
+                        let idx = ((row * w + left_col) * 4 + 3) as usize;
+                        if idx < glyph.pixels.len() { glyph.pixels[idx] } else { 0 }
+                    })
+                    .max()
+                    .unwrap_or(0);
+
+                let right_max = (padding..padding + cell_h)
+                    .map(|row| {
+                        let idx = ((row * w + right_col) * 4 + 3) as usize;
+                        if idx < glyph.pixels.len() { glyph.pixels[idx] } else { 0 }
+                    })
+                    .max()
+                    .unwrap_or(0);
+
+                assert!(
+                    left_max >= min_alpha,
+                    "size={size}: {name} ({ch}) left edge alpha={left_max} < {min_alpha}"
+                );
+                assert!(
+                    right_max >= min_alpha,
+                    "size={size}: {name} ({ch}) right edge alpha={right_max} < {min_alpha}"
                 );
             }
         }

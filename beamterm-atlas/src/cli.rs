@@ -1,10 +1,9 @@
 use std::{ops::RangeInclusive, path::PathBuf};
 
 use beamterm_data::DebugSpacePattern;
+use beamterm_rasterizer::{FontDiscovery, FontFamily};
 use clap::Parser;
 use color_eyre::{Report, eyre::eyre};
-
-use crate::font_discovery::{FontDiscovery, FontFamily};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -70,6 +69,10 @@ pub struct Cli {
     /// Check for missing glyphs and show detailed coverage report
     #[arg(long)]
     pub check_missing: bool,
+
+    /// Dump the atlas texture as a PNG file (all layers tiled vertically)
+    #[arg(long, value_name = "PATH")]
+    pub dump_png: Option<String>,
 
     /// Replace space glyph with a checkered pattern to validate pixel-perfect rendering.
     /// Use "1" for 1px checkers or "2" for 2x2 pixel checkers.
@@ -285,6 +288,7 @@ mod tests {
             list_fonts: false,
             check_missing: false,
             debug_space_pattern: None,
+            dump_png: None,
         };
 
         assert!(cli.validate().is_ok());
@@ -307,6 +311,7 @@ mod tests {
             list_fonts: false,
             check_missing: false,
             debug_space_pattern: None,
+            dump_png: None,
         };
 
         assert!(cli.validate().is_err());
@@ -329,6 +334,7 @@ mod tests {
             list_fonts: false,
             check_missing: false,
             debug_space_pattern: None,
+            dump_png: None,
         };
 
         assert!(cli.validate().is_err());

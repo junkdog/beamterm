@@ -2,21 +2,20 @@ mod atlas_generator;
 mod bitmap_font;
 mod cli;
 mod coordinate;
-mod font_discovery;
+mod dump_png;
 mod glyph_bounds;
-mod glyph_rasterizer;
 mod grapheme;
 mod logging;
 mod raster_config;
 
 use beamterm_data::*;
+use beamterm_rasterizer::FontDiscovery;
 use clap::Parser;
 use color_eyre::eyre::{Context, Result};
 
 use crate::{
     atlas_generator::{AtlasFontGenerator, FallbackGlyphStats},
     cli::Cli,
-    font_discovery::FontDiscovery,
     logging::{LoggingConfig, init_logging},
 };
 
@@ -59,7 +58,7 @@ fn main() -> Result<()> {
     }
 
     // Validate and resolve emoji font name
-    let emoji_font_name = resolve_emoji_font_name(&cli.emoji_font, discovery)?;
+    let emoji_font_name = resolve_emoji_font_name(&cli.emoji_font, &discovery)?;
     let selected_font = cli.select_font(&available_fonts)?;
 
     // print configuration summary
@@ -73,7 +72,7 @@ fn main() -> Result<()> {
 
     // Generate the font
     let mut generator = AtlasFontGenerator::new_with_family(
-        selected_font.clone(),
+        selected_font.name.clone(),
         emoji_font_name,
         cli.font_size,
         cli.line_height,
@@ -122,6 +121,11 @@ fn main() -> Result<()> {
     // Check for missing glyphs if requested
     if cli.check_missing {
         report_missing_glyphs(&mut generator, &ranges, &additional_symbols)?;
+    }
+
+    // Dump atlas as PNG if requested
+    if let Some(png_path) = &cli.dump_png {
+        dump_png::dump_atlas_png(atlas, png_path)?;
     }
 
     Ok(())
@@ -305,7 +309,7 @@ fn report_fallback_glyphs(stats: &FallbackGlyphStats) {
     }
 }
 
-fn resolve_emoji_font_name(emoji_font: &str, discovery: FontDiscovery) -> Result<String> {
+fn resolve_emoji_font_name(emoji_font: &str, discovery: &FontDiscovery) -> Result<String> {
     let emoji_font_name = match discovery.find_font(emoji_font) {
         Some(exact_name) => {
             if exact_name != emoji_font {

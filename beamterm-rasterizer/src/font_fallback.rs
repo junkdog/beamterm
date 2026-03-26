@@ -3,6 +3,16 @@ use swash::{FontRef, tag_from_bytes};
 
 use crate::error::Error;
 
+/// Controls how color-table fonts are prioritized during resolution.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ColorPreference {
+    /// Prefer fonts with color tables (COLR/CPAL, CBDT, sbix). Used for emoji.
+    PreferColor,
+    /// Prefer fonts without color tables. Used for text-presentation characters
+    /// to avoid accidentally picking up an emoji font fallback.
+    AvoidColor,
+}
+
 struct LoadedFont {
     id: ID,
     index: u32,
@@ -116,23 +126,29 @@ impl FontResolver {
     }
 
     /// Resolves a font that contains the given character, trying primary fonts first.
+    /// Prefers non-color fonts to avoid picking up emoji fallbacks for text characters.
     ///
     /// Returns the font index or `None` if no font covers the character.
     pub(crate) fn resolve_char(&mut self, ch: char) -> Option<usize> {
-        self.resolve_char_inner(ch, false)
+        self.resolve_char_inner(ch, ColorPreference::AvoidColor)
     }
 
     /// Like [`resolve_char`], but prefers fonts with color glyph support.
     pub(crate) fn resolve_color_char(&mut self, ch: char) -> Option<usize> {
-        self.resolve_char_inner(ch, true)
+        self.resolve_char_inner(ch, ColorPreference::PreferColor)
     }
 
-    fn resolve_char_inner(&mut self, ch: char, prefer_color: bool) -> Option<usize> {
+    fn resolve_char_inner(&mut self, ch: char, pref: ColorPreference) -> Option<usize> {
         let mut first_match: Option<usize> = None;
 
         for idx in 0..self.fonts.len() {
             if self.font_has_char(idx, ch) {
-                if !prefer_color || self.fonts[idx].has_color_tables {
+                let dominated = match pref {
+                    ColorPreference::PreferColor => !self.fonts[idx].has_color_tables,
+                    ColorPreference::AvoidColor => self.fonts[idx].has_color_tables,
+                };
+
+                if !dominated {
                     return Some(idx);
                 }
                 if first_match.is_none() {
@@ -147,8 +163,12 @@ impl FontResolver {
             self.fonts.push(font);
             let idx = self.fonts.len() - 1;
 
-            // check if the system fallback meets color preference
-            if !prefer_color || self.fonts[idx].has_color_tables {
+            let dominated = match pref {
+                ColorPreference::PreferColor => !self.fonts[idx].has_color_tables,
+                ColorPreference::AvoidColor => self.fonts[idx].has_color_tables,
+            };
+
+            if !dominated {
                 return Some(idx);
             }
             if first_match.is_none() {
@@ -156,7 +176,7 @@ impl FontResolver {
             }
         }
 
-        // no color font found; fall back to first font that has the character
+        // no font matching preference found; fall back to first font that has the character
         first_match
     }
 
@@ -186,6 +206,15 @@ impl FontResolver {
 
         // fall back to any font that has the character
         self.resolve_char(ch)
+    }
+
+    /// Returns the font family name for the font at the given index.
+    pub(crate) fn font_family_name(&self, idx: usize) -> Option<String> {
+        let font = self.fonts.get(idx)?;
+        self.db
+            .face(font.id)
+            .and_then(|face| face.families.first())
+            .map(|(name, _)| name.clone())
     }
 
     fn find_fallback_font(&self, ch: char) -> Option<ID> {

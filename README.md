@@ -278,6 +278,8 @@ Both atlas types use a GL 2D texture array where each layer contains a 1×32 gri
 
 ### Static Atlas: Style-Encoded Glyph IDs
 
+[View default atlas layout (Hack)](beamterm-data/atlas/bitmap_font.png)
+
 The static atlas uses 16-bit glyph IDs with style information encoded directly in the ID.
 This allows the GPU to compute texture coordinates from the ID alone.
 

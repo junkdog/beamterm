@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - *(core)* Add a simple terminal-emulator example
 - *(deps)* Bump cosmic-text from 0.16.0 to 0.18.2
 - *(deps)* Bump actions/upload-artifact from 6 to 7 (#97)
+- *(deps)* Bump criterion from 0.5.1 to 0.8.2 (#109)
 
 ### ⚡ Performance
 
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - Make `FontAtlasData`, `LineDecoration` and `Glyph` fields private
 - [**breaking**] Replace bare tuples with `CellSize` and `TerminalSize`
 - Replace emojis crate with optimized implementation
+- *(atlas-cli)* Replace cosmic-text with beamterm-rasterizer
 
 ### ⚙️ Miscellaneous Tasks
 

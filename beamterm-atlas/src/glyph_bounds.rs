@@ -1,5 +1,5 @@
 use beamterm_data::FontAtlasData;
-use cosmic_text::{BorrowedWithFontSystem, Buffer, Color, SwashCache};
+use beamterm_rasterizer::RasterizedGlyph;
 
 /// Glyph bounds information
 #[derive(Debug, Clone, Copy)]
@@ -14,20 +14,6 @@ impl GlyphBounds {
     /// Creates empty bounds for initialization
     pub(crate) fn empty() -> Self {
         Self { max_x: 0, max_y: 0, min_x: 0, min_y: 0 }
-    }
-
-    pub fn shrink_width(mut self, amount: i32) -> Self {
-        self.max_x -= amount;
-        self
-    }
-
-    pub fn shrink_height(mut self, amount: i32) -> Self {
-        self.max_y -= amount;
-        self
-    }
-
-    pub fn contains(&self, x: i32, y: i32) -> bool {
-        x >= 0 && x <= self.max_x && y >= 0 && y <= self.max_y
     }
 
     pub fn width(&self) -> i32 {
@@ -47,27 +33,32 @@ impl GlyphBounds {
     }
 }
 
-/// Measures precise glyph bounds with pixel-level accuracy using cosmic-text drawing
-pub(crate) fn measure_glyph_bounds(
-    buffer: &mut BorrowedWithFontSystem<Buffer>,
-    cache: &mut SwashCache,
-) -> GlyphBounds {
+/// Measures precise glyph bounds from a rasterized RGBA pixel buffer.
+///
+/// The glyph is expected to include padding; this function measures
+/// the content area within the padding (offsets by `PADDING`).
+pub(crate) fn measure_glyph_bounds(glyph: &RasterizedGlyph) -> GlyphBounds {
     let mut bounds = GlyphBounds::empty();
+    let w = glyph.width as i32;
+    let padding = FontAtlasData::PADDING;
 
-    // Draw the buffer and collect pixel bounds
-    buffer.draw(cache, Color::rgb(255, 255, 255), |x, y, _w, _h, color| {
-        if color.a() > 0 {
-            // todo: handle negative coordinates properly when cell overdraw is implemented
+    for (i, px) in glyph.pixels.chunks(4).enumerate() {
+        if px[3] > 0 {
+            let raw_x = (i as i32) % w;
+            let raw_y = (i as i32) / w;
 
-            bounds.max_x = bounds.max_x.max(x);
-            // bounds.min_x = bounds.min_x.min(x);
-            bounds.min_x = 0;
+            // Convert from padded coordinates to content coordinates
+            let x = raw_x - padding;
+            let y = raw_y - padding;
 
-            bounds.max_y = bounds.max_y.max(y);
-            // bounds.min_y = bounds.min_y.min(y);
-            bounds.min_y = 0;
+            if x >= 0 && y >= 0 {
+                bounds.max_x = bounds.max_x.max(x);
+                bounds.min_x = 0;
+                bounds.max_y = bounds.max_y.max(y);
+                bounds.min_y = 0;
+            }
         }
-    });
+    }
 
     bounds
 }

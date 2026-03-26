@@ -138,8 +138,7 @@ pub fn init_logging(
 
         let file_filter = EnvFilter::builder()
             .with_default_directive(config.file_level.into())
-            .from_env_lossy()
-            .add_directive("cosmic_text::buffer=off".parse().unwrap());
+            .from_env_lossy();
 
         let (file_layer, file_reload) = reload::Layer::new(file_filter);
         reload_handle.file_reload_handle = Some(file_reload);
@@ -164,8 +163,7 @@ pub fn init_logging(
     if !config.is_tui {
         let console_filter = EnvFilter::builder()
             .with_default_directive(config.console_level.into())
-            .from_env_lossy()
-            .add_directive("cosmic_text::buffer=off".parse().unwrap());
+            .from_env_lossy();
 
         let (console_layer, console_reload) = reload::Layer::new(console_filter);
         reload_handle.console_reload_handle = Some(console_reload);

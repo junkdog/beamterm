@@ -1,44 +1,43 @@
 use std::collections::HashMap;
 
-use color_eyre::{Report, eyre::eyre};
-use cosmic_text::{FontSystem, Style, Weight, fontdb};
+use fontdb::{Database, ID, Style, Weight};
 
+/// A font family with all 4 required style variants.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontFamily {
     pub name: String,
     pub fonts: FontVariants,
 }
 
+/// Font IDs for each style variant within a family.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontVariants {
-    pub regular: fontdb::ID,
-    pub bold: fontdb::ID,
-    pub italic: fontdb::ID,
-    pub bold_italic: fontdb::ID,
+    pub regular: ID,
+    pub bold: ID,
+    pub italic: ID,
+    pub bold_italic: ID,
 }
 
+/// Discovers and enumerates system fonts.
 pub struct FontDiscovery {
-    font_system: FontSystem,
+    db: Database,
 }
 
 impl FontDiscovery {
     pub fn new() -> Self {
-        let mut font_system = FontSystem::new();
-
-        // load system fonts
-        let db = font_system.db_mut();
+        let mut db = Database::new();
         db.load_system_fonts();
 
-        Self { font_system }
+        Self { db }
     }
 
     /// Discovers all monospaced font families that have all 4 required variants
+    /// (Regular, Bold, Italic, Bold+Italic).
     pub fn discover_complete_monospace_families(&self) -> Vec<FontFamily> {
-        let db = self.font_system.db();
-        let mut families: HashMap<String, HashMap<(Weight, Style), fontdb::ID>> = HashMap::new();
+        let mut families: HashMap<String, HashMap<(Weight, Style), ID>> = HashMap::new();
 
         // group fonts by family name
-        for face in db.faces().filter(|f| f.monospaced) {
+        for face in self.db.faces().filter(|f| f.monospaced) {
             let family_name = face
                 .families
                 .first()
@@ -75,37 +74,12 @@ impl FontDiscovery {
         complete_families
     }
 
-    /// Loads a specific font family into the generator's font system
-    pub fn load_font_family(
-        font_system: &mut FontSystem,
-        family: &FontFamily,
-    ) -> Result<(), Report> {
-        let db = font_system.db();
-
-        let all_fonts = [
-            family.fonts.regular,
-            family.fonts.bold,
-            family.fonts.italic,
-            family.fonts.bold_italic,
-        ];
-
-        // verify all fonts exist
-        for id in all_fonts.into_iter() {
-            if db.face(id).is_none() {
-                return Err(eyre!("Font ID {id} not found in database"));
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Find a font family by name (partial match, case-insensitive)
-    /// Returns the actual font family name if found
+    /// Find a font family by name (partial match, case-insensitive).
+    /// Returns the actual font family name if found.
     pub fn find_font(&self, font_name: &str) -> Option<String> {
-        let db = self.font_system.db();
         let font_name_lower = font_name.to_lowercase();
 
-        db.faces().find_map(|face| {
+        self.db.faces().find_map(|face| {
             face.families
                 .iter()
                 .find(|(name, _)| name.to_lowercase().contains(&font_name_lower))
@@ -113,10 +87,10 @@ impl FontDiscovery {
         })
     }
 
-    /// Get all unique font family names in the system (sorted)
+    /// Get all unique font family names in the system (sorted).
     pub fn list_all_fonts(&self) -> Vec<String> {
-        let db = self.font_system.db();
-        let mut font_names: Vec<String> = db
+        let mut font_names: Vec<String> = self
+            .db
             .faces()
             .flat_map(|face| face.families.iter().map(|(name, _)| name.clone()))
             .collect();
@@ -124,10 +98,6 @@ impl FontDiscovery {
         font_names.sort();
         font_names.dedup();
         font_names
-    }
-
-    pub fn into_font_system(self) -> FontSystem {
-        self.font_system
     }
 }
 
