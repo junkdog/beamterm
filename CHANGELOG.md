@@ -29,6 +29,8 @@ All notable changes to this project will be documented in this file.
 - [**breaking**] Replace bare tuples with `CellSize` and `TerminalSize`
 - Replace emojis crate with optimized implementation
 - *(atlas-cli)* Replace cosmic-text with beamterm-rasterizer
+- *(atlas-cli)* Restructure CLI with generate and inspect subcommands
+- *(atlas-cli)* Remove verify-atlas binary in favor of inspect subcommand
 
 ### ⚙️ Miscellaneous Tasks
 
