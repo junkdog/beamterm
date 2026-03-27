@@ -10,6 +10,8 @@ skinparam defaultFontName monospace
 skinparam roundcorner 8
 skinparam shadowing false
 skinparam linetype polyline
+skinparam nodesep 4
+skinparam ranksep 10
 
 skinparam note {
   BackgroundColor #3c3836
@@ -65,29 +67,39 @@ package "beamterm-renderer" <<WASM Integration>> {
   [Terminal Builder\nterminal.rs] as builder
   [WASM Bindings\nwasm.rs] as wasm
   [CanvasRasterizer\nCanvas API rasterizer] as canvas_rast
-  [Mouse Selection\nclipboard] as selection
-  [HiDPI Handler\nauto re-layout] as hidpi
-  [Context Loss\nWebGL recovery] as ctx_loss
 }
+
+note right of canvas_rast
+  <color:#8ec07c>Mouse Selection</color> | <color:#8ec07c>HiDPI</color> | <color:#8ec07c>Context Loss</color>
+end note
 
 package "beamterm-core" <<GL Engine>> {
-  [TerminalGrid\nGPU buffers, VAO] as grid
-  [GlState\nGL deduplication] as glstate
-  [StaticFontAtlas\npre-built atlas] as static_atlas
-  [DynamicFontAtlas<R>\ngeneric, LRU cache] as dynamic_atlas
-  [GlyphRasterizer trait\nplatform abstraction] as rast_trait
-  [DirtyRegions\npartial GPU uploads] as dirty
-  [SelectionTracker\nBlock/Linear modes] as sel_tracker
-  [CellQuery\nzero-alloc text extraction] as cell_query
-  [Shaders\ncell.vert, cell.frag] as shaders
-  [Drawable\nRenderContext] as drawable
-  [glow\nOpenGL 3.3 + WebGL2] as glow
-}
+  together {
+    [TerminalGrid\nGPU buffers, VAO] as grid
+    [StaticFontAtlas\npre-built atlas] as static_atlas
+    [DynamicFontAtlas<R>\ngeneric, LRU cache] as dynamic_atlas
+    [SelectionTracker\nBlock/Linear modes] as sel_tracker
+    [CellQuery\nzero-alloc text extraction] as cell_query
+  }
+  together {
+    [GlyphRasterizer trait\nplatform abstraction] as rast_trait
+    [Shaders\ncell.vert, cell.frag] as shaders
+    [Drawable\nRenderContext] as drawable
+    [GlState\nGL deduplication] as glstate
+    [DirtyRegions\npartial GPU uploads] as dirty
+    [glow\nOpenGL 3.3 + WebGL2] as glow
+  }
 
-package "beamterm-rasterizer" <<Native Rasterizer>> {
-  [NativeRasterizer\nswash + fontdb] as native_rast
-  [FontResolver\nfallback chain] as font_resolver
-  [CellMetrics\ncell size + scaling] as cell_metrics
+  note as core_note
+    <color:#fabd2f><b>Rendering Pipeline</b></color>
+    <color:#8ec07c>6 buffers</color> → <color:#d3869b>1 instanced draw call</color>
+    <color:#8ec07c>Es300</color> (WebGL2) | <color:#8ec07c>Gl330</color> (OpenGL 3.3)
+    ....
+    <color:#fb4934>*</color> ASCII fast path <color:#fb4934>*</color> 8B packed cells
+    <color:#fb4934>*</color> LRU glyph cache <color:#fb4934>*</color> partial upload
+  end note
+
+  grid .. core_note
 }
 
 package "beamterm-data" <<Shared>> {
@@ -99,6 +111,18 @@ package "beamterm-atlas" <<Generator>> {
   [Atlas CLI\nTTF to .atlas] as atlas_cli
   [Texture Arrays\n32 glyphs per layer] as tex_arrays
 }
+
+package "beamterm-rasterizer" <<Native Rasterizer>> {
+  [NativeRasterizer\nswash + fontdb] as native_rast
+  [FontResolver\nfallback chain] as font_resolver
+  [CellMetrics\ncell size + scaling] as cell_metrics
+}
+
+' ============================================================================
+' NOTES (floating, linked to fill dead space)
+' ============================================================================
+
+' notes moved inside beamterm-core (see package block above)
 
 ' ============================================================================
 ' RELATIONSHIPS
@@ -124,37 +148,15 @@ static_atlas ..[#83a598].. dynamic_atlas : <color:#a89984>both implement\n<color
 grid --> atlas_data : <color:#b8bb26>reads</color>
 atlas_cli --> atlas_data : <color:#b8bb26>writes</color>
 
-native_rast ..|> rast_trait : <color:#b8bb26>implements\n<color:#a89984>(native-dynamic-atlas)</color>
+rast_trait <|.. native_rast : <color:#b8bb26>implements\n<color:#a89984>(native-dynamic-atlas)</color>
 native_rast --> font_resolver
 
-' ============================================================================
-' NOTES
-' ============================================================================
-
-note right of grid
-  <color:#fabd2f><b>6 GPU Buffers</b></color>
-  ....
-  <color:#8ec07c>Vertex</color>: quad geometry
-  <color:#8ec07c>Index</color>: triangle indices
-  <color:#8ec07c>Instance Pos</color>: grid coords
-  <color:#8ec07c>Instance Cell</color>: glyph + colors
-  <color:#8ec07c>Vertex UBO</color>: projection
-  <color:#8ec07c>Fragment UBO</color>: cell metadata
-  ....
-  <color:#d3869b>1 draw call via instancing</color>
-end note
-
-note bottom of glow
-  <color:#fabd2f><b>Optimizations</b></color>
-  ....
-  <color:#fb4934>*</color> GPU instancing
-  <color:#fb4934>*</color> ASCII fast path
-  <color:#fb4934>*</color> 8-byte packed cells
-  <color:#fb4934>*</color> LRU glyph cache
-  <color:#fb4934>*</color> DirtyRegions partial upload
-  ....
-  <color:#8ec07c>Es300</color> = WebGL2
-  <color:#8ec07c>Gl330</color> = OpenGL 3.3
-end note
+' layout hints
+glow -[hidden]right-> dirty
+shaders -[hidden]right-> drawable
+rast_trait -[hidden]right-> shaders
+atlas_data -[hidden]right-> glyph_enc
+atlas_cli -[hidden]right-> tex_arrays
+cell_query -[hidden]right-> native_rast
 
 @enduml

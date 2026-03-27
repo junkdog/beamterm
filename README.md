@@ -520,30 +520,6 @@ cargo run -p terminal-emulator --features dynamic
 cd examples/canvas_waves && trunk serve
 ```
 
-## Design Decisions
-
-### Why 1×32 Grid Per Layer?
-
-- **GPU compatibility**: Single-column layout provides consistent memory access patterns
-- **Simplified math**: Position within layer is just a matter of `glyph_id & 0x1F`
-- **Cache efficiency**: Sequential glyphs (e.g., ASCII characters) are vertically contiguous
-within the same layer, improving texture cache hit rates
-
-### Why Separate Style Encoding?
-
-- Avoids duplicating glyph definitions
-- Enables runtime style switching without texture lookups
-- Maintains consistent coordinates for style variants
-
-## Limitations
-
-- Maximum 1024 base glyphs (10-bit addressing)
-- Fixed 4 style variants per glyph
-- Monospace fonts only
-- Single font family and font size per atlas
-
-
-
 [API Badge]: https://docs.rs/beamterm-renderer/badge.svg
 [API]: https://docs.rs/beamterm-renderer
 [Crate Badge]: https://img.shields.io/crates/v/beamterm-renderer.svg

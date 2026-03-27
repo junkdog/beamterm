@@ -200,7 +200,7 @@ class "2D Texture Array" as atlas <<Atlas>> #32302f {
   ..
   <color:#8ec07c>32 glyphs per layer</color>
   <color:#8ec07c>Static: pre-rasterized .atlas</color>
-  <color:#8ec07c>Dynamic: Canvas API + LRU cache</color>
+  <color:#8ec07c>Dynamic: runtime rasterization + LRU cache</color>
 }
 
 ' ============================================================================
