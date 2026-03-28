@@ -6,8 +6,7 @@ use compact_str::{CompactString, CompactStringExt, ToCompactString, format_compa
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CellData, CursorPosition, Error, FontAtlas, Renderer, SelectionMode, StaticFontAtlas,
-    TerminalGrid, UrlMatch,
+    CellData, CursorPosition, Error, FontAtlas, Renderer, StaticFontAtlas, TerminalGrid, UrlMatch,
     gl::{CellQuery, ContextLossHandler, DynamicFontAtlas, dynamic_atlas::CanvasGlyphRasterizer},
     js::device_pixel_ratio,
     mouse::{
@@ -27,11 +26,15 @@ use crate::{
 /// integration:
 ///
 /// ```rust,no_run
-/// // Enable default selection handler
-/// use beamterm_renderer::{SelectionMode, Terminal};
+/// // Enable selection handler with options
+/// use beamterm_renderer::{MouseSelectOptions, Terminal, mouse::SelectionMode};
 ///
 /// let terminal = Terminal::builder("#canvas")
-///     .default_mouse_input_handler(SelectionMode::Linear, true)
+///     .mouse_selection_handler(
+///         MouseSelectOptions::new()
+///             .selection_mode(SelectionMode::Linear)
+///             .trim_trailing_whitespace(true),
+///     )
 ///     .build().unwrap();
 ///
 /// // Or implement custom mouse handling
@@ -750,26 +753,6 @@ impl TerminalBuilder {
     pub fn mouse_selection_handler(mut self, configuration: MouseSelectOptions) -> Self {
         self.input_handler = Some(InputHandler::CopyOnSelect(configuration));
         self
-    }
-
-    /// Sets a default selection handler for mouse input events. Left
-    /// button selects text, it copies the selected text to the clipboard
-    /// on mouse release.
-    #[deprecated(
-        since = "0.13.0",
-        note = "Use `mouse_selection_handler` with `MouseSelectOptions` instead"
-    )]
-    #[must_use]
-    pub fn default_mouse_input_handler(
-        self,
-        selection_mode: SelectionMode,
-        trim_trailing_whitespace: bool,
-    ) -> Self {
-        let options = MouseSelectOptions::new()
-            .selection_mode(selection_mode)
-            .trim_trailing_whitespace(trim_trailing_whitespace);
-
-        self.mouse_selection_handler(options)
     }
 
     /// Builds the terminal with the configured options.

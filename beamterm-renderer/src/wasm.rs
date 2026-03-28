@@ -440,14 +440,6 @@ impl Batch {
 
         Ok(())
     }
-
-    /// Synchronize all pending updates to the GPU
-    #[wasm_bindgen]
-    #[deprecated(since = "0.4.0", note = "no-op, flush is now automatic")]
-    #[allow(deprecated)]
-    pub fn flush(&mut self) -> Result<(), JsValue> {
-        Ok(())
-    }
 }
 
 #[wasm_bindgen]
