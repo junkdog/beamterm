@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 
 - *(core)* Reduce visibility of internal types
 
+### ⚙️ Miscellaneous Tasks
+
+- Set MSRV to 1.90.0
+- Add `include` allow-lists to all published Cargo.toml files
+
 ## [beamterm-v0.18.0] - 2026-03-27
 
 ### 🚀 Features

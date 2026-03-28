@@ -13,6 +13,14 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+include = [
+    "src/**/*.rs",
+    "atlas/bitmap_font.atlas",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
+]
+
 [dependencies]
 compact_str = { workspace = true }
 miniz_oxide = "0.9.0"

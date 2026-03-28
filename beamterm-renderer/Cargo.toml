@@ -14,8 +14,11 @@ keywords.workspace = true
 categories.workspace = true
 
 # Exclude development files from package
-exclude = [
-    ".gitignore"
+include = [
+    "src/**/*.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
 ]
 
 [lib]
