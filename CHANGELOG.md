@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(core,renderer)* Re-export 3rd party crates and document stability policy
+
+### 🚜 Refactor
+
+- *(core)* Reduce visibility of internal types
+
 ## [beamterm-v0.18.0] - 2026-03-27
 
 ### 🚀 Features
@@ -35,6 +45,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Add Clone to Error enums
+- Release beamterm {{version}}
 
 ## [beamterm-v0.17.0] - 2026-03-11
 
