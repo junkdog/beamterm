@@ -21,8 +21,7 @@ impl NativeGlyphRasterizer {
     /// * `font_families` - font family names in priority order
     /// * `font_size` - effective font size in physical pixels (base_size * pixel_ratio)
     pub fn new(font_families: &[&str], font_size: f32) -> Result<Self, Error> {
-        let inner = NativeRasterizer::new(font_families, font_size)
-            .map_err(|e| Error::Resource(e.to_string()))?;
+        let inner = NativeRasterizer::new(font_families, font_size)?;
         Ok(Self { inner })
     }
 }
@@ -34,10 +33,7 @@ impl GlyphRasterizer for NativeGlyphRasterizer {
     ) -> Result<Vec<RasterizedGlyph>, Error> {
         let mut results = Vec::with_capacity(glyphs.len());
         for &(grapheme, style) in glyphs {
-            let rasterized = self
-                .inner
-                .rasterize(grapheme, style)
-                .map_err(|e| Error::Resource(e.to_string()))?;
+            let rasterized = self.inner.rasterize(grapheme, style)?;
             results.push(RasterizedGlyph::new(
                 rasterized.pixels,
                 rasterized.width,
@@ -68,9 +64,8 @@ impl GlyphRasterizer for NativeGlyphRasterizer {
     }
 
     fn update_font_size(&mut self, font_size: f32) -> Result<(), Error> {
-        self.inner
-            .update_font_size(font_size)
-            .map_err(|e| Error::Resource(e.to_string()))
+        self.inner.update_font_size(font_size)?;
+        Ok(())
     }
 }
 

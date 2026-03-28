@@ -95,6 +95,12 @@ impl From<beamterm_core::Error> for Error {
     }
 }
 
+impl From<beamterm_data::SerializationError> for Error {
+    fn from(err: beamterm_data::SerializationError) -> Self {
+        Error::Data(err.message.into())
+    }
+}
+
 impl From<Error> for wasm_bindgen::JsValue {
     fn from(err: Error) -> Self {
         wasm_bindgen::JsValue::from_str(&err.to_string())

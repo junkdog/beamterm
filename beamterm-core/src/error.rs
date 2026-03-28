@@ -15,6 +15,19 @@ pub enum Error {
     Data(String),
 }
 
+impl From<beamterm_data::SerializationError> for Error {
+    fn from(err: beamterm_data::SerializationError) -> Self {
+        Error::Data(err.message.into())
+    }
+}
+
+#[cfg(feature = "native-dynamic-atlas")]
+impl From<beamterm_rasterizer::Error> for Error {
+    fn from(err: beamterm_rasterizer::Error) -> Self {
+        Error::Resource(err.to_string())
+    }
+}
+
 impl Error {
     // Shader errors
     pub(crate) fn shader_creation_failed(detail: &str) -> Self {
