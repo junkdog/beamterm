@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - *(core)* Reduce visibility of internal types
+- *(errors)* Add `From` impls for cross-crate error types (#110)
 
 ### ⚙️ Miscellaneous Tasks
 
