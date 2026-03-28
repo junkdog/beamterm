@@ -8,6 +8,8 @@ use crate::Error;
 /// Implemented by native (swash+fontdb) and WASM (Canvas API) backends.
 /// The [`DynamicFontAtlas`](super::DynamicFontAtlas) calls these methods to
 /// rasterize glyphs on demand.
+///
+/// **Internal trait — not covered by semver guarantees.**
 #[doc(hidden)]
 pub trait GlyphRasterizer {
     /// Rasterizes a batch of glyphs, returning one [`RasterizedGlyph`] per input in order.

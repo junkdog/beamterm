@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Pre-allocated slots for normal-styled ASCII glyphs (0x20..0x7E)
-pub const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
+pub(crate) const ASCII_SLOTS: u16 = 0x7E - 0x20 + 1; // 95 slots for ASCII (0x20..0x7E)
 
 /// Normal glyphs: slots 0..2048
 pub(crate) const NORMAL_CAPACITY: usize = 2048;
@@ -37,7 +37,7 @@ pub(crate) type CacheKey = (CompactString, FontStyle);
 ///
 /// - Normal region: slots 0-2047 (2048 single-width glyphs)
 /// - Wide region: slots 2048-6143 (2048 double-width glyphs, 2 slots each)
-pub struct GlyphCache {
+pub(crate) struct GlyphCache {
     /// LRU for normal (single-width) glyphs
     normal: LruCache<CacheKey, GlyphSlot>,
     /// LRU for double-width glyphs
@@ -49,7 +49,7 @@ pub struct GlyphCache {
 }
 
 impl GlyphCache {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             normal: LruCache::unbounded(),
             wide: LruCache::unbounded(),
@@ -59,7 +59,7 @@ impl GlyphCache {
     }
 
     /// Gets the slot for a glyph, marking it as recently used.
-    pub fn get(&mut self, key: &str, style: FontStyle) -> Option<GlyphSlot> {
+    pub(crate) fn get(&mut self, key: &str, style: FontStyle) -> Option<GlyphSlot> {
         // ascii glyphs with normal font styles are always allocated (outside cache)
         if key.len() == 1 && style == FontStyle::Normal {
             Some(GlyphSlot::Normal(
@@ -86,7 +86,8 @@ impl GlyphCache {
     }
 
     /// Inserts a glyph, returning its slot. Evicts LRU if region is full.
-    pub fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
+    #[cfg(test)]
+    fn insert(&mut self, key: &str, style: FontStyle) -> (GlyphSlot, Option<CacheKey>) {
         self.insert_ex(key, style, false)
     }
 
@@ -95,7 +96,7 @@ impl GlyphCache {
     /// When `force_wide` is true, the glyph is placed in the wide region
     /// regardless of unicode-width. This is used for PUA glyphs (e.g. Nerd
     /// Font icons) whose advance width exceeds one cell.
-    pub fn insert_ex(
+    pub(crate) fn insert_ex(
         &mut self,
         key: &str,
         style: FontStyle,
@@ -165,16 +166,12 @@ impl GlyphCache {
     }
 
     /// Returns total number of cached glyphs.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.normal.len() + self.wide.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.normal.is_empty() && self.wide.is_empty()
-    }
-
     /// Clears all cached glyphs.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.normal.clear();
         self.wide.clear();
 
