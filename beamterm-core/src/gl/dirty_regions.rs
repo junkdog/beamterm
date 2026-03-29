@@ -49,37 +49,56 @@ impl DirtyRegions {
 
     /// Takes the dirty bits and clears them, returning an iterator
     /// over contiguous dirty `(start_cell, end_cell)` ranges.
+    ///
+    /// When the terminal exceeds 64 chunks (65 536 cells), multiple chunks
+    /// alias the same bit. The iterator walks all actual chunks and checks
+    /// the aliased bit, so every dirty region is uploaded — aliased chunks
+    /// may cause redundant uploads but never missed ones.
     pub(super) fn drain(&mut self) -> DirtyChunkIter {
-        let dirty = self.dirty & self.active_mask();
+        let dirty = self.dirty;
         self.dirty = 0;
-        DirtyChunkIter { dirty, total_cells: self.total_cells }
+        let total_chunks = self.total_cells.div_ceil(Self::CHUNK_SIZE);
+        DirtyChunkIter {
+            dirty,
+            total_cells: self.total_cells,
+            current_chunk: 0,
+            total_chunks,
+        }
     }
 }
 
 /// Iterator over contiguous runs of dirty chunks, yielding `(start, end)` cell ranges.
+///
+/// Walks all actual chunks (not just bit positions 0–63), checking each
+/// chunk's aliased bit in the `u64` mask. This correctly handles terminals
+/// larger than 64 × 1024 = 65 536 cells.
 pub(super) struct DirtyChunkIter {
     dirty: u64,
     total_cells: usize,
+    current_chunk: usize,
+    total_chunks: usize,
 }
 
 impl Iterator for DirtyChunkIter {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.dirty == 0 {
-            return None;
+        while self.current_chunk < self.total_chunks {
+            if self.dirty & (1u64 << (self.current_chunk & 63)) != 0 {
+                let start_chunk = self.current_chunk;
+                self.current_chunk += 1;
+                while self.current_chunk < self.total_chunks
+                    && self.dirty & (1u64 << (self.current_chunk & 63)) != 0
+                {
+                    self.current_chunk += 1;
+                }
+                let start = start_chunk * DirtyRegions::CHUNK_SIZE;
+                let end = (self.current_chunk * DirtyRegions::CHUNK_SIZE).min(self.total_cells);
+                return Some((start, end));
+            }
+            self.current_chunk += 1;
         }
-
-        let start_chunk = self.dirty.trailing_zeros() as usize;
-        let run_len = (!(self.dirty >> start_chunk)).trailing_zeros() as usize;
-
-        let start = start_chunk * DirtyRegions::CHUNK_SIZE;
-        let end = ((start_chunk + run_len) * DirtyRegions::CHUNK_SIZE).min(self.total_cells);
-
-        // clear the contiguous run of bits
-        self.dirty &= !(((1u64 << run_len) - 1) << start_chunk);
-
-        Some((start, end))
+        None
     }
 }
 
@@ -151,5 +170,57 @@ mod tests {
         let ranges: Vec<_> = dr.drain().collect();
         // all-dirty produces contiguous run from drain
         assert_eq!(ranges, vec![(0, 2048)]);
+    }
+
+    #[test]
+    fn aliased_chunk_beyond_64k_is_uploaded() {
+        // 70 chunks = 71680 cells; chunk 65 aliases to bit 1
+        let mut dr = DirtyRegions::new(71_680);
+        dr.mark(66_000); // chunk 64 (aliases bit 0)
+        let ranges: Vec<_> = dr.drain().collect();
+        assert!(
+            ranges
+                .iter()
+                .any(|(s, e)| *s <= 66_000 && *e > 66_000),
+            "expected a range covering cell 66000, got {ranges:?}"
+        );
+    }
+
+    #[test]
+    fn aliased_chunk_also_uploads_lower_alias() {
+        // marking chunk 64 (bit 0) should also upload chunk 0
+        let mut dr = DirtyRegions::new(71_680);
+        dr.mark(66_000); // chunk 64, aliases to bit 0
+        let ranges: Vec<_> = dr.drain().collect();
+        // bit 0 is set, so both chunk 0 and chunk 64 should be uploaded
+        assert!(
+            ranges.iter().any(|(s, _)| *s == 0),
+            "expected chunk 0 (aliased) to be uploaded, got {ranges:?}"
+        );
+        assert!(
+            ranges
+                .iter()
+                .any(|(s, e)| *s <= 65_536 && *e > 65_536),
+            "expected chunk 64 to be uploaded, got {ranges:?}"
+        );
+    }
+
+    #[test]
+    fn adjacent_aliased_chunks_merge() {
+        let mut dr = DirtyRegions::new(71_680);
+        dr.mark(65_536); // chunk 64 (bit 0)
+        dr.mark(66_560); // chunk 65 (bit 1)
+        let ranges: Vec<_> = dr.drain().collect();
+        // chunks 0-1 and 64-65 should each be merged into contiguous ranges
+        assert!(
+            ranges.iter().any(|(s, e)| *s == 0 && *e >= 2048),
+            "expected chunks 0-1 merged, got {ranges:?}"
+        );
+        assert!(
+            ranges
+                .iter()
+                .any(|(s, e)| *s == 65_536 && *e >= 67_584),
+            "expected chunks 64-65 merged, got {ranges:?}"
+        );
     }
 }

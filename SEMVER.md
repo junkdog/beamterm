@@ -5,8 +5,10 @@ beamterm crate family, effective from version 1.0.0.
 
 ## Library Crates
 
-**beamterm-core**, **beamterm-data**, **beamterm-rasterizer**, and
-**beamterm-renderer** follow [Rust API semver conventions][cargo-semver].
+**beamterm-core**, **beamterm-data**, **beamterm-rasterizer**,
+**beamterm-renderer**, and **beamterm-unicode** follow
+[Rust API semver conventions][cargo-semver].
+
 A new major version is required for any change that breaks downstream
 compilation or changes observable runtime behavior in ways that existing
 correct code would not expect.
@@ -25,7 +27,7 @@ The following third-party types are part of beamterm's public API
 surface and are re-exported from the respective crates:
 
 | Crate          | Re-exported from    |
-|----------------|---------------------|
+| -------------- | ------------------- |
 | `glow`         | `beamterm-core`     |
 | `compact_str`  | `beamterm-core`     |
 | `web_sys`      | `beamterm-renderer` |
@@ -48,11 +50,11 @@ guarantees and may change in any release.
 `beamterm-atlas` is a developer tool, not a library consumed as a Rust
 dependency. Its stability contract is narrower:
 
-| Under semver                     | Not under semver               |
-|----------------------------------|--------------------------------|
-| CLI option names and their types | Output formatting / log output |
-| Subcommand names                 | Default values for options     |
-| Exit code semantics (0 = success)| Performance characteristics    |
+| Under semver                      | Not under semver               |
+| --------------------------------- | ------------------------------ |
+| CLI option names and their types  | Output formatting / log output |
+| Subcommand names                  | Default values for options     |
+| Exit code semantics (0 = success) | Performance characteristics    |
 
 ## `.atlas` binary format
 
