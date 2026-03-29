@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
 
 - *(core,renderer)* Re-export 3rd party crates and document stability policy
 
+### 💼 Other
+
+- *(deps-dev)* Bump jsdom from 27.4.0 to 29.0.0 in /js (#106)
+- *(deps-dev)* Bump esbuild in /js in the minor-and-patch group (#105)
+
+### 🐛 Bug Fixes
+
+- *(core)* Correct DirtyRegions draining for terminals exceeding 65536 cells
+
 ### 🚜 Refactor
 
 - *(core)* Reduce visibility of internal types
