@@ -158,6 +158,7 @@ pub trait Atlas: sealed::Sealed {
     fn texture_cell_size(&self) -> beamterm_data::CellSize;
 }
 
+/// Type-erased wrapper around any [`Atlas`] implementation.
 pub struct FontAtlas {
     inner: Box<dyn Atlas>,
 }
@@ -176,52 +177,63 @@ impl Debug for FontAtlas {
 }
 
 impl FontAtlas {
+    /// Wraps an atlas implementation in a type-erased container.
     pub fn new(inner: impl Atlas + 'static) -> Self {
         Self { inner: Box::new(inner) }
     }
 
+    /// Returns the styled glyph ID for the given symbol.
     pub fn get_glyph_id(&mut self, key: &str, style_bits: u16) -> Option<u16> {
         self.inner.get_glyph_id(key, style_bits)
     }
 
+    /// Returns the unstyled base glyph ID for the given symbol.
     pub fn get_base_glyph_id(&mut self, key: &str) -> Option<u16> {
         self.inner.get_base_glyph_id(key)
     }
 
+    /// Returns the cell dimensions used for grid layout.
     #[must_use]
     pub fn cell_size(&self) -> beamterm_data::CellSize {
         self.inner.cell_size()
     }
 
+    /// Binds the atlas texture for rendering.
     pub fn bind(&self, gl: &glow::Context) {
         self.inner.bind(gl);
     }
 
+    /// Returns underline position and thickness metadata.
     #[must_use]
     pub fn underline(&self) -> beamterm_data::LineDecoration {
         self.inner.underline()
     }
 
+    /// Returns strikethrough position and thickness metadata.
     #[must_use]
     pub fn strikethrough(&self) -> beamterm_data::LineDecoration {
         self.inner.strikethrough()
     }
 
+    /// Returns the symbol string for the given glyph ID.
     #[must_use]
     pub fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.inner.get_symbol(glyph_id)
     }
 
+    /// Returns the ASCII character for the given glyph ID, if applicable.
     #[must_use]
     pub fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
         self.inner.get_ascii_char(glyph_id)
     }
 
+    /// Returns a reference to the glyph usage tracker.
     #[must_use]
     pub fn glyph_tracker(&self) -> &GlyphTracker {
         self.inner.glyph_tracker()
     }
 
+    /// Returns the total number of allocated glyphs.
     #[must_use]
     pub fn glyph_count(&self) -> u32 {
         self.inner.glyph_count()
@@ -235,10 +247,12 @@ impl FontAtlas {
         self.inner.recreate_texture(gl)
     }
 
+    /// Iterates over all glyph ID to symbol mappings.
     pub fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
         self.inner.for_each_symbol(f);
     }
 
+    /// Resolves a symbol to its glyph slot classification.
     pub fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
@@ -294,13 +308,18 @@ impl FontAtlas {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
+/// Classifies a glyph's texture slot by width category.
 pub enum GlyphSlot {
+    /// Single-width glyph slot.
     Normal(SlotId),
+    /// Double-width glyph slot (CJK characters).
     Wide(SlotId),
+    /// Emoji glyph slot (occupies two consecutive texture slots).
     Emoji(SlotId),
 }
 
 impl GlyphSlot {
+    /// Returns the underlying slot ID.
     #[must_use]
     pub fn slot_id(&self) -> SlotId {
         match *self {
@@ -308,6 +327,7 @@ impl GlyphSlot {
         }
     }
 
+    /// Returns a new slot with the given style bits applied.
     #[must_use]
     pub fn with_styling(self, style_bits: u16) -> Self {
         use GlyphSlot::*;

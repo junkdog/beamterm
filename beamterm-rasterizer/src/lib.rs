@@ -1,4 +1,7 @@
+//! Native font rasterization for beamterm.
+
 mod error;
+/// System font discovery and enumeration.
 pub mod font_discovery;
 mod font_fallback;
 mod metrics;

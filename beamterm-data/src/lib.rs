@@ -1,3 +1,5 @@
+//! Shared data types for the beamterm terminal rendering engine.
+
 mod atlas;
 mod cell_size;
 mod glyph;

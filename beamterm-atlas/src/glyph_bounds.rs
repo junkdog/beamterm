@@ -16,21 +16,25 @@ impl GlyphBounds {
         Self { max_x: 0, max_y: 0, min_x: 0, min_y: 0 }
     }
 
+    /// Returns the glyph width in pixels.
     #[must_use]
     pub fn width(&self) -> i32 {
         1 + self.max_x - self.min_x
     }
 
+    /// Returns the glyph width including padding on both sides.
     #[must_use]
     pub fn width_with_padding(&self) -> i32 {
         self.width() + 2 * FontAtlasData::PADDING
     }
 
+    /// Returns the glyph height including padding on both sides.
     #[must_use]
     pub fn height_with_padding(&self) -> i32 {
         self.height() + 2 * FontAtlasData::PADDING
     }
 
+    /// Returns the glyph height in pixels.
     #[must_use]
     pub fn height(&self) -> i32 {
         1 + self.max_y - self.min_y

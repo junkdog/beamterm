@@ -1150,6 +1150,7 @@ impl CellDynamic {
     const GLYPH_STYLE_MASK: u16 =
         Glyph::BOLD_FLAG | Glyph::ITALIC_FLAG | Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG;
 
+    /// Creates a new packed cell from a glyph ID and foreground/background colors.
     #[inline]
     #[must_use]
     pub fn new(glyph_id: u16, fg: u32, bg: u32) -> Self {

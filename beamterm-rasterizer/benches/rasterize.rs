@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use beamterm_data::FontStyle;
 use beamterm_rasterizer::NativeRasterizer;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

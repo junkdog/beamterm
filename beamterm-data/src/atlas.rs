@@ -49,7 +49,9 @@ impl Debug for FontAtlasData {
 }
 
 impl FontAtlasData {
+    /// Padding in pixels around each glyph cell to prevent texture bleeding.
     pub const PADDING: i32 = 1;
+    /// Number of glyph cells per texture layer.
     pub const CELLS_PER_SLICE: i32 = 32;
 
     /// Creates a new font atlas with the given parameters.
@@ -205,6 +207,7 @@ impl Default for FontAtlasData {
     }
 }
 
+/// Configuration for underline or strikethrough line decorations.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LineDecoration {
     /// 0.0 to 1.0, where 0.0 is the top of the text line and 1.0 is the bottom.
@@ -214,6 +217,7 @@ pub struct LineDecoration {
 }
 
 impl LineDecoration {
+    /// Creates a new line decoration with the given position and thickness.
     #[must_use]
     pub fn new(position: f32, thickness: f32) -> Self {
         Self {

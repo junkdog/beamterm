@@ -9,12 +9,16 @@ const GLYPHS_PER_LAYER: i32 = 32;
 /// Platform-agnostic rasterized glyph data for texture upload.
 #[derive(Debug, Clone)]
 pub struct RasterizedGlyph {
+    /// Raw RGBA pixel data.
     pub pixels: Vec<u8>,
+    /// Glyph width in pixels.
     pub width: u32,
+    /// Glyph height in pixels.
     pub height: u32,
 }
 
 impl RasterizedGlyph {
+    /// Creates a new rasterized glyph from pixel data and dimensions.
     #[must_use]
     pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self { pixels, width, height }

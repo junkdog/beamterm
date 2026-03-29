@@ -48,7 +48,9 @@ pub struct FallbackGlyph {
 /// Measured dimensions of a font's reference glyph (█).
 #[derive(Debug, Clone, Copy)]
 pub struct FontDimensions {
+    /// Width of the reference glyph in pixels.
     pub width: i32,
+    /// Height of the reference glyph in pixels.
     pub height: i32,
 }
 

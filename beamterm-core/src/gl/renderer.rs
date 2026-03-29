@@ -2,7 +2,9 @@ use crate::gl::context::GlState;
 
 /// Rendering context that provides access to GL state.
 pub struct RenderContext<'a> {
+    /// GL context reference.
     pub gl: &'a glow::Context,
+    /// Mutable GL state tracker for call deduplication.
     pub state: &'a mut GlState,
 }
 

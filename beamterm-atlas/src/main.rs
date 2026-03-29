@@ -1,3 +1,5 @@
+//! Font atlas generator CLI for beamterm.
+
 mod atlas_generator;
 mod bitmap_font;
 mod cli;

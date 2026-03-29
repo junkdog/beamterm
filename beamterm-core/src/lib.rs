@@ -17,6 +17,7 @@
 //! same type signatures is a compatible update.
 
 pub(crate) mod error;
+/// OpenGL rendering engine, atlas management, and terminal grid.
 pub mod gl;
 mod mat4;
 mod position;
@@ -55,6 +56,7 @@ pub enum GlslVersion {
 }
 
 impl GlslVersion {
+    /// Returns the GLSL preamble for vertex shaders.
     #[must_use]
     pub fn vertex_preamble(&self) -> &'static str {
         match self {
@@ -63,6 +65,7 @@ impl GlslVersion {
         }
     }
 
+    /// Returns the GLSL preamble for fragment shaders.
     #[must_use]
     pub fn fragment_preamble(&self) -> &'static str {
         match self {

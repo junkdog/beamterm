@@ -15,6 +15,7 @@ use crate::{coordinate::AtlasCoordinateProvider, glyph_bounds::GlyphBounds};
 // printable ASCII range
 const ASCII_RANGE: RangeInclusive<char> = '\u{0020}'..='\u{007E}';
 
+/// Categorized collection of glyphs split into halfwidth, fullwidth, and emoji.
 pub struct GraphemeSet {
     unicode: Vec<char>,
     fullwidth_unicode: Vec<char>,
@@ -57,6 +58,7 @@ impl GraphemeSet {
         Ok(gs)
     }
 
+    /// Returns the total number of halfwidth glyphs (ASCII + Unicode).
     #[must_use]
     pub fn halfwidth_glyphs_count(&self) -> u16 {
         (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _

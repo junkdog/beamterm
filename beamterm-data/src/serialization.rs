@@ -5,13 +5,16 @@ use crate::{CellSize, FontAtlasData, FontStyle, Glyph, LineDecoration};
 const ATLAS_HEADER: [u8; 4] = [0xBA, 0xB1, 0xF0, 0xA7];
 const ATLAS_VERSION: u8 = 0x03; // dictates the format of the serialized data
 
+/// Error returned when font atlas serialization or deserialization fails.
 #[derive(Debug, thiserror::Error)]
 #[error("{message}")]
 pub struct SerializationError {
+    /// Human-readable error description.
     pub message: CompactString,
 }
 
 impl SerializationError {
+    /// Creates a new serialization error with the given message.
     pub fn new(message: impl Into<CompactString>) -> Self {
         Self { message: message.into() }
     }

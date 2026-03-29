@@ -138,6 +138,7 @@ impl Glyph {
         }
     }
 
+    /// Creates a new glyph with an explicit base ID and style.
     #[must_use]
     pub fn new_with_id(
         base_id: u16,
@@ -154,6 +155,7 @@ impl Glyph {
         }
     }
 
+    /// Creates a new emoji glyph with the given base ID and symbol.
     #[must_use]
     pub fn new_emoji(base_id: u16, symbol: &str, pixel_coords: (i32, i32)) -> Self {
         Self {
@@ -201,6 +203,7 @@ impl Glyph {
     }
 }
 
+/// Text decoration effect applied to a glyph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlyphEffect {
     /// No special effect applied to the glyph.
@@ -212,6 +215,7 @@ pub enum GlyphEffect {
 }
 
 impl GlyphEffect {
+    /// Decodes a glyph effect from the effect bits of a 16-bit glyph ID.
     #[must_use]
     pub fn from_u16(v: u16) -> GlyphEffect {
         match v {
@@ -224,17 +228,24 @@ impl GlyphEffect {
     }
 }
 
+/// Font style variant encoded in glyph IDs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FontStyle {
+    /// Regular weight, upright style.
     Normal = 0x0000,
+    /// Bold weight.
     Bold = 0x0400,
+    /// Italic style.
     Italic = 0x0800,
+    /// Bold weight with italic style.
     BoldItalic = 0x0C00,
 }
 
 impl FontStyle {
+    /// Bitmask for extracting font style bits from a glyph ID.
     pub const MASK: u16 = 0x0C00;
 
+    /// All font style variants.
     pub const ALL: [FontStyle; 4] =
         [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic];
 

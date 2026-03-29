@@ -5,16 +5,22 @@ use fontdb::{Database, ID, Style, Weight};
 /// A font family with all 4 required style variants.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontFamily {
+    /// The font family name.
     pub name: String,
+    /// Style variants for this family.
     pub fonts: FontVariants,
 }
 
 /// Font IDs for each style variant within a family.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontVariants {
+    /// Regular weight, normal style.
     pub regular: ID,
+    /// Bold weight, normal style.
     pub bold: ID,
+    /// Regular weight, italic style.
     pub italic: ID,
+    /// Bold weight, italic style.
     pub bold_italic: ID,
 }
 
@@ -24,6 +30,7 @@ pub struct FontDiscovery {
 }
 
 impl FontDiscovery {
+    /// Creates a new font discovery instance with system fonts loaded.
     #[must_use]
     pub fn new() -> Self {
         let mut db = Database::new();

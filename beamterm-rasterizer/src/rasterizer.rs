@@ -35,6 +35,7 @@ pub struct RasterizedGlyph {
 }
 
 impl RasterizedGlyph {
+    /// Creates a single-width rasterized glyph.
     #[must_use]
     pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
@@ -47,6 +48,7 @@ impl RasterizedGlyph {
         }
     }
 
+    /// Creates a double-width rasterized glyph.
     #[must_use]
     pub fn new_wide(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self {

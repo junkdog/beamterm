@@ -46,6 +46,7 @@ default-target = "wasm32-unknown-unknown"
 
 [workspace.lints.rust]
 dead_code = "warn"
+missing_docs = "warn"
 unused_variables = "deny"
 unused_imports = "deny"
 
