@@ -54,6 +54,7 @@ impl FontAtlasData {
 
     /// Creates a new font atlas with the given parameters.
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         font_name: CompactString,
         font_size: f32,
@@ -80,12 +81,14 @@ impl FontAtlasData {
 
     /// Returns the font name.
     #[inline]
+    #[must_use]
     pub fn font_name(&self) -> &str {
         &self.font_name
     }
 
     /// Returns the font size in points.
     #[inline]
+    #[must_use]
     pub fn font_size(&self) -> f32 {
         self.font_size
     }
@@ -94,41 +97,48 @@ impl FontAtlasData {
     ///
     /// Fullwidth glyphs are assigned IDs starting from this value.
     #[inline]
+    #[must_use]
     pub fn max_halfwidth_base_glyph_id(&self) -> u16 {
         self.max_halfwidth_base_glyph_id
     }
 
     /// Returns the texture dimensions as (width, height, layers).
     #[inline]
+    #[must_use]
     pub fn texture_dimensions(&self) -> (i32, i32, i32) {
         self.texture_dimensions
     }
 
     /// Returns the underline decoration configuration.
     #[inline]
+    #[must_use]
     pub fn underline(&self) -> LineDecoration {
         self.underline
     }
 
     /// Returns the strikethrough decoration configuration.
     #[inline]
+    #[must_use]
     pub fn strikethrough(&self) -> LineDecoration {
         self.strikethrough
     }
 
     /// Returns a slice of all glyphs in the atlas.
     #[inline]
+    #[must_use]
     pub fn glyphs(&self) -> &[Glyph] {
         &self.glyphs
     }
 
     /// Returns the raw texture data.
     #[inline]
+    #[must_use]
     pub fn texture_data(&self) -> &[u8] {
         &self.texture_data
     }
 
     /// Consumes the atlas and returns its glyphs.
+    #[must_use]
     pub fn into_glyphs(self) -> Vec<Glyph> {
         self.glyphs
     }
@@ -138,6 +148,9 @@ impl FontAtlasData {
     /// # Arguments
     /// * `serialized` - Binary data containing the serialized font atlas
     ///
+    /// # Errors
+    /// Returns [`SerializationError`] if the binary data is malformed or cannot be deserialized.
+    ///
     /// # Returns
     /// The deserialized font atlas or an error if deserialization fails
     pub fn from_binary(serialized: &[u8]) -> Result<Self, SerializationError> {
@@ -146,6 +159,9 @@ impl FontAtlasData {
     }
 
     /// Serializes the font atlas to binary format.
+    ///
+    /// # Errors
+    /// Returns [`SerializationError`] if serialization fails (e.g., a string field exceeds 255 bytes).
     ///
     /// # Returns
     /// A byte vector containing the serialized font atlas data, or an error
@@ -162,6 +178,7 @@ impl FontAtlasData {
     ///
     /// # Returns
     /// A tuple of (columns, rows) that fit in the viewport
+    #[must_use]
     pub fn terminal_size(&self, viewport_width: i32, viewport_height: i32) -> (i32, i32) {
         (
             viewport_width / self.cell_size.width,
@@ -176,6 +193,7 @@ impl FontAtlasData {
     ///
     /// # Returns
     /// The cell dimensions in pixels
+    #[must_use]
     pub fn cell_size(&self) -> CellSize {
         self.cell_size
     }
@@ -196,6 +214,7 @@ pub struct LineDecoration {
 }
 
 impl LineDecoration {
+    #[must_use]
     pub fn new(position: f32, thickness: f32) -> Self {
         Self {
             position: position.clamp(0.0, 1.0),
@@ -205,12 +224,14 @@ impl LineDecoration {
 
     /// Returns the vertical position as a fraction of cell height (0.0 to 1.0).
     #[inline]
+    #[must_use]
     pub fn position(&self) -> f32 {
         self.position
     }
 
     /// Returns the thickness as a fraction of cell height (0.0 to 1.0).
     #[inline]
+    #[must_use]
     pub fn thickness(&self) -> f32 {
         self.thickness
     }

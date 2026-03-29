@@ -71,6 +71,7 @@ pub struct LinearCellIterator {
 }
 
 /// Creates a new cell query with the specified selection mode.
+#[must_use]
 pub fn select(mode: SelectionMode) -> CellQuery {
     CellQuery { mode, ..CellQuery::default() }
 }
@@ -97,6 +98,7 @@ impl CellQuery {
     }
 
     /// Checks if the query has no selection range defined.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.start.is_none() && self.end.is_none()
     }
@@ -105,6 +107,7 @@ impl CellQuery {
     ///
     /// The returned range has coordinates ordered so that the first tuple
     /// contains the minimum coordinates and the second contains the maximum.
+    #[must_use]
     pub fn range(&self) -> Option<((u16, u16), (u16, u16))> {
         if let (Some(start), Some(end)) = (self.start, self.end) {
             Some((
@@ -276,6 +279,7 @@ impl TerminalGrid {
     ///
     /// # Returns
     /// Iterator yielding (cell_index, needs_newline_after) tuples.
+    #[must_use]
     pub fn cell_iter(&self, selection: CellQuery) -> CellIterator {
         let cols = self.terminal_size().cols;
         let max_cells = self.cell_count();

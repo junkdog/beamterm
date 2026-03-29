@@ -33,6 +33,11 @@ impl std::fmt::Debug for Renderer {
 
 impl Renderer {
     /// Creates a new renderer by querying for a canvas element with the given ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the canvas element cannot be found or the WebGL2 context
+    /// cannot be created.
     pub fn create(canvas_id: &str, auto_resize_canvas_css: bool) -> Result<Self, Error> {
         let canvas = js::get_canvas_by_id(canvas_id)?;
         Self::create_with_canvas(canvas, auto_resize_canvas_css)
@@ -49,6 +54,10 @@ impl Renderer {
     }
 
     /// Creates a new renderer from an existing HTML canvas element.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the WebGL2 context cannot be created from the canvas.
     pub fn create_with_canvas(
         canvas: HtmlCanvasElement,
         auto_resize_canvas_css: bool,
@@ -100,7 +109,7 @@ impl Renderer {
         self.state.clear_color(&self.gl, r, g, b, 1.0);
         unsafe {
             self.gl
-                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT)
+                .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
         };
     }
 
@@ -111,6 +120,11 @@ impl Renderer {
     }
 
     /// Renders a drawable object.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the drawable's `prepare` step fails (e.g., GPU buffer
+    /// upload or shader compilation errors).
     pub fn render(&mut self, drawable: &impl Drawable) -> Result<(), crate::Error> {
         let mut context = RenderContext { gl: &self.gl, state: &mut self.state };
 
@@ -161,6 +175,10 @@ impl Renderer {
     }
 
     /// Restores the WebGL context after a context loss event.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the new WebGL2 context cannot be created.
     pub fn restore_context(&mut self) -> Result<(), Error> {
         let (gl, raw_gl) = js::create_glow_context(&self.canvas)?;
         self.state = GlState::new(&gl);

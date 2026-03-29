@@ -38,11 +38,11 @@ impl Error {
         Self::Shader(format!("Shader program creation failed: {detail}"))
     }
 
-    pub(crate) fn shader_compilation_failed(stage: impl std::fmt::Display, log: String) -> Self {
+    pub(crate) fn shader_compilation_failed(stage: impl std::fmt::Display, log: &str) -> Self {
         Self::Shader(format!("{stage} shader compilation failed: {log}"))
     }
 
-    pub(crate) fn shader_link_failed(log: String) -> Self {
+    pub(crate) fn shader_link_failed(log: &str) -> Self {
         Self::Shader(format!("Shader linking failed: {log}"))
     }
 

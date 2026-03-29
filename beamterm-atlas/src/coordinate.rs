@@ -16,7 +16,7 @@ impl AtlasCoordinate {
         (x, y)
     }
 
-    pub(super) fn cell_offset_in_px(&self, config: GlyphBounds) -> (i32, i32) {
+    pub(super) fn cell_offset_in_px(self, config: GlyphBounds) -> (i32, i32) {
         let cell_height = config.height_with_padding();
         (0, self.glyph_index as i32 * cell_height)
     }

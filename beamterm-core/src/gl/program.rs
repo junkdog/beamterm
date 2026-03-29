@@ -73,7 +73,7 @@ fn compile_shader(
         let log = unsafe { gl.get_shader_info_log(shader) };
         unsafe { gl.delete_shader(shader) };
         let stage = if gl_shader_type == glow::VERTEX_SHADER { "vertex" } else { "fragment" };
-        return Err(Error::shader_compilation_failed(stage, log));
+        return Err(Error::shader_compilation_failed(stage, &log));
     }
 
     Ok(shader)
@@ -83,7 +83,7 @@ fn check_link_status(gl: &glow::Context, program: glow::Program) -> Result<(), E
     let status = unsafe { gl.get_program_link_status(program) };
     if !status {
         let log = unsafe { gl.get_program_info_log(program) };
-        return Err(Error::shader_link_failed(log));
+        return Err(Error::shader_link_failed(&log));
     }
 
     Ok(())

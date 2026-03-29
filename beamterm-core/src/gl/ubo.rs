@@ -25,6 +25,7 @@ impl UniformBufferObject {
         unsafe { gl.bind_buffer(glow::UNIFORM_BUFFER, Some(self.buffer)) };
     }
 
+    #[allow(clippy::unused_self)] // consistent API with bind
     pub fn unbind(&self, gl: &glow::Context) {
         unsafe { gl.bind_buffer(glow::UNIFORM_BUFFER, None) };
     }

@@ -95,21 +95,25 @@ pub struct TerminalMouseEvent {
 
 impl TerminalMouseEvent {
     /// Returns the mouse button pressed during the event.
+    #[must_use]
     pub fn button(&self) -> i16 {
         self.button
     }
 
     /// Returns whether the Ctrl key was pressed during the event.
+    #[must_use]
     pub fn ctrl_key(&self) -> bool {
         self.modifier_keys.contains(ModifierKeys::CONTROL)
     }
 
     /// Returns whether the Shift key was pressed during the event.
+    #[must_use]
     pub fn shift_key(&self) -> bool {
         self.modifier_keys.contains(ModifierKeys::SHIFT)
     }
 
     /// Returns whether the Alt key was pressed during the event.
+    #[must_use]
     pub fn alt_key(&self) -> bool {
         self.modifier_keys.contains(ModifierKeys::ALT)
     }
@@ -117,6 +121,7 @@ impl TerminalMouseEvent {
     /// Returns whether the Meta key was pressed during the event.
     ///
     /// This is the Command key on macOS or the Windows key on Windows.
+    #[must_use]
     pub fn meta_key(&self) -> bool {
         self.modifier_keys.contains(ModifierKeys::META)
     }
@@ -125,6 +130,7 @@ impl TerminalMouseEvent {
     ///
     /// Returns `true` only if the modifier keys pressed during the event
     /// are exactly equal to `mods`—no more, no less.
+    #[must_use]
     pub fn has_exact_modifiers(&self, mods: ModifierKeys) -> bool {
         self.modifier_keys == mods
     }
@@ -190,6 +196,7 @@ impl MouseSelectOptions {
     /// - Selection mode: `Block`
     /// - Required modifier keys: none
     /// - Trim trailing whitespace: `false`
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -287,6 +294,7 @@ impl TerminalMouseHandler {
     /// - Wraps handler in Rc<RefCell> for sharing between event closures
     /// - Caches terminal metrics for fast coordinate conversion
     /// - Creates three closures (one per event type) that share the handler
+    #[allow(clippy::needless_pass_by_value)] // Rc pass-by-value is idiomatic for shared ownership
     fn new_internal(
         canvas: &web_sys::HtmlCanvasElement,
         grid: Rc<RefCell<TerminalGrid>>,

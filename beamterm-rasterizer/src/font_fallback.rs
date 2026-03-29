@@ -23,15 +23,13 @@ struct LoadedFont {
 impl LoadedFont {
     fn new(db: &Database, id: ID) -> Option<Self> {
         db.with_face_data(id, |data, index| {
-            let has_color_tables = FontRef::from_index(data, index as usize)
-                .map(|r| {
-                    let has_colr = r.table(tag_from_bytes(b"COLR")).is_some()
-                        && r.table(tag_from_bytes(b"CPAL")).is_some();
-                    let has_cbdt = r.table(tag_from_bytes(b"CBDT")).is_some();
-                    let has_sbix = r.table(tag_from_bytes(b"sbix")).is_some();
-                    has_colr || has_cbdt || has_sbix
-                })
-                .unwrap_or(false);
+            let has_color_tables = FontRef::from_index(data, index as usize).is_some_and(|r| {
+                let has_colr = r.table(tag_from_bytes(b"COLR")).is_some()
+                    && r.table(tag_from_bytes(b"CPAL")).is_some();
+                let has_cbdt = r.table(tag_from_bytes(b"CBDT")).is_some();
+                let has_sbix = r.table(tag_from_bytes(b"sbix")).is_some();
+                has_colr || has_cbdt || has_sbix
+            });
 
             LoadedFont { id, index, has_color_tables }
         })
@@ -221,8 +219,7 @@ impl FontResolver {
         for face in self.db.faces() {
             let has_char = self.db.with_face_data(face.id, |data, index| {
                 FontRef::from_index(data, index as usize)
-                    .map(|font_ref| font_ref.charmap().map(ch) != 0)
-                    .unwrap_or(false)
+                    .is_some_and(|font_ref| font_ref.charmap().map(ch) != 0)
             });
 
             if has_char == Some(true) {

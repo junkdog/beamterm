@@ -37,6 +37,7 @@ impl SelectionTracker {
     /// # Panics
     /// Panics if no selection is active. This is internal-only API where
     /// a selection is guaranteed to exist when called.
+    #[must_use]
     pub fn query(&self) -> CellQuery {
         self.get_query()
             .expect("query to be a value due to internal-only usage")
@@ -45,6 +46,7 @@ impl SelectionTracker {
     /// Returns the current selection query or `None` if no selection is active.
     ///
     /// Safe version that doesn't panic when no selection exists.
+    #[must_use]
     pub fn get_query(&self) -> Option<CellQuery> {
         self.inner.get()
     }

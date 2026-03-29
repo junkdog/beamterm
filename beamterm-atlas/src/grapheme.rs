@@ -21,6 +21,12 @@ pub struct GraphemeSet {
 }
 
 impl GraphemeSet {
+    /// Creates a new grapheme set from Unicode ranges and additional symbols.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the total glyph count exceeds capacity limits
+    /// (1024 non-emoji or 2048 emoji).
     pub fn new(
         unicode_ranges: &[RangeInclusive<char>],
         other_symbols: &str,
@@ -50,6 +56,7 @@ impl GraphemeSet {
         Ok(gs)
     }
 
+    #[must_use]
     pub fn halfwidth_glyphs_count(&self) -> u16 {
         (ASCII_RANGE.size_hint().0 + self.unicode.len()) as _
     }
@@ -67,7 +74,7 @@ impl GraphemeSet {
             }
         }
 
-        glyphs.extend(assign_missing_glyph_ids(used_ids, &self.unicode));
+        glyphs.extend(assign_missing_glyph_ids(&used_ids, &self.unicode));
         let last_halfwidth_id = glyphs
             .iter()
             .map(Glyph::base_id)
@@ -182,7 +189,7 @@ fn flatten_ranges_no_ascii(ranges: &[RangeInclusive<char>]) -> (Vec<char>, Vec<c
         .partition(|c| is_emoji(&c.to_compact_string()))
 }
 
-fn assign_missing_glyph_ids(used_ids: HashSet<u32>, symbols: &[char]) -> Vec<Glyph> {
+fn assign_missing_glyph_ids(used_ids: &HashSet<u32>, symbols: &[char]) -> Vec<Glyph> {
     let mut next_id: i32 = -1; // initial value to -1
     let mut next_glyph_id = || {
         let mut id = next_id;
@@ -247,9 +254,8 @@ pub(super) fn is_emoji(s: &str) -> bool {
     use unicode_width::UnicodeWidthStr;
 
     let bytes = s.as_bytes();
-    let first_byte = match bytes.first() {
-        Some(&b) => b,
-        None => return false,
+    let Some(&first_byte) = bytes.first() else {
+        return false;
     };
 
     if first_byte < 0x80 {

@@ -191,9 +191,13 @@ impl AtlasFontGenerator {
     ///
     /// Note: `line_height` is applied in `calculate_optimized_cell_dimensions()`
     /// after the optimal font size is determined.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the specified font family cannot be found or loaded.
     pub fn new_with_family(
         font_family_name: String,
-        emoji_font_family_name: String,
+        emoji_font_family_name: &str,
         font_size: f32,
         line_height: f32,
         underline: LineDecoration,
@@ -208,7 +212,7 @@ impl AtlasFontGenerator {
         );
 
         let rasterizer =
-            NativeRasterizer::new(&[&font_family_name, &emoji_font_family_name], font_size)?;
+            NativeRasterizer::new(&[&font_family_name, emoji_font_family_name], font_size)?;
 
         Ok(Self {
             rasterizer,
@@ -222,6 +226,10 @@ impl AtlasFontGenerator {
     }
 
     /// Generates a complete bitmap font atlas from Unicode ranges and emoji.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if grapheme categorization or glyph rasterization fails.
     pub fn generate(
         &mut self,
         unicode_ranges: &[RangeInclusive<char>],
@@ -553,6 +561,7 @@ impl AtlasFontGenerator {
     }
 
     /// Calculates the linear texture index for a 3D coordinate (x, y, layer).
+    #[allow(clippy::unused_self)] // method on AtlasFontGenerator for coherence
     fn texture_index(&self, x: i32, y: i32, slice: i32, config: &RasterizationConfig) -> usize {
         (slice * config.texture_width * config.texture_height + y * config.texture_width + x)
             as usize
@@ -562,6 +571,10 @@ impl AtlasFontGenerator {
     ///
     /// Since █ is synthesized programmatically (not rendered from the font),
     /// its edges are always pixel-perfect — no font size optimization needed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the reference glyph (█) fails to rasterize.
     pub fn calculate_optimized_cell_dimensions(&mut self) -> GlyphBounds {
         let glyph = self
             .rasterizer
@@ -591,6 +604,10 @@ impl AtlasFontGenerator {
     }
 
     /// Checks which glyphs are missing from the font by attempting to rasterize them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if grapheme categorization fails.
     pub fn check_missing_glyphs(
         &mut self,
         ranges: &[RangeInclusive<char>],
@@ -706,7 +723,7 @@ mod tests {
 
         let mut generator = AtlasFontGenerator::new_with_family(
             font_family.name.clone(),
-            "Noto Color Emoji".to_string(),
+            "Noto Color Emoji",
             15.0,
             1.0,
             LineDecoration::new(0.85, 0.05),

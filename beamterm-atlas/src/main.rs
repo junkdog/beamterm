@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     // Initialize structured logging
     let logging_config = LoggingConfig::from_env();
     let (_guard, _reload_handle) =
-        init_logging(logging_config).wrap_err("Failed to initialize logging")?;
+        init_logging(&logging_config).wrap_err("Failed to initialize logging")?;
 
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
@@ -37,12 +37,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Generate(args) => cmd_generate(args),
-        Command::Inspect(args) => cmd_inspect(args),
+        Command::Generate(args) => cmd_generate(&args),
+        Command::Inspect(args) => cmd_inspect(&args),
     }
 }
 
-fn cmd_generate(args: GenerateArgs) -> Result<()> {
+fn cmd_generate(args: &GenerateArgs) -> Result<()> {
     // handle --list-fonts flag
     if args.list_fonts {
         GenerateArgs::display_font_list();
@@ -80,7 +80,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<()> {
     // Generate the font
     let mut generator = AtlasFontGenerator::new_with_family(
         selected_font.name.clone(),
-        emoji_font_name,
+        &emoji_font_name,
         args.font_size,
         args.line_height,
         underline,
@@ -117,7 +117,7 @@ fn cmd_generate(args: GenerateArgs) -> Result<()> {
     Ok(())
 }
 
-fn cmd_inspect(args: InspectArgs) -> Result<()> {
+fn cmd_inspect(args: &InspectArgs) -> Result<()> {
     let data = std::fs::read(&args.atlas_path)
         .wrap_err_with(|| format!("Failed to read atlas file '{}'", args.atlas_path.display()))?;
 

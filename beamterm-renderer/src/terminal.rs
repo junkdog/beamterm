@@ -102,6 +102,10 @@ impl Terminal {
     /// rather than making multiple calls for individual cells.
     ///
     /// Delegates to [`TerminalGrid::update_cells`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if glyph rasterization or atlas flushing fails.
     pub fn update_cells<'a>(
         &mut self,
         cells: impl Iterator<Item = CellData<'a>>,
@@ -116,6 +120,10 @@ impl Terminal {
     /// rather than making multiple calls for individual cells.
     ///
     /// Delegates to [`TerminalGrid::update_cells_by_position`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if glyph rasterization or atlas flushing fails.
     pub fn update_cells_by_position<'a>(
         &mut self,
         cells: impl Iterator<Item = (u16, u16, CellData<'a>)>,
@@ -126,6 +134,11 @@ impl Terminal {
             .update_cells_by_position(cells)?)
     }
 
+    /// Updates terminal cells by their flat index in the grid.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if glyph rasterization or atlas flushing fails.
     pub fn update_cells_by_index<'a>(
         &mut self,
         cells: impl Iterator<Item = (usize, CellData<'a>)>,
@@ -148,6 +161,11 @@ impl Terminal {
     /// recalculated based on the cell size from the font atlas.
     ///
     /// Combines [`Renderer::resize`] and [`TerminalGrid::resize`] operations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal grid fails to resize (e.g., GPU buffer
+    /// reallocation failure).
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Error> {
         self.renderer.resize(width, height);
         // Use physical size for grid layout
@@ -212,6 +230,11 @@ impl Terminal {
     /// let atlas_data = FontAtlasData::from_binary(&atlas_bytes).unwrap();
     /// terminal.replace_with_static_atlas(atlas_data).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the atlas data cannot be loaded or the GPU texture
+    /// cannot be created.
     pub fn replace_with_static_atlas(&mut self, atlas_data: FontAtlasData) -> Result<(), Error> {
         let gl = self.renderer.gl();
         let atlas = StaticFontAtlas::load(gl, atlas_data)?;
@@ -241,6 +264,11 @@ impl Terminal {
     /// // Switch to a different font at runtime
     /// terminal.replace_with_dynamic_atlas(&["Fira Code", "Hack"], 15.0).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the canvas rasterizer cannot be created or the dynamic
+    /// atlas fails to initialize.
     pub fn replace_with_dynamic_atlas(
         &mut self,
         font_family: &[&str],
@@ -294,6 +322,11 @@ impl Terminal {
     /// The terminal's cell content is preserved during this process.
     ///
     /// Combines [`Renderer::begin_frame`], [`Renderer::render`], and [`Renderer::end_frame`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if context restoration fails, pixel ratio update fails,
+    /// cell flushing fails, or the grid cannot be rendered.
     pub fn render_frame(&mut self) -> Result<(), Error> {
         if self.needs_gl_reinit() {
             self.restore_context()?;
@@ -407,8 +440,7 @@ impl Terminal {
     fn needs_gl_reinit(&self) -> bool {
         self.context_loss_handler
             .as_ref()
-            .map(ContextLossHandler::context_pending_rebuild)
-            .unwrap_or(false)
+            .is_some_and(ContextLossHandler::context_pending_rebuild)
     }
 
     /// Returns the current device pixel ratio.
@@ -420,6 +452,10 @@ impl Terminal {
     ///
     /// Replaces any existing mouse handler. Creates a [`DefaultSelectionHandler`]
     /// and a [`TerminalMouseHandler`] attached to this terminal's canvas.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the mouse event listeners cannot be attached to the canvas.
     pub fn enable_mouse_selection(&mut self, options: MouseSelectOptions) -> Result<(), Error> {
         // clean up existing mouse handler if present
         if let Some(old_handler) = self.mouse_handler.take() {
@@ -443,6 +479,10 @@ impl Terminal {
     ///
     /// Replaces any existing mouse handler. The callback receives
     /// [`TerminalMouseEvent`] and a reference to the [`TerminalGrid`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the mouse event listeners cannot be attached to the canvas.
     pub fn set_mouse_callback(
         &mut self,
         callback: impl FnMut(TerminalMouseEvent, &TerminalGrid) + 'static,
@@ -719,6 +759,7 @@ impl TerminalBuilder {
         since = "0.13.0",
         note = "Use `mouse_selection_handler` with `MouseSelectOptions` instead"
     )]
+    #[must_use]
     pub fn default_mouse_input_handler(
         self,
         selection_mode: SelectionMode,
@@ -732,6 +773,12 @@ impl TerminalBuilder {
     }
 
     /// Builds the terminal with the configured options.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the renderer cannot be created, the font atlas fails
+    /// to load, the terminal grid cannot be initialized, or the mouse handler
+    /// cannot be attached.
     pub fn build(self) -> Result<Terminal, Error> {
         // setup renderer
         let mut renderer = Self::create_renderer(self.canvas, self.auto_resize_canvas_css)?
@@ -774,7 +821,7 @@ impl TerminalBuilder {
         let mut grid =
             TerminalGrid::new(gl, atlas, canvas_size, raw_pixel_ratio, &GlslVersion::Es300)?;
         if let Some(fallback) = self.fallback_glyph {
-            grid.set_fallback_glyph(&fallback)
+            grid.set_fallback_glyph(&fallback);
         };
         let grid = Rc::new(RefCell::new(grid));
 
@@ -855,6 +902,7 @@ pub struct TerminalDebugApi {
 impl TerminalDebugApi {
     /// Returns an array of glyphs that were requested but not found in the font atlas.
     #[wasm_bindgen(js_name = "getMissingGlyphs")]
+    #[must_use]
     pub fn get_missing_glyphs(&self) -> js_sys::Array {
         let missing_set = self
             .grid
@@ -873,7 +921,12 @@ impl TerminalDebugApi {
     }
 
     /// Returns the terminal size in cells as an object with `cols` and `rows` fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics if setting properties on the JavaScript object fails.
     #[wasm_bindgen(js_name = "getTerminalSize")]
+    #[must_use]
     pub fn get_terminal_size(&self) -> JsValue {
         let ts = self.grid.borrow().terminal_size();
         let obj = js_sys::Object::new();
@@ -885,7 +938,12 @@ impl TerminalDebugApi {
     }
 
     /// Returns the canvas size in pixels as an object with `width` and `height` fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics if setting properties on the JavaScript object fails.
     #[wasm_bindgen(js_name = "getCanvasSize")]
+    #[must_use]
     pub fn get_canvas_size(&self) -> JsValue {
         let (width, height) = self.grid.borrow().canvas_size();
         let obj = js_sys::Object::new();
@@ -898,18 +956,21 @@ impl TerminalDebugApi {
 
     /// Returns the number of glyphs available in the font atlas.
     #[wasm_bindgen(js_name = "getGlyphCount")]
+    #[must_use]
     pub fn get_glyph_count(&self) -> u32 {
         self.grid.borrow().atlas().glyph_count()
     }
 
     /// Returns the base glyph ID for a given symbol, or null if not found.
     #[wasm_bindgen(js_name = "getBaseGlyphId")]
+    #[must_use]
     pub fn get_base_glyph_id(&self, symbol: &str) -> Option<u16> {
         self.grid.borrow_mut().base_glyph_id(symbol)
     }
 
     /// Returns the symbol for a given glyph ID, or null if not found.
     #[wasm_bindgen(js_name = "getSymbol")]
+    #[must_use]
     pub fn get_symbol(&self, glyph_id: u16) -> Option<String> {
         self.grid
             .borrow()
@@ -919,7 +980,12 @@ impl TerminalDebugApi {
     }
 
     /// Returns the cell size in pixels as an object with `width` and `height` fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics if setting properties on the JavaScript object fails.
     #[wasm_bindgen(js_name = "getCellSize")]
+    #[must_use]
     pub fn get_cell_size(&self) -> JsValue {
         let cs = self.grid.borrow().atlas().cell_size();
         let obj = js_sys::Object::new();
@@ -930,7 +996,13 @@ impl TerminalDebugApi {
         obj.into()
     }
 
+    /// Returns the full atlas glyph-to-symbol mapping as a JavaScript array.
+    ///
+    /// # Panics
+    ///
+    /// Panics if setting properties on the JavaScript objects fails.
     #[wasm_bindgen(js_name = "getAtlasLookup")]
+    #[must_use]
     pub fn get_symbol_lookup(&self) -> js_sys::Array {
         let grid = self.grid.borrow();
         let atlas = grid.atlas();
@@ -943,7 +1015,7 @@ impl TerminalDebugApi {
         glyphs.sort();
 
         let js_array = js_sys::Array::new();
-        for (glyph_id, symbol) in glyphs.iter() {
+        for (glyph_id, symbol) in &glyphs {
             let obj = js_sys::Object::new();
             js_sys::Reflect::set(&obj, &"glyph_id".into(), &JsValue::from(*glyph_id)).unwrap();
             js_sys::Reflect::set(&obj, &"symbol".into(), &JsValue::from(symbol.as_str())).unwrap();

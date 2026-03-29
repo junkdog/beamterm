@@ -20,6 +20,10 @@ impl NativeGlyphRasterizer {
     /// # Arguments
     /// * `font_families` - font family names in priority order
     /// * `font_size` - effective font size in physical pixels (base_size * pixel_ratio)
+    ///
+    /// # Errors
+    /// Returns an error if the native rasterizer fails to initialize
+    /// (e.g., no matching fonts found in the system font database).
     pub fn new(font_families: &[&str], font_size: f32) -> Result<Self, Error> {
         let inner = NativeRasterizer::new(font_families, font_size)?;
         Ok(Self { inner })

@@ -52,6 +52,9 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
     /// * `rasterizer` - platform-specific glyph rasterizer
     /// * `base_font_size` - font size in logical pixels (before pixel ratio scaling)
     /// * `pixel_ratio` - device pixel ratio for HiDPI rendering
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture creation fails.
     pub fn new(
         gl: &glow::Context,
         rasterizer: R,
@@ -62,6 +65,9 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
     }
 
     /// Creates a new dynamic font atlas with optional debug space pattern.
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture creation fails.
     pub fn with_debug_spaces(
         gl: &glow::Context,
         rasterizer: R,
@@ -109,7 +115,7 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
 
         let batch_size = self.rasterizer.max_batch_size();
         for batch in all_pending.chunks(batch_size) {
-            self.rasterize_and_upload(gl, batch.to_vec())?;
+            self.rasterize_and_upload(gl, batch)?;
         }
 
         Ok(())
@@ -122,13 +128,13 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
 
         let batch_size = self.rasterizer.max_batch_size();
         let pending = self.glyphs_pending_upload.take(batch_size);
-        self.rasterize_and_upload(gl, pending)
+        self.rasterize_and_upload(gl, &pending)
     }
 
     fn rasterize_and_upload(
         &mut self,
         gl: &glow::Context,
-        pending: Vec<PendingGlyph>,
+        pending: &[PendingGlyph],
     ) -> Result<(), Error> {
         let padded_cell_size = CellSize::new(
             self.physical_cell_size.width + FontAtlasData::PADDING * 2,
@@ -260,7 +266,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
-        for (glyph_id, symbol) in self.symbol_lookup.iter() {
+        for (glyph_id, symbol) in &self.symbol_lookup {
             f(*glyph_id, symbol.as_str());
         }
     }

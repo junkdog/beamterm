@@ -118,7 +118,7 @@ impl LoggingConfig {
 
 /// Initialize the logging system with the given configuration
 pub fn init_logging(
-    config: LoggingConfig,
+    config: &LoggingConfig,
 ) -> Result<(Option<WorkerGuard>, LoggingReloadHandle), Report> {
     let mut layers = vec![];
     let mut guard = None;

@@ -76,30 +76,35 @@ impl Glyph {
 impl Glyph {
     /// Returns the glyph ID encoding texture coordinates and style flags.
     #[inline]
+    #[must_use]
     pub fn id(&self) -> u16 {
         self.id
     }
 
     /// Returns the font style of this glyph.
     #[inline]
+    #[must_use]
     pub fn style(&self) -> FontStyle {
         self.style
     }
 
     /// Returns the character or grapheme this glyph represents.
     #[inline]
+    #[must_use]
     pub fn symbol(&self) -> &str {
         &self.symbol
     }
 
     /// Returns the pixel coordinates of the glyph in the texture.
     #[inline]
+    #[must_use]
     pub fn pixel_coords(&self) -> (i32, i32) {
         self.pixel_coords
     }
 
     /// Returns true if this glyph is an emoji.
     #[inline]
+    #[must_use]
     pub fn is_emoji(&self) -> bool {
         self.is_emoji
     }
@@ -111,6 +116,10 @@ impl Glyph {
     }
 
     /// Creates a new glyph with the specified symbol and pixel coordinates.
+    ///
+    /// # Panics
+    /// Panics if `symbol` is empty.
+    #[must_use]
     pub fn new(symbol: &str, style: FontStyle, pixel_coords: (i32, i32)) -> Self {
         let first_char = symbol.chars().next().unwrap();
         let id = if symbol.len() == 1 && first_char.is_ascii() {
@@ -129,6 +138,7 @@ impl Glyph {
         }
     }
 
+    #[must_use]
     pub fn new_with_id(
         base_id: u16,
         symbol: &str,
@@ -144,6 +154,7 @@ impl Glyph {
         }
     }
 
+    #[must_use]
     pub fn new_emoji(base_id: u16, symbol: &str, pixel_coords: (i32, i32)) -> Self {
         Self {
             id: base_id | Self::EMOJI_FLAG,
@@ -155,6 +166,7 @@ impl Glyph {
     }
 
     /// Returns true if this glyph represents a single ASCII character.
+    #[must_use]
     pub fn is_ascii(&self) -> bool {
         self.symbol.len() == 1
     }
@@ -179,6 +191,7 @@ impl Glyph {
     /// let emoji = Glyph::new_emoji(0x00, "🚀", (0, 0));
     /// assert_eq!(emoji.base_id(), 0x1000); // includes EMOJI_FLAG
     /// ```
+    #[must_use]
     pub fn base_id(&self) -> u16 {
         if self.is_emoji {
             self.id & Self::GLYPH_ID_EMOJI_MASK
@@ -199,6 +212,7 @@ pub enum GlyphEffect {
 }
 
 impl GlyphEffect {
+    #[must_use]
     pub fn from_u16(v: u16) -> GlyphEffect {
         match v {
             0x0000 => GlyphEffect::None,
@@ -224,6 +238,8 @@ impl FontStyle {
     pub const ALL: [FontStyle; 4] =
         [FontStyle::Normal, FontStyle::Bold, FontStyle::Italic, FontStyle::BoldItalic];
 
+    /// # Errors
+    /// Returns [`SerializationError`] if `v` is not a valid font style value.
     pub fn from_u16(v: u16) -> Result<FontStyle, SerializationError> {
         match v {
             0x0000 => Ok(FontStyle::Normal),
@@ -248,7 +264,7 @@ impl FontStyle {
         }
     }
 
-    pub(super) const fn ordinal(&self) -> usize {
+    pub(super) const fn ordinal(self) -> usize {
         match self {
             FontStyle::Normal => 0,
             FontStyle::Bold => 1,
@@ -258,6 +274,7 @@ impl FontStyle {
     }
 
     /// Returns the style bits for this font style, used to encode the style in the glyph ID.
+    #[must_use]
     pub const fn style_mask(&self) -> u16 {
         *self as u16
     }

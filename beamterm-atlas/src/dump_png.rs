@@ -75,11 +75,11 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
     // Fill with gruvbox bg0_h gap color
     let bg_color: [u8; 3] = [0x1D, 0x20, 0x21];
     let mut pixels = vec![0u8; (img_w * img_h * 4) as usize];
-    fill_rect(&mut pixels, img_w, 0, 0, img_w, img_h, &bg_color);
+    fill_rect(&mut pixels, img_w, 0, 0, img_w, img_h, bg_color);
 
     // Darken ruler margins (gruvbox bg0)
     let ruler_bg: [u8; 3] = [0x28, 0x28, 0x28];
-    fill_rect(&mut pixels, img_w, 0, 0, img_w, top_margin, &ruler_bg);
+    fill_rect(&mut pixels, img_w, 0, 0, img_w, top_margin, ruler_bg);
     fill_rect(
         &mut pixels,
         img_w,
@@ -87,7 +87,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
         top_margin,
         left_margin,
         img_h - top_margin,
-        &ruler_bg,
+        ruler_bg,
     );
 
     let ruler_color: [u8; 3] = [0xA8, 0x99, 0x84]; // gruvbox fg4
@@ -109,7 +109,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
         left_margin,
         3,
         &header_text,
-        &header_color,
+        header_color,
         scale,
     );
 
@@ -126,7 +126,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
         left_margin,
         subtitle_y,
         subtitle_prefix,
-        &subtitle_color,
+        subtitle_color,
         scale,
     );
     draw_text(
@@ -135,7 +135,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
         left_margin + prefix_w,
         subtitle_y,
         subtitle_cmd,
-        &subtitle_cmd_color,
+        subtitle_cmd_color,
         scale,
     );
 
@@ -147,7 +147,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
             let x = strip_x0 + offset * content_w;
             // Tick mark
             for ty in (top_margin - 4)..top_margin {
-                set_pixel(&mut pixels, img_w, x, ty, &tick_color);
+                set_pixel(&mut pixels, img_w, x, ty, tick_color);
             }
             // Hex offset label (continuous: 00, 08, ..., 20, 28, ..., 60, 68, ...)
             let glyph_offset = col_base + offset;
@@ -158,7 +158,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
                 x + 2,
                 header_h + 2,
                 &label,
-                &ruler_color,
+                ruler_color,
                 scale,
             );
         }
@@ -169,8 +169,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
         // Determine section layer range
         let end_layer = sections
             .get(i + 1)
-            .map(|(s, _, _, _)| *s)
-            .unwrap_or(layers);
+            .map_or(layers, |(s, _, _, _)| *s);
 
         // Tint the cell background for this section's rows
         let section_tint = sections[i].2;
@@ -186,7 +185,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
                 base_y,
                 strip_w,
                 strip_h,
-                &section_tint,
+                section_tint,
             );
         }
 
@@ -204,7 +203,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
             divider_y,
             img_w,
             divider_h,
-            &section_line_color,
+            section_line_color,
         );
 
         // Draw section label centered vertically in divider
@@ -215,7 +214,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
             left_margin + 4,
             label_y,
             label,
-            &label_color,
+            label_color,
             scale,
         );
     }
@@ -227,7 +226,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
 
         // Tick mark
         for tx in (left_margin - 4)..left_margin {
-            set_pixel(&mut pixels, img_w, tx, y, &tick_color);
+            set_pixel(&mut pixels, img_w, tx, y, tick_color);
         }
 
         // Base glyph ID = first layer of this row * 32 glyphs per layer
@@ -240,7 +239,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
             left_margin - 6,
             label_y,
             &label,
-            &ruler_color,
+            ruler_color,
             scale,
         );
     }
@@ -302,7 +301,7 @@ pub(crate) fn dump_atlas_png(atlas: &FontAtlasData, path: &str) -> Result<()> {
 }
 
 /// Set a single pixel in the RGBA buffer.
-fn set_pixel(pixels: &mut [u8], img_w: u32, x: u32, y: u32, color: &[u8; 3]) {
+fn set_pixel(pixels: &mut [u8], img_w: u32, x: u32, y: u32, color: [u8; 3]) {
     let idx = (y * img_w + x) as usize * 4;
     if idx + 4 <= pixels.len() {
         pixels[idx] = color[0];
@@ -313,7 +312,7 @@ fn set_pixel(pixels: &mut [u8], img_w: u32, x: u32, y: u32, color: &[u8; 3]) {
 }
 
 /// Fill a rectangle in the RGBA buffer.
-fn fill_rect(pixels: &mut [u8], img_w: u32, x: u32, y: u32, w: u32, h: u32, color: &[u8; 3]) {
+fn fill_rect(pixels: &mut [u8], img_w: u32, x: u32, y: u32, w: u32, h: u32, color: [u8; 3]) {
     let rgba = [color[0], color[1], color[2], 0xFF];
     for dy in 0..h {
         for dx in 0..w {
@@ -332,7 +331,7 @@ fn draw_text(
     x: u32,
     y: u32,
     text: &str,
-    color: &[u8; 3],
+    color: [u8; 3],
     scale: u32,
 ) {
     let glyph_w = 3 * scale;
@@ -374,7 +373,7 @@ fn draw_text_right_aligned(
     right_x: u32,
     y: u32,
     text: &str,
-    color: &[u8; 3],
+    color: [u8; 3],
     scale: u32,
 ) {
     let advance = 3 * scale + scale;

@@ -11,7 +11,12 @@ pub struct BitmapFont {
 }
 
 impl BitmapFont {
-    /// Save bitmap font and metadata to a file
+    /// Save bitmap font and metadata to a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be created or the atlas data
+    /// fails to serialize.
     pub fn save(&self, path: &str) -> Result<(), Report> {
         let metadata = &self.atlas_data;
         let mut file = File::create(path)?;

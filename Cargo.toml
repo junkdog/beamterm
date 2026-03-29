@@ -61,6 +61,32 @@ redundant_closure_for_method_calls = "warn"
 type_complexity = "warn"
 uninlined_format_args = "warn"
 
+# performance / allocation
+collection_is_never_read = "warn"
+large_types_passed_by_value = "warn"
+linkedlist = "warn"
+needless_pass_by_value = "warn"
+rc_buffer = "warn"
+redundant_allocation = "warn"
+trivially_copy_pass_by_ref = "warn"
+vec_init_then_push = "warn"
+
+# api surface
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+must_use_candidate = "warn"
+return_self_not_must_use = "warn"
+
+# general quality
+explicit_into_iter_loop = "warn"
+explicit_iter_loop = "warn"
+from_iter_instead_of_collect = "warn"
+manual_let_else = "warn"
+map_unwrap_or = "warn"
+semicolon_if_nothing_returned = "warn"
+string_add_assign = "warn"
+unused_self = "warn"
+
 [profile.profiling]
 inherits = "release"
 debug = 2

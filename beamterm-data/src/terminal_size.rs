@@ -6,6 +6,7 @@ pub struct TerminalSize {
 }
 
 impl TerminalSize {
+    #[must_use]
     pub fn new(cols: u16, rows: u16) -> Self {
         Self { cols, rows }
     }

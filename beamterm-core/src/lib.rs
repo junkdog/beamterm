@@ -55,6 +55,7 @@ pub enum GlslVersion {
 }
 
 impl GlslVersion {
+    #[must_use]
     pub fn vertex_preamble(&self) -> &'static str {
         match self {
             Self::Es300 => "#version 300 es\nprecision highp float;\n",
@@ -62,6 +63,7 @@ impl GlslVersion {
         }
     }
 
+    #[must_use]
     pub fn fragment_preamble(&self) -> &'static str {
         match self {
             Self::Es300 => "#version 300 es\nprecision mediump float;\nprecision highp int;\n",
@@ -76,11 +78,11 @@ impl GlslVersion {
 /// `unicode-width` for single-codepoint strings (the common case). Only
 /// multi-codepoint sequences (ZWJ, flags, keycaps, text + FE0F) fall
 /// through to a `width()` check.
+#[must_use]
 pub fn is_emoji(s: &str) -> bool {
     let bytes = s.as_bytes();
-    let first_byte = match bytes.first() {
-        Some(&b) => b,
-        None => return false,
+    let Some(&first_byte) = bytes.first() else {
+        return false;
     };
 
     // ASCII (1 byte, U+0000–U+007F): single ASCII is never emoji, but
@@ -115,6 +117,7 @@ pub fn is_emoji(s: &str) -> bool {
 }
 
 /// Checks if a grapheme is double-width (emoji or fullwidth character).
+#[must_use]
 pub fn is_double_width(grapheme: &str) -> bool {
     grapheme.width() >= 2
 }

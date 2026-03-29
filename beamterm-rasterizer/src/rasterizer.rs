@@ -34,6 +34,7 @@ pub struct RasterizedGlyph {
 }
 
 impl RasterizedGlyph {
+    #[must_use]
     pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
             pixels,
@@ -45,6 +46,7 @@ impl RasterizedGlyph {
         }
     }
 
+    #[must_use]
     pub fn new_wide(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
             pixels,
@@ -76,6 +78,12 @@ impl NativeRasterizer {
     ///
     /// Loads system fonts and resolves the requested families. At least one
     /// family must be found. The first family is the primary font.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::FontNotFound`] if none of the requested font families are available.
+    /// Returns [`Error::RasterizationFailed`] if the primary font cannot be loaded
+    /// or cell metrics cannot be measured.
     pub fn new(font_families: &[&str], font_size: f32) -> Result<Self, Error> {
         let font_resolver = FontResolver::new(font_families)?;
         let mut scale_context = ScaleContext::new();
@@ -99,15 +107,18 @@ impl NativeRasterizer {
     /// The output is padded by `FontAtlasData::PADDING` on each side.
     /// Double-width graphemes (emoji, CJK, or glyphs whose advance width
     /// exceeds 1.5x the cell width) produce a bitmap 2 cells wide.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if font resolution or glyph rasterization fails.
     pub fn rasterize(
         &mut self,
         grapheme: &str,
         style: FontStyle,
     ) -> Result<RasterizedGlyph, Error> {
         // get the first codepoint for font resolution
-        let ch = match grapheme.chars().next() {
-            Some(c) => c,
-            None => return Ok(empty_glyph_from_metrics(&self.cell_metrics)),
+        let Some(ch) = grapheme.chars().next() else {
+            return Ok(empty_glyph_from_metrics(&self.cell_metrics));
         };
 
         // resolve font index
@@ -152,16 +163,19 @@ impl NativeRasterizer {
     }
 
     /// Returns the cell metrics for the primary font.
+    #[must_use]
     pub fn cell_metrics(&self) -> &CellMetrics {
         &self.cell_metrics
     }
 
     /// Returns the cell size in pixels (without padding).
+    #[must_use]
     pub fn cell_size(&self) -> beamterm_data::CellSize {
         beamterm_data::CellSize::new(self.cell_metrics.width, self.cell_metrics.height)
     }
 
     /// Returns the underline decoration metrics.
+    #[must_use]
     pub fn underline(&self) -> LineDecoration {
         LineDecoration::new(
             self.cell_metrics.underline_position,
@@ -170,6 +184,7 @@ impl NativeRasterizer {
     }
 
     /// Returns the strikethrough decoration metrics.
+    #[must_use]
     pub fn strikethrough(&self) -> LineDecoration {
         LineDecoration::new(
             self.cell_metrics.strikethrough_position,
@@ -192,15 +207,13 @@ impl NativeRasterizer {
             return true;
         }
 
-        let ch = match grapheme.chars().next() {
-            Some(c) => c,
-            None => return false,
+        let Some(ch) = grapheme.chars().next() else {
+            return false;
         };
 
         // resolve the font for this character
-        let font_idx = match self.font_resolver.resolve_char(ch) {
-            Some(idx) => idx,
-            None => return false,
+        let Some(font_idx) = self.font_resolver.resolve_char(ch) else {
+            return false;
         };
 
         let font_size = self.font_size;
@@ -221,6 +234,11 @@ impl NativeRasterizer {
     }
 
     /// Updates the font size and re-measures cell metrics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::RasterizationFailed`] if the primary font is unavailable
+    /// or cell metrics cannot be measured at the new size.
     pub fn update_font_size(&mut self, font_size: f32) -> Result<(), Error> {
         self.font_size = font_size;
 
@@ -338,9 +356,8 @@ fn rasterize_with_font(
     .default_color([0xff, 0xff, 0xff, 0xff])
     .render(&mut scaler, glyph_id);
 
-    let image = match image {
-        Some(img) => img,
-        None => return Ok(RasterizedGlyph::new(pixels, padded_w, padded_h)),
+    let Some(image) = image else {
+        return Ok(RasterizedGlyph::new(pixels, padded_w, padded_h));
     };
 
     // use the pixel-exact baseline offset from the rendered reference glyph (█),
@@ -581,9 +598,8 @@ fn is_wide(grapheme: &str) -> bool {
 /// Checks if a grapheme is an emoji that should use color font rendering.
 fn is_emoji_grapheme(s: &str) -> bool {
     let bytes = s.as_bytes();
-    let first_byte = match bytes.first() {
-        Some(&b) => b,
-        None => return false,
+    let Some(&first_byte) = bytes.first() else {
+        return false;
     };
 
     if first_byte < 0x80 {

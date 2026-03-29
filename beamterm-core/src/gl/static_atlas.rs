@@ -45,7 +45,10 @@ pub struct StaticFontAtlas {
 }
 
 impl StaticFontAtlas {
-    /// Creates a TextureAtlas from a grid of equal-sized cells
+    /// Creates a TextureAtlas from a grid of equal-sized cells.
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture creation fails.
     pub fn load(gl: &glow::Context, config: FontAtlasData) -> Result<Self, Error> {
         let texture = crate::gl::texture::Texture::from_font_atlas_data(gl, &config)?;
 

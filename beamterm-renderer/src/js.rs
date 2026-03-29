@@ -55,9 +55,7 @@ pub(crate) fn create_glow_context(
 
 /// Returns the current device pixel ratio, or 1.0 if unavailable.
 pub(crate) fn device_pixel_ratio() -> f32 {
-    web_sys::window()
-        .map(|w| w.device_pixel_ratio() as f32)
-        .unwrap_or(1.0)
+    web_sys::window().map_or(1.0, |w| w.device_pixel_ratio() as f32)
 }
 
 /// Copies text to the system clipboard using the browser's async clipboard API.

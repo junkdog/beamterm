@@ -6,6 +6,7 @@ pub struct CursorPosition {
 }
 
 impl CursorPosition {
+    #[must_use]
     pub fn new(col: u16, row: u16) -> Self {
         Self { col, row }
     }

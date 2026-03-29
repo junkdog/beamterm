@@ -24,6 +24,7 @@ pub struct FontDiscovery {
 }
 
 impl FontDiscovery {
+    #[must_use]
     pub fn new() -> Self {
         let mut db = Database::new();
         db.load_system_fonts();
@@ -33,6 +34,7 @@ impl FontDiscovery {
 
     /// Discovers all monospaced font families that have all 4 required variants
     /// (Regular, Bold, Italic, Bold+Italic).
+    #[must_use]
     pub fn discover_complete_monospace_families(&self) -> Vec<FontFamily> {
         let mut families: HashMap<String, HashMap<(Weight, Style), ID>> = HashMap::new();
 
@@ -41,8 +43,7 @@ impl FontDiscovery {
             let family_name = face
                 .families
                 .first()
-                .map(|(name, _)| name.clone())
-                .unwrap_or_else(|| "Unknown".to_string());
+                .map_or_else(|| "Unknown".to_string(), |(name, _)| name.clone());
 
             let variants = families.entry(family_name).or_default();
 
@@ -76,6 +77,7 @@ impl FontDiscovery {
 
     /// Find a font family by name (partial match, case-insensitive).
     /// Returns the actual font family name if found.
+    #[must_use]
     pub fn find_font(&self, font_name: &str) -> Option<String> {
         let font_name_lower = font_name.to_lowercase();
 
@@ -88,6 +90,7 @@ impl FontDiscovery {
     }
 
     /// Get all unique font family names in the system (sorted).
+    #[must_use]
     pub fn list_all_fonts(&self) -> Vec<String> {
         let mut font_names: Vec<String> = self
             .db

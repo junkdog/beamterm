@@ -15,11 +15,13 @@ pub struct RasterizedGlyph {
 }
 
 impl RasterizedGlyph {
+    #[must_use]
     pub fn new(pixels: Vec<u8>, width: u32, height: u32) -> Self {
         Self { pixels, width, height }
     }
 
     /// Returns true if the glyph produced no visible pixels.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.pixels
             .iter()

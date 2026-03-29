@@ -80,6 +80,9 @@ pub trait Atlas: sealed::Sealed {
     /// Recreates the GPU texture after a context loss.
     ///
     /// This clears the cache - glyphs will be re-rasterized on next access.
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture creation fails.
     fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error>;
 
     /// Iterates over all glyph ID to symbol mappings.
@@ -122,6 +125,9 @@ pub trait Atlas: sealed::Sealed {
     ///
     /// - **Static atlas**: Returns exact ratio, no internal work needed
     /// - **Dynamic atlas**: Returns exact ratio, reinitializes with scaled font size
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture recreation fails during reinitialization.
     fn update_pixel_ratio(&mut self, gl: &glow::Context, pixel_ratio: f32) -> Result<f32, Error>;
 
     /// Returns the cell scale factor for layout calculations at the given DPR.
@@ -182,50 +188,65 @@ impl FontAtlas {
         self.inner.get_base_glyph_id(key)
     }
 
+    #[must_use]
     pub fn cell_size(&self) -> beamterm_data::CellSize {
         self.inner.cell_size()
     }
 
     pub fn bind(&self, gl: &glow::Context) {
-        self.inner.bind(gl)
+        self.inner.bind(gl);
     }
 
+    #[must_use]
     pub fn underline(&self) -> beamterm_data::LineDecoration {
         self.inner.underline()
     }
 
+    #[must_use]
     pub fn strikethrough(&self) -> beamterm_data::LineDecoration {
         self.inner.strikethrough()
     }
 
+    #[must_use]
     pub fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
         self.inner.get_symbol(glyph_id)
     }
 
+    #[must_use]
     pub fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
         self.inner.get_ascii_char(glyph_id)
     }
 
+    #[must_use]
     pub fn glyph_tracker(&self) -> &GlyphTracker {
         self.inner.glyph_tracker()
     }
 
+    #[must_use]
     pub fn glyph_count(&self) -> u32 {
         self.inner.glyph_count()
     }
 
+    /// Recreates the GPU texture after a context loss.
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture creation fails.
     pub fn recreate_texture(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.recreate_texture(gl)
     }
 
     pub fn for_each_symbol(&self, f: &mut dyn FnMut(u16, &str)) {
-        self.inner.for_each_symbol(f)
+        self.inner.for_each_symbol(f);
     }
 
     pub fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot> {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
 
+    /// Flushes pending glyph data to the GPU texture.
+    ///
+    /// # Errors
+    /// Returns an error if texture upload fails.
     pub fn flush(&mut self, gl: &glow::Context) -> Result<(), Error> {
         self.inner.flush(gl)
     }
@@ -241,12 +262,15 @@ impl FontAtlas {
 
     /// Deletes the GPU texture resources associated with this atlas.
     pub fn delete(&self, gl: &glow::Context) {
-        self.inner.delete(gl)
+        self.inner.delete(gl);
     }
 
     /// Updates the pixel ratio for HiDPI rendering.
     ///
     /// Returns the effective pixel ratio to use for viewport scaling.
+    ///
+    /// # Errors
+    /// Returns an error if GPU texture recreation fails during reinitialization.
     pub fn update_pixel_ratio(
         &mut self,
         gl: &glow::Context,
@@ -256,11 +280,13 @@ impl FontAtlas {
     }
 
     /// Returns the cell scale factor for layout calculations.
+    #[must_use]
     pub fn cell_scale_for_dpr(&self, pixel_ratio: f32) -> f32 {
         self.inner.cell_scale_for_dpr(pixel_ratio)
     }
 
     /// Returns the texture cell size in physical pixels.
+    #[must_use]
     pub fn texture_cell_size(&self) -> beamterm_data::CellSize {
         self.inner.texture_cell_size()
     }
@@ -275,12 +301,14 @@ pub enum GlyphSlot {
 }
 
 impl GlyphSlot {
+    #[must_use]
     pub fn slot_id(&self) -> SlotId {
         match *self {
             GlyphSlot::Normal(id) | GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => id,
         }
     }
 
+    #[must_use]
     pub fn with_styling(self, style_bits: u16) -> Self {
         use GlyphSlot::*;
         match self {
@@ -291,6 +319,7 @@ impl GlyphSlot {
     }
 
     /// Returns true if this is a double-width glyph (emoji or wide CJK).
+    #[must_use]
     pub fn is_double_width(&self) -> bool {
         matches!(self, GlyphSlot::Wide(_) | GlyphSlot::Emoji(_))
     }
@@ -304,6 +333,7 @@ pub struct GlyphTracker {
 
 impl GlyphTracker {
     /// Creates a new empty glyph tracker.
+    #[must_use]
     pub fn new() -> Self {
         Self { missing: HashSet::new() }
     }
@@ -314,6 +344,7 @@ impl GlyphTracker {
     }
 
     /// Returns a copy of all missing glyphs.
+    #[must_use]
     pub fn missing_glyphs(&self) -> HashSet<CompactString> {
         self.missing.clone()
     }
@@ -324,11 +355,13 @@ impl GlyphTracker {
     }
 
     /// Returns the number of unique missing glyphs.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.missing.len()
     }
 
     /// Returns true if no glyphs are missing.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.missing.is_empty()
     }

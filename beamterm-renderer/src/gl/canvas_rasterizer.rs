@@ -117,6 +117,7 @@ impl CanvasRasterizer {
     /// Returns the maximum number of glyphs that fit in a single rasterization batch.
     ///
     /// The canvas is sized to fit exactly this many glyphs.
+    #[allow(clippy::unused_self)] // consistent with GlyphRasterizer trait interface
     pub(crate) fn max_batch_size(&self) -> usize {
         GLYPH_BATCH_SIZE
     }
