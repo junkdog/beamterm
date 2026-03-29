@@ -10,6 +10,9 @@ not a full terminal emulator - it handles the display layer while you provide th
 that [outperforms](examples/terminal-emulator/README.md#benchmarks) several established emulators
 in rendering throughput). It also powers [Ratzilla][rz]'s WebGL2 backend.
 
+[![terminal emulator](examples/terminal-emulator/screenshots/beamterm-terminal-emulator-2.png)](examples/terminal-emulator/)
+*The included [terminal emulator example](examples/terminal-emulator/) running with a dynamic font atlas (Hack + Noto Color Emoji).*
+
 ### [Live Demos][demos]
 
 Check out [**interactive examples**][demos] showcasing both pure WASM applications and JavaScript/TypeScript
