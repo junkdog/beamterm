@@ -1,0 +1,26 @@
+[package]
+name = "beamterm-unicode"
+description = "Unicode character classification utilities for beamterm"
+readme = "../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+include = [
+    "src/**/*.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
+]
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+unicode-width.workspace = true
+
+[dev-dependencies]
+emojis = "0.8.0"
+
+[lints]
+workspace = true

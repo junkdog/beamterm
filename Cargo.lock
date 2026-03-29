@@ -230,6 +230,7 @@ version = "0.18.0"
 dependencies = [
  "beamterm-data",
  "beamterm-rasterizer",
+ "beamterm-unicode",
  "clap",
  "color-eyre",
  "compact_str",
@@ -248,9 +249,9 @@ version = "0.18.0"
 dependencies = [
  "beamterm-data",
  "beamterm-rasterizer",
+ "beamterm-unicode",
  "bitflags 2.11.0",
  "compact_str",
- "emojis",
  "glow",
  "lru",
  "rustc-hash",
@@ -272,6 +273,7 @@ name = "beamterm-rasterizer"
 version = "0.18.0"
 dependencies = [
  "beamterm-data",
+ "beamterm-unicode",
  "criterion",
  "fontdb",
  "swash",
@@ -299,6 +301,14 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "beamterm-unicode"
+version = "0.18.0"
+dependencies = [
+ "emojis",
+ "unicode-width",
 ]
 
 [[package]]

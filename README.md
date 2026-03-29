@@ -1,6 +1,6 @@
 ## beamterm - A GPU-Accelerated Terminal Renderer
 
-[![Crate Badge]][Crate] [![NPM Badge]][NPM] [![API Badge]][API] [![Deps.rs
+[![Crate Badge]][Crate] [![NPM Badge]][NPM] [![API Badge]][API] [![Core API Badge]][Core API] [![Deps.rs
 Badge]][Deps.rs] [![DeepWiki Badge]][DeepWiki]
 
 A high-performance terminal rendering library targeting sub-millisecond render times, supporting
@@ -51,7 +51,7 @@ maintaining sub-millisecond render times on 2019-era hardware (i9-9900K / RTX 20
 
 For a comprehensive overview of the codebase, see the [DeepWiki][DeepWiki].
 
-The renderer consists of five crates:
+The renderer consists of six crates:
 
 **`beamterm-atlas`** - Generates GPU-optimized static font atlases from TTF/OTF files. Automatically
 calculates cell dimensions, supports font styles (normal/bold/italic), and outputs packed
@@ -70,6 +70,9 @@ by the compilation target: `wasm32` builds use WebGL2 (`#version 300 es`), while
 [fontdb](https://github.com/RazrFalcon/fontdb). Provides `NativeRasterizer` for on-demand glyph
 rasterization from system fonts, with automatic font fallback and per-glyph scaling for mixed-font
 rendering.
+
+**`beamterm-unicode`** - Shared Unicode classification utilities (emoji detection, double-width character
+identification) used across the workspace crates.
 
 **`beamterm-renderer`** - WASM/browser integration layer. Wraps beamterm-core with the `Terminal`
 builder API, JavaScript bindings (`js-api` feature), dynamic font atlas via browser Canvas API,
@@ -520,8 +523,10 @@ cargo run -p terminal-emulator --features dynamic
 cd examples/canvas_waves && trunk serve
 ```
 
-[API Badge]: https://docs.rs/beamterm-renderer/badge.svg
+[API Badge]: https://img.shields.io/docsrs/beamterm-renderer?label=docs%20renderer
 [API]: https://docs.rs/beamterm-renderer
+[Core API Badge]: https://img.shields.io/docsrs/beamterm-core?label=docs%20core
+[Core API]: https://docs.rs/beamterm-core
 [Crate Badge]: https://img.shields.io/crates/v/beamterm-renderer.svg
 [Crate]: https://crates.io/crates/beamterm-renderer
 [Deps.rs Badge]: https://deps.rs/repo/github/junkdog/beamterm-renderer/status.svg

@@ -19,6 +19,7 @@ homepage.workspace = true
 
 [dependencies]
 beamterm-data = { path = "../beamterm-data", version = "0.18.0" }
+beamterm-unicode = { path = "../beamterm-unicode", version = "0.18.0" }
 fontdb = { version = "0.23", features = ["memmap", "fontconfig"] }
 swash = "0.2"
 thiserror.workspace = true

@@ -4,6 +4,7 @@ use std::{
 };
 
 use beamterm_data::{FontStyle, Glyph};
+use beamterm_unicode::is_emoji;
 use color_eyre::{Report, eyre::bail};
 use compact_str::{CompactString, ToCompactString};
 use unicode_segmentation::UnicodeSegmentation;
@@ -249,124 +250,9 @@ fn assign_fullwidth_glyph_ids(last_id: u16, symbols: &[char]) -> Vec<Glyph> {
         .collect()
 }
 
-/// Checks if a grapheme is an emoji that should use color font rendering.
-pub(super) fn is_emoji(s: &str) -> bool {
-    use unicode_width::UnicodeWidthStr;
-
-    let bytes = s.as_bytes();
-    let Some(&first_byte) = bytes.first() else {
-        return false;
-    };
-
-    if first_byte < 0x80 {
-        return s.len() > 1 && s.width() >= 2;
-    }
-
-    if first_byte < 0xE0 {
-        return s.len() > 2 && s.width() >= 2;
-    }
-
-    // SAFETY: verified non-empty with 3+ byte lead
-    let first = unsafe { s.chars().next().unwrap_unchecked() };
-    let first_len = first.len_utf8();
-
-    if s.len() == first_len {
-        return if first_len == 3 {
-            is_emoji_presentation(first)
-        } else {
-            s.width() >= 2 && is_emoji_presentation(first)
-        };
-    }
-
-    s.width() >= 2
-}
-
-/// Returns `true` for characters with emoji-presentation-by-default.
-fn is_emoji_presentation(c: char) -> bool {
-    let cp = c as u32;
-
-    match cp {
-        0x231A..=0x2B55 => matches!(
-            cp,
-            0x231A..=0x231B
-                | 0x23E9..=0x23EC
-                | 0x23F0
-                | 0x23F3
-                | 0x25FD..=0x25FE
-                | 0x2614..=0x2615
-                | 0x2648..=0x2653
-                | 0x267F
-                | 0x2693
-                | 0x26A1
-                | 0x26AA..=0x26AB
-                | 0x26BD..=0x26BE
-                | 0x26C4..=0x26C5
-                | 0x26CE
-                | 0x26D4
-                | 0x26EA
-                | 0x26F2..=0x26F3
-                | 0x26F5
-                | 0x26FA
-                | 0x26FD
-                | 0x2705
-                | 0x270A..=0x270B
-                | 0x2728
-                | 0x274C
-                | 0x274E
-                | 0x2753..=0x2755
-                | 0x2757
-                | 0x2795..=0x2797
-                | 0x27B0
-                | 0x27BF
-                | 0x2B1B..=0x2B1C
-                | 0x2B50
-                | 0x2B55
-        ),
-        0x1F000..=0x1FFFF => !matches!(
-            cp,
-            0x1F200
-                | 0x1F202..=0x1F219
-                | 0x1F21B..=0x1F22E
-                | 0x1F230..=0x1F231
-                | 0x1F237
-                | 0x1F23B..=0x1F24F
-                | 0x1F260..=0x1F265
-        ),
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_emoji() {
-        // Emoji-presentation-by-default: always emoji
-        assert!(is_emoji("🚀"));
-        assert!(is_emoji("😀"));
-        assert!(is_emoji("⏩"));
-        assert!(is_emoji("⏪"));
-        assert!(is_emoji("⏫"));
-        assert!(is_emoji("⏬"));
-
-        // Text-presentation-by-default with FE0F: emoji
-        assert!(is_emoji("▶\u{FE0F}"));
-
-        // Text-presentation-by-default without FE0F: NOT emoji
-        assert!(!is_emoji("▶"));
-        assert!(!is_emoji("◀"));
-        assert!(!is_emoji("⏭"));
-        assert!(!is_emoji("⏹"));
-        assert!(!is_emoji("⏮"));
-        assert!(!is_emoji("▪"));
-        assert!(!is_emoji("▫"));
-        assert!(!is_emoji("◼"));
-
-        // Not emoji
-        assert!(!is_emoji("A"));
-        assert!(!is_emoji("█"));
-    }
 
     #[test]
     fn test_fullwidth_id_assignment() {
@@ -400,36 +286,5 @@ mod tests {
 
         // Should not panic or misclassify
         assert!(gs.unicode.len() + gs.fullwidth_unicode.len() <= 1);
-    }
-
-    #[test]
-    fn test_text_presentation_defaults_respected() {
-        // Text-presentation-by-default glyphs should be treated as regular
-        // text glyphs unless explicitly followed by FE0F (width 1 without it).
-        let text_default = [
-            ("▪", "BLACK SMALL SQUARE"),
-            ("▫", "WHITE SMALL SQUARE"),
-            ("◼", "BLACK MEDIUM SQUARE"),
-            ("▶", "BLACK RIGHT-POINTING TRIANGLE"),
-            ("◀", "BLACK LEFT-POINTING TRIANGLE"),
-            ("⏭", "NEXT TRACK"),
-            ("⏹", "STOP"),
-            ("⏮", "PREVIOUS TRACK"),
-        ];
-
-        for (s, name) in &text_default {
-            assert!(
-                !is_emoji(s),
-                "{name} ({s}) should NOT be classified as emoji without FE0F",
-            );
-        }
-
-        // Emoji-presentation-by-default: always emoji regardless of FE0F
-        let emoji_default =
-            [("🚀", "ROCKET"), ("😀", "GRINNING FACE"), ("⏩", "FAST-FORWARD"), ("⏪", "REWIND")];
-
-        for (s, name) in &emoji_default {
-            assert!(is_emoji(s), "{name} ({s}) should be classified as emoji",);
-        }
     }
 }

@@ -8,7 +8,7 @@
 //! - We verify that text-presentation-by-default chars (canonical form
 //!   contains FE0F) are NOT classified as emoji without FE0F
 
-use beamterm_core::{is_double_width, is_emoji};
+use beamterm_unicode::{is_double_width, is_emoji};
 use unicode_width::UnicodeWidthStr;
 
 /// Every emoji in the `emojis` crate where `is_emoji()` returns true

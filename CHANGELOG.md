@@ -12,11 +12,13 @@ All notable changes to this project will be documented in this file.
 
 - *(core)* Reduce visibility of internal types
 - *(errors)* Add `From` impls for cross-crate error types (#110)
+- *(unicode)* Extract `beamterm-unicode` crate for shared emoji/width utils
 
 ### ⚙️ Miscellaneous Tasks
 
 - Set MSRV to 1.90.0
 - Add `include` allow-lists to all published Cargo.toml files
+- *(clippy)* Resolve new clippy warnings across all crates
 
 ## [beamterm-v0.18.0] - 2026-03-27
 

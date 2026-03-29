@@ -6,6 +6,7 @@ members = [
     "beamterm-data",
     "beamterm-rasterizer",
     "beamterm-renderer",
+    "beamterm-unicode",
     "examples/game-console",
     "examples/native-terminal",
     "examples/terminal-emulator",
