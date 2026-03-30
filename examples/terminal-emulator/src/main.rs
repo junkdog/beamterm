@@ -19,8 +19,16 @@ use winit::event_loop::EventLoop;
 
 use crate::app::App;
 
-pub const FONT_FAMILIES: &[&str] = &["Hack Nerd Font Mono", "Hack", "Noto Color Emoji"];
-pub const DEFAULT_FONT_SIZE: f32 = 16.0;
+pub const FONT_FAMILIES: &[&str] = &[
+    "Hack Nerd Font Mono",
+    "Hack",
+    "JetBrainsMono Nerd Font Mono",
+    "JetBrains Mono",
+    "FiraCode Nerd Font Mono",
+    "Fira Code",
+    "Noto Color Emoji",
+];
+pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub const MIN_FONT_SIZE: f32 = 6.0;
 pub const MAX_FONT_SIZE: f32 = 48.0;
 
