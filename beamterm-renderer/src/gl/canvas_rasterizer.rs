@@ -270,6 +270,13 @@ impl CanvasRasterizer {
             }
         }
 
+        // no pixels found: the reference glyph didn't render
+        if max_x < min_x || max_y < min_y {
+            return Err(Error::rasterizer_measure_failed(
+                "reference glyph produced no visible pixels".to_string(),
+            ));
+        }
+
         // calculate dimensions from pixel bounds
         let width = max_x - min_x + 1;
         let height = max_y - min_y + 1;

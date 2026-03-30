@@ -43,6 +43,10 @@ pub(crate) struct FontResolver {
     fonts: Vec<LoadedFont>,
     /// Number of primary fonts (from constructor families).
     primary_count: usize,
+    /// Maps each font style variant to its index in `fonts`.
+    /// Handles deduplication: if Bold resolves to the same face as Normal,
+    /// both entries point to the same index.
+    style_map: [Option<usize>; 4],
 }
 
 impl FontResolver {
@@ -55,27 +59,40 @@ impl FontResolver {
         db.load_system_fonts();
 
         let mut fonts: Vec<(ID, LoadedFont)> = Vec::new();
+        let mut style_map: [Option<usize>; 4] = [None; 4];
 
         for &family in font_families {
             // try all 4 style variants for each family
-            for (weight, style) in [
+            for (style_idx, (weight, style)) in [
                 (Weight::NORMAL, Style::Normal),
                 (Weight::BOLD, Style::Normal),
                 (Weight::NORMAL, Style::Italic),
                 (Weight::BOLD, Style::Italic),
-            ] {
+            ]
+            .iter()
+            .enumerate()
+            {
+                // only fill unmapped styles (first family wins)
+                if style_map[style_idx].is_some() {
+                    continue;
+                }
+
                 let query = Query {
                     families: &[Family::Name(family)],
-                    weight,
+                    weight: *weight,
                     stretch: Stretch::Normal,
-                    style,
+                    style: *style,
                 };
 
-                if let Some(id) = db.query(&query)
-                    && !fonts.iter().any(|f| f.0 == id)
-                    && let Some(font) = LoadedFont::new(&db, id)
-                {
-                    fonts.push((id, font));
+                if let Some(id) = db.query(&query) {
+                    // reuse existing index if this face was already loaded
+                    if let Some(existing) = fonts.iter().position(|f| f.0 == id) {
+                        style_map[style_idx] = Some(existing);
+                    } else if let Some(font) = LoadedFont::new(&db, id) {
+                        let idx = fonts.len();
+                        fonts.push((id, font));
+                        style_map[style_idx] = Some(idx);
+                    }
                 }
             }
         }
@@ -87,7 +104,7 @@ impl FontResolver {
         let primary_count = fonts.len();
         let fonts = fonts.into_iter().map(|(_, f)| f).collect();
 
-        Ok(Self { db, fonts, primary_count })
+        Ok(Self { db, fonts, primary_count, style_map })
     }
 
     /// Calls `f` with a [`FontRef`] for the primary font (normal weight, normal style).
@@ -189,8 +206,8 @@ impl FontResolver {
     ) -> Option<usize> {
         use beamterm_data::FontStyle;
 
-        // determine preferred weight/style index
-        let preferred_offset = match style {
+        // determine preferred style variant index via style_map
+        let style_idx = match style {
             FontStyle::Normal => 0,
             FontStyle::Bold => 1,
             FontStyle::Italic => 2,
@@ -198,8 +215,10 @@ impl FontResolver {
         };
 
         // check if the preferred style variant has the char
-        if preferred_offset < self.primary_count && self.font_has_char(preferred_offset, ch) {
-            return Some(preferred_offset);
+        if let Some(font_idx) = self.style_map[style_idx]
+            && self.font_has_char(font_idx, ch)
+        {
+            return Some(font_idx);
         }
 
         // fall back to any font that has the character
