@@ -213,6 +213,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
+        let glyph_id = glyph_id & !(Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG);
         if glyph_id < ASCII_SLOTS {
             let ch = (glyph_id + 0x20) as u8 as char;
             Some(ch.to_compact_string())
@@ -222,6 +223,7 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
     }
 
     fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
+        let glyph_id = glyph_id & !(Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG);
         if glyph_id < ASCII_SLOTS {
             Some((glyph_id + 0x20) as u8 as char)
         } else {

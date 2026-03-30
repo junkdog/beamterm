@@ -134,6 +134,7 @@ impl Atlas for StaticFontAtlas {
 
     /// Returns the symbol for the given glyph ID, if it exists
     fn get_symbol(&self, glyph_id: u16) -> Option<CompactString> {
+        let glyph_id = glyph_id & !(Glyph::UNDERLINE_FLAG | Glyph::STRIKETHROUGH_FLAG);
         let base_glyph_id = if glyph_id & Glyph::EMOJI_FLAG != 0 {
             glyph_id & Glyph::GLYPH_ID_EMOJI_MASK
         } else {
@@ -151,6 +152,7 @@ impl Atlas for StaticFontAtlas {
 
     fn get_ascii_char(&self, glyph_id: u16) -> Option<char> {
         // Static atlas: ASCII chars 0x20-0x7F have glyph_id == char code
+        let glyph_id = glyph_id & Glyph::GLYPH_ID_MASK;
         if (0x20..0x80).contains(&glyph_id) {
             Some(glyph_id as u8 as char)
         } else {
