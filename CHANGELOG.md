@@ -1,6 +1,8 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+This project adheres to [Semantic Versioning](https://semver.org/). See
+[SEMVER.md](SEMVER.md) for what constitutes a breaking change in beamterm.
 
 ## [unreleased]
 
@@ -28,6 +30,7 @@ All notable changes to this project will be documented in this file.
 - Set MSRV to 1.90.0
 - Add `include` allow-lists to all published Cargo.toml files
 - *(clippy)* Resolve new clippy warnings across all crates
+- [**breaking**] Remove deprecations
 
 ## [beamterm-v0.18.0] - 2026-03-27
 

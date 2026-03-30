@@ -153,9 +153,13 @@ terminal.resize(new_width, new_height)?;
 The renderer supports mouse-driven text selection with automatic clipboard integration:
 
 ```rust
-// Enable default selection handler
+// Enable selection handler with options
 let terminal = Terminal::builder("#canvas")
-    .default_mouse_input_handler(SelectionMode::Linear, true)
+    .mouse_selection_handler(
+        MouseSelectOptions::new()
+            .selection_mode(SelectionMode::Linear)
+            .trim_trailing_whitespace(true),
+    )
     .build()?;
 
 // Or implement custom mouse handling
