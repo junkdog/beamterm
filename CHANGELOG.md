@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/). See
 [SEMVER.md](SEMVER.md) for what constitutes a breaking change in beamterm.
 
-## [unreleased]
+## [beamterm-v1.0.0] - 2026-03-30
 
 ### 🚀 Features
 
@@ -14,6 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/). See
 
 - *(deps-dev)* Bump jsdom from 27.4.0 to 29.0.0 in /js (#106)
 - *(deps-dev)* Bump esbuild in /js in the minor-and-patch group (#105)
+- *(deps-dev)* Bump jsdom (#112)
 
 ### 🐛 Bug Fixes
 
@@ -30,7 +31,7 @@ This project adheres to [Semantic Versioning](https://semver.org/). See
 - Set MSRV to 1.90.0
 - Add `include` allow-lists to all published Cargo.toml files
 - *(clippy)* Resolve new clippy warnings across all crates
-- [**breaking**] Remove deprecations
+- [**breaking**] Remove deprecations (#111)
 
 ## [beamterm-v0.18.0] - 2026-03-27
 

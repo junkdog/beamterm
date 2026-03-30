@@ -501,7 +501,6 @@ cargo run -p game-console
 
 # Run with dynamic font atlas (rasterizes system fonts at runtime)
 cargo run -p native-terminal --features dynamic
-cargo run -p terminal-emulator --features dynamic
 ```
 
 **WASM/browser** examples require [Trunk](https://trunkrs.dev/):

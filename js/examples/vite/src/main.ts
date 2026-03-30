@@ -72,7 +72,6 @@ class TerminalApp {
         this.drawContent(batch);
         this.drawStatus(batch);
 
-        batch.flush();
         this.renderer.render();
     }
 

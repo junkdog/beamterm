@@ -4,14 +4,13 @@ A comprehensive, minimal example demonstrating **every method** available on the
 
 ## 🎯 What This Example Shows
 
-This example demonstrates all 6 core Batch API methods:
+This example demonstrates all 5 core Batch API methods:
 
 1. **`batch.clear(backgroundColor)`** - Clear terminal with background color
 2. **`batch.text(x, y, text, style)`** - Write styled text at position
 3. **`batch.cell(x, y, cell)`** - Update individual cells with full control
 4. **`batch.cells(arrayOfCells)`** - Update multiple cells efficiently
 5. **`batch.fill(x, y, width, height, cell)`** - Fill rectangular regions
-6. **`batch.flush()`** - **Required:** Upload all changes to GPU
 
 ## 🚀 Quick Start
 
@@ -43,10 +42,7 @@ batch.clear(0x1a1b26);
 batch.text(0, 0, "Hello!", style().bold().fg(0x7aa2f7));
 batch.cell(0, 2, cell("🚀", style()));
 
-// 3. CRITICAL: Flush to upload to GPU
-batch.flush();
-
-// 4. Render the frame
+// 3. Render the frame
 renderer.render();
 ```
 

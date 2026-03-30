@@ -173,8 +173,7 @@ class BatchAPIDemo {
         batch.text(1, patternY, "Essential Pattern:", style().bold().fg(0x7dcfff));
         batch.text(1, patternY + 1, "1. const batch = renderer.batch()", style().fg(0xa9b1d6));
         batch.text(1, patternY + 2, "2. batch.clear/text/cell/cells/fill...", style().fg(0xa9b1d6));
-        batch.text(1, patternY + 3, "3. batch.flush()  // Upload to GPU", style().fg(0xa9b1d6));
-        batch.text(1, patternY + 4, "4. renderer.render()  // Draw frame", style().fg(0xa9b1d6));
+        batch.text(1, patternY + 3, "3. renderer.render()  // Draw frame", style().fg(0xa9b1d6));
     }
 
     render() {
@@ -197,7 +196,6 @@ class BatchAPIDemo {
 
             batch.cell(this.size.cols - 2, 1, cell(spinnerChar, style().fg(0x7aa2f7)));
 
-            batch.flush();
             this.renderer.render();
 
             frame++;

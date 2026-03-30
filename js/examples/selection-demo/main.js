@@ -359,7 +359,6 @@ class SelectionDemo {
                 batch.cell(col, row, cell(' ', style().bg(0x7aa2f7)));
             }
 
-            batch.flush();
             this.renderer.render();
 
             frame++;
