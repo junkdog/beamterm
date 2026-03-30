@@ -168,7 +168,7 @@ fn print_atlas_summary(atlas: &FontAtlasData) {
     println!(
         "Glyph count per variant: {} (emoji: {})",
         glyphs.iter().filter(|g| !g.is_emoji()).count() / FontStyle::ALL.len(),
-        glyphs.iter().filter(|g| g.is_emoji()).count() / 2 // each emoji occupies two glyphs
+        glyphs.iter().filter(|g| g.is_emoji()).count() // left-half only (right halves excluded from atlas)
     );
     println!(
         "Longest grapheme in bytes: {}",

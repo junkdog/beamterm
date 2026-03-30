@@ -236,6 +236,11 @@ impl FontResolver {
 
     fn find_fallback_font(&self, ch: char) -> Option<ID> {
         for face in self.db.faces() {
+            // skip fonts already loaded to avoid duplicates
+            if self.fonts.iter().any(|f| f.id == face.id) {
+                continue;
+            }
+
             let has_char = self.db.with_face_data(face.id, |data, index| {
                 FontRef::from_index(data, index as usize)
                     .is_some_and(|font_ref| font_ref.charmap().map(ch) != 0)

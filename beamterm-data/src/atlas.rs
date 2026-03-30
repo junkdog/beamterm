@@ -43,7 +43,7 @@ impl Debug for FontAtlasData {
             .field("texture_dimensions", &self.texture_dimensions)
             .field("cell_size", &self.cell_size)
             .field("glyphs_count", &self.glyphs.len())
-            .field("texture_data_kb", &(self.texture_data.len() * 4 / 1024))
+            .field("texture_data_kb", &(self.texture_data.len() / 1024))
             .finish()
     }
 }
