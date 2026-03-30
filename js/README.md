@@ -3,250 +3,229 @@
 [![npm version](https://img.shields.io/npm/v/@beamterm/renderer.svg)](https://www.npmjs.com/package/@beamterm/renderer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-High-performance WebGL2 terminal renderer achieving sub-millisecond render times through GPU-accelerated instanced rendering.
+High-performance WebGL2 terminal renderer achieving sub-millisecond render times
+through GPU-accelerated instanced rendering. Pure WASM + WebGL2 with zero runtime
+dependencies.
 
-## ✨ Features
+## Features
 
-- **📦 Zero Dependencies**: Pure WASM + WebGL2, no external runtime dependencies
-- **🎨 Rich Text Styling**: Bold, italic, underline, strikethrough with full color support
-- **⚡ Efficient Updates**: Batch cell updates with single GPU buffer upload
-- **📐 Responsive**: Automatic terminal resizing with proper aspect ratio maintenance
-- **🎯 TypeScript Ready**: Full TypeScript definitions included
-- **🖱️ Mouse Selection**: Built-in text selection with clipboard integration
+- **Rich text styling** — bold, italic, underline, strikethrough with 24-bit color
+- **Batch updates** — all cell changes are collected and uploaded to the GPU in a single pass
+- **Two font atlas modes** — pre-rasterized static atlas or on-demand dynamic atlas with any browser font
+- **Built-in text selection** — linear and block modes with clipboard integration and URL detection
+- **Responsive** — automatic terminal resizing with HiDPI support
+- **TypeScript definitions included**
 
-## 📋 Requirements
+Requires a browser with **WebGL2** and **WASM** support (any modern browser).
 
-- **WebGL2** capable browser
-- **WASM** support
-
-Should work with any modern browser.
-
-## 📦 Installation
-
-### NPM/Yarn
+## Installation
 
 ```bash
 npm install @beamterm/renderer
-# or
-yarn add @beamterm/renderer
 ```
 
-### CDN
+Or via CDN:
 
 ```html
 <script src="https://unpkg.com/@beamterm/renderer@latest/dist/cdn/beamterm.min.js"></script>
 <script>
-    await Beamterm.init();
-    const renderer = new Beamterm.BeamtermRenderer('#terminal');
-    // SelectionMode available as Beamterm.SelectionMode
-    renderer.enableSelection(Beamterm.SelectionMode.Linear, true);
+  await Beamterm.init();
+  const renderer = new Beamterm.BeamtermRenderer('#terminal');
 </script>
 ```
 
-## 🚀 Quick Start
-
-### ES Modules (Recommended)
+## Quick Start
 
 ```javascript
-import { main as init, style, cell, BeamtermRenderer, SelectionMode } from '@beamterm/renderer';
+import {
+  main as init,
+  style,
+  cell,
+  BeamtermRenderer,
+} from "@beamterm/renderer";
 
-// Initialize WASM module
 await init();
 
-// Create renderer with embedded static atlas (default)
-const renderer = new BeamtermRenderer('#terminal');
+// Create renderer — uses the embedded static font atlas by default
+const renderer = new BeamtermRenderer("#terminal");
 
-// Or use a dynamic font atlas with any system font
-const dynamicRenderer = BeamtermRenderer.withDynamicAtlas(
-    '#terminal',
-    ['JetBrains Mono', 'Fira Code'],  // font fallback chain
-    16.0                               // font size in pixels
-);
+// Or use a dynamic atlas that rasterizes any browser font on demand
+// const renderer = BeamtermRenderer.withDynamicAtlas('#terminal', ['JetBrains Mono', 'Fira Code'], 16.0);
 
-// Get terminal dimensions
-const size = renderer.terminalSize();
-console.log(`Terminal: ${size.width}×${size.height} cells`);
+const { cols, rows } = renderer.terminalSize();
+console.log(`Terminal: ${cols}x${rows} cells`);
 
-// Create a batch for efficient updates
 const batch = renderer.batch();
 
-// Clear terminal with background color
 batch.clear(0x1a1b26);
-
-// Write styled text
-const textStyle = style().bold().underline().fg(0x7aa2f7).bg(0x1a1b26);
-batch.text(2, 1, "Hello, Beamterm!", textStyle);
-
-// Draw individual cells
+batch.text(
+  2,
+  1,
+  "Hello, Beamterm!",
+  style().bold().underline().fg(0x7aa2f7).bg(0x1a1b26),
+);
 batch.cell(0, 0, cell("🚀", style().fg(0xffffff)));
+batch.fill(1, 3, 18, 1, cell("─", style().fg(0x565f89).bg(0x1a1b26)));
 
-// Fill a rectangular region
-const boxStyle = style().fg(0x565f89).bg(0x1a1b26);
-batch.fill(1, 0, 18, 3, cell("█", boxStyle));
-
-// Render frame
 renderer.render();
 ```
 
-### TypeScript
-
-```typescript
-import { main as init, style, BeamtermRenderer, Batch, Size, SelectionMode } from '@beamterm/renderer';
-
-async function createTerminal(): Promise<void> {
-  await init();
-  
-  const renderer = new BeamtermRenderer('#terminal');
-  const batch: Batch = renderer.batch();
-  
-  // TypeScript provides full type safety
-  const labelStyle = style()
-    .bold()
-    .italic()
-    .underline()
-    .fg(0x9ece6a)
-    .bg(0x1a1b26);
-    
-  batch.text(0, 0, "TypeScript Ready! ✨", labelStyle);
-  batch.flush();
-  renderer.render();
-}
-```
-
-## 📖 API Reference
+## API Reference
 
 ### BeamtermRenderer
 
-The main renderer class that manages the WebGL2 context and rendering pipeline.
+The main renderer class. Manages the WebGL2 context and rendering pipeline.
 
-```javascript
-// Using embedded static font atlas (default)
-const renderer = new BeamtermRenderer(canvasSelector);
+#### Constructors
 
-// Using dynamic font atlas with browser fonts
-const renderer = BeamtermRenderer.withDynamicAtlas(canvasSelector, fontFamilies, fontSize);
-```
+| Signature                                                                                   | Description                                              |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `new BeamtermRenderer(canvasSelector)`                                                      | Create with the embedded static font atlas               |
+| `BeamtermRenderer.withDynamicAtlas(canvasSelector, fontFamilies, fontSize, autoResizeCss?)` | Create with a dynamic atlas using browser fonts          |
+| `BeamtermRenderer.withStaticAtlas(canvasSelector, atlasData?, autoResizeCss?)`              | Create with custom `.atlas` data (or `null` for default) |
 
-#### Static Methods
+#### Rendering
 
-- **`withDynamicAtlas(canvasSelector, fontFamilies, fontSize)`**: Create a renderer with a dynamic
-  font atlas that rasterizes glyphs on-demand using browser fonts. Best when character set isn't
-  known at build time.
-  - `canvasSelector`: CSS selector for the canvas element
-  - `fontFamilies`: Array of font family names (e.g., `['JetBrains Mono', 'Fira Code']`)
-  - `fontSize`: Font size in pixels
+| Method                  | Description                                             |
+| ----------------------- | ------------------------------------------------------- |
+| `batch()`               | Create a new `Batch` for buffering cell updates         |
+| `render()`              | Render the current frame to the canvas                  |
+| `resize(width, height)` | Resize the canvas and recalculate terminal dimensions   |
+| `terminalSize()`        | Returns `{ cols, rows }` — terminal dimensions in cells |
+| `cellSize()`            | Returns `{ width, height }` — cell dimensions in pixels |
 
-#### Methods
+#### Font Switching
 
-- **`batch()`**: Create a new batch for efficient cell updates
-- **`render()`**: Render the current frame to the canvas
-- **`resize(width, height)`**: Resize the canvas and recalculate terminal dimensions
-- **`terminalSize()`**: Get terminal dimensions as `{ width, height }` in cells
-- **`cellSize()`**: Get cell dimensions as `{ width, height }` in pixels
+Swap the font atlas at runtime. Existing cell content is preserved and translated to the new atlas.
 
-#### Selection Methods
+| Method                                            | Description                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| `replaceWithDynamicAtlas(fontFamilies, fontSize)` | Switch to a dynamic atlas with the given fonts                |
+| `replaceWithStaticAtlas(atlasData?)`              | Switch to a static atlas (`Uint8Array` or `null` for default) |
 
-- **`enableSelection(mode, trimWhitespace)`**: Enable built-in text selection
-- **`setMouseHandler(callback)`**: Set custom mouse event handler
-- **`getText(query)`**: Get selected text based on cell query
-- **`copyToClipboard(text)`**: Copy text to system clipboard
-- **`clearSelection()`**: Clear any active selection
-- **`hasSelection()`**: Check if there is an active selection
+#### Selection & Mouse
+
+| Method                                                        | Description                                                                 |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `enableSelection(mode, trimWhitespace)`                       | Enable built-in text selection                                              |
+| `enableSelectionWithOptions(mode, trimWhitespace, modifiers)` | Selection that requires modifier keys (e.g. Shift+click)                    |
+| `setMouseHandler(callback)`                                   | Set a custom mouse event handler (receives `MouseEvent`)                    |
+| `getText(query)`                                              | Extract text for a `CellQuery` region                                       |
+| `findUrlAt(col, row)`                                         | Detect a URL at the given cell position — returns `UrlMatch` or `undefined` |
+| `copyToClipboard(text)`                                       | Copy text to the system clipboard                                           |
+| `clearSelection()`                                            | Clear any active selection                                                  |
+| `hasSelection()`                                              | Check if there is an active selection                                       |
 
 ### Batch
 
-Batch operations for efficient GPU updates. All cell modifications should go through a batch.
+Buffers cell updates for efficient GPU upload. Create one per frame via `renderer.batch()`.
 
-```javascript
-const batch = renderer.batch();
-```
+| Method                                | Description                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `clear(bgColor)`                      | Clear the entire terminal with a background color                       |
+| `text(x, y, text, style)`             | Write a string at `(x, y)` with uniform styling — fastest for text runs |
+| `cell(x, y, cellData)`                | Update a single cell                                                    |
+| `cells(array)`                        | Update multiple cells — each element is `[x, y, cellData]`              |
+| `fill(x, y, width, height, cellData)` | Fill a rectangular region                                               |
 
-#### Methods
-
-- **`clear(backgroundColor)`**: Clear entire terminal with specified color
-- **`cell(x, y, cellData)`**: Update a single cell
-- **`cells(cellArray)`**: Update multiple cells (array of `[x, y, cellData]`)
-- **`text(x, y, text, style)`**: Write text starting at position
-- **`fill(x, y, width, height, cellData)`**: Fill rectangular region
-- **`flush()`**: Upload all changes to GPU (required before render)
+All changes are automatically uploaded when `renderer.render()` is called.
 
 ### CellStyle
 
-Fluent API for text styling.
+Fluent builder for text styling. Create one with `style()`.
 
 ```javascript
-const myStyle = style()
-  .bold()
-  .italic()
-  .underline()
-  .strikethrough()
-  .fg(0x7aa2f7)
-  .bg(0x204060);
+const heading = style().bold().fg(0x7aa2f7).bg(0x1a1b26);
+const warning = style().bold().italic().fg(0xe0af68);
 ```
 
-#### Methods
+| Method            | Description                                |
+| ----------------- | ------------------------------------------ |
+| `fg(color)`       | Foreground color (`0xRRGGBB`)              |
+| `bg(color)`       | Background color (`0xRRGGBB`)              |
+| `bold()`          | Bold                                       |
+| `italic()`        | Italic                                     |
+| `underline()`     | Underline                                  |
+| `strikethrough()` | Strikethrough                              |
+| `bits`            | (property) Combined style bits as a number |
 
-- **`fg(color)`**: Set foreground color
-- **`bg(color)`**: Set background color
-- **`bold()`**: Add bold style
-- **`italic()`**: Add italic style
-- **`underline()`**: Add underline effect
-- **`strikethrough()`**: Add strikethrough effect
+### CellQuery
 
-#### Properties
+Describes a rectangular or linear region of cells for text extraction.
 
-- **`bits`**: Get the combined style bits as a number
+```javascript
+const query = new CellQuery(SelectionMode.Linear)
+  .start(0, 2)
+  .end(40, 5)
+  .trimTrailingWhitespace(true);
 
-### Helper Functions
+const text = renderer.getText(query);
+```
 
-- **`style()`**: Create a new CellStyle instance
-- **`cell(symbol, style)`**: Create a cell data object
+### ModifierKeys
+
+Modifier key flags for `enableSelectionWithOptions()`.
+
+```javascript
+// Require Shift+Click to start selection
+renderer.enableSelectionWithOptions(
+  SelectionMode.Linear,
+  true,
+  ModifierKeys.SHIFT,
+);
+
+// Require Ctrl+Shift+Click
+renderer.enableSelectionWithOptions(
+  SelectionMode.Block,
+  true,
+  ModifierKeys.CONTROL.or(ModifierKeys.SHIFT),
+);
+```
+
+| Static property        | Description               |
+| ---------------------- | ------------------------- |
+| `ModifierKeys.NONE`    | No modifier keys required |
+| `ModifierKeys.SHIFT`   | Shift key                 |
+| `ModifierKeys.CONTROL` | Ctrl key                  |
+| `ModifierKeys.ALT`     | Alt / Option key          |
+| `ModifierKeys.META`    | Cmd / Windows key         |
+
+Combine with `.or()`: `ModifierKeys.SHIFT.or(ModifierKeys.ALT)`
 
 ### Enums
 
-#### SelectionMode
+**SelectionMode** — `Linear` (text flow, like a terminal) or `Block` (rectangular, like a text editor).
 
-- **`SelectionMode.Linear`**: Linear text flow selection (like normal terminals)
-- **`SelectionMode.Block`**: Rectangular block selection (like text editors)
+**MouseEventType** — `MouseDown`, `MouseUp`, `MouseMove`, `Click`, `MouseEnter`, `MouseLeave`.
 
-### Cell Data Structure
+### Helper Functions
 
-```javascript
-{
-  symbol: string,    // Single character or emoji
-  style: number,     // Style bits or CellStyle.bits
-  fg: number,        // Foreground color (0xRRGGBB)
-  bg: number         // Background color (0xRRGGBB)
-}
-```
+| Function              | Description                                               |
+| --------------------- | --------------------------------------------------------- |
+| `main()`              | Initialize the WASM module (typically imported as `init`) |
+| `style()`             | Create a new `CellStyle`                                  |
+| `cell(symbol, style)` | Create a `Cell`                                           |
 
 ### Color Format
 
-Colors are 24-bit RGB values in hex format:
+Colors are 24-bit RGB values: `0xRRGGBB`.
 
 ```javascript
 const white = 0xffffff;
-const black = 0x000000;
 const red = 0xff0000;
-const tokyoNightBg = 0x1a1b26;
+const tokyoBg = 0x1a1b26;
 ```
 
-## 🎯 Common Patterns
+## Common Patterns
 
 ### Animation Loop
 
 ```javascript
 function animate() {
   const batch = renderer.batch();
-  
-  // Update terminal content
   batch.clear(0x1a1b26);
   batch.text(0, 0, `Frame: ${Date.now()}`, style().fg(0xc0caf5));
-  
-  // Flush and render
-  batch.flush();
   renderer.render();
-  
   requestAnimationFrame(animate);
 }
 ```
@@ -254,75 +233,45 @@ function animate() {
 ### Responsive Terminal
 
 ```javascript
-window.addEventListener('resize', () => {
-  const canvas = document.getElementById('terminal');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  
-  renderer.resize(canvas.width, canvas.height);
+window.addEventListener("resize", () => {
+  renderer.resize(window.innerWidth, window.innerHeight);
   redrawTerminal();
 });
 ```
 
-### Efficient Mass Updates
+### URL Detection
 
 ```javascript
-// Use batch.text() for uniform styling (fastest)
-batch.text(0, 0, "Hello World", style().bold().fg(0x7aa2f7));
-
-// Use batch.cells() for mixed styling
-const mixedCells = [
-  [0, 1, cell("R", style().bold().fg(0xf7768e))],    // Red bold
-  [1, 1, cell("G", style().italic().fg(0x9ece6a))],  // Green italic  
-  [2, 1, cell("B", style().underline().fg(0x7aa2f7))], // Blue underline
-];
-batch.cells(mixedCells);
-```
-
-### Text Selection
-
-```javascript
-// Enable built-in selection with linear mode
-renderer.enableSelection(SelectionMode.Linear, true);
-
-// Or use custom mouse handling
 renderer.setMouseHandler((event) => {
-  console.log(`Mouse ${event.event_type} at ${event.col},${event.row}`);
+  if (event.event_type === MouseEventType.Click) {
+    const match = renderer.findUrlAt(event.col, event.row);
+    if (match) window.open(match.url, "_blank");
+  }
 });
 ```
 
-## 🎮 Examples
+## Examples
 
-Check out the [`examples/`](https://github.com/junkdog/beamterm/tree/main/js/examples) directory for complete examples:
+See the [`examples/`](https://github.com/junkdog/beamterm/tree/main/js/examples) directory:
 
-- **[Batch API Demo](https://junkdog.github.io/beamterm/api-demo/)** - Interactive demonstration of all API methods
-- **[Webpack Example](https://junkdog.github.io/beamterm/webpack/)** - Classic bundler setup
-- **[Vite + TypeScript Example](https://junkdog.github.io/beamterm/vite/)** - Modern development with HMR
+- **[Batch API Demo](https://junkdog.github.io/beamterm/api-demo/)** — interactive demonstration of all API methods
+- **[Selection Demo](https://junkdog.github.io/beamterm/selection-demo/)** — text selection, URL detection, modifier keys
+- **[Vite + TypeScript](https://junkdog.github.io/beamterm/vite/)** — modern dev setup with HMR and runtime font switching
+- **[Webpack](https://junkdog.github.io/beamterm/webpack/)** — classic bundler setup
 
-## 📊 Performance Guidelines
+## Performance Tips
 
-### Optimal Usage Patterns
+- Prefer `batch.text()` over multiple `batch.cell()` calls for strings with uniform styling
+- Use `batch.fill()` for large rectangular regions
+- Batch all updates within a single `renderer.batch()` / `renderer.render()` cycle
+- Reuse `CellStyle` objects when possible
 
-- ⚡ **`batch.text()`** - Use for strings with uniform styling (fastest)
-- 🎨 **`batch.cells()`** - Use when cells need different styles/colors
-- 📦 **`batch.fill()`** - Use for large rectangular regions
-- 🚫 **Avoid** converting uniform text to individual cells
+## License
 
-### Performance Tips
+MIT — see [LICENSE](https://github.com/junkdog/beamterm/blob/main/LICENSE) for details.
 
-- Batch all updates in a single render cycle
-- Call `batch.flush()` only once per frame
-- Prefer `batch.text()` over multiple `batch.cell()` calls
-- Reuse style objects when possible
-
-
-## 📄 License
-
-MIT License - see [LICENSE](https://github.com/junkdog/beamterm/blob/main/LICENSE) for details.
-
-## 🔗 Links
+## Links
 
 - [GitHub Repository](https://github.com/junkdog/beamterm)
 - [Live Examples](https://junkdog.github.io/beamterm/)
-- [Documentation](https://docs.rs/beamterm-renderer)
 - [Issues](https://github.com/junkdog/beamterm/issues)
