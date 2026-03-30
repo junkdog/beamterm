@@ -26,9 +26,9 @@ native-dynamic-atlas = ["dep:beamterm-rasterizer"]
 
 [dependencies]
 bitflags.workspace = true
-beamterm-data = { path = "../beamterm-data", version = "0.18.0" }
-beamterm-rasterizer = { path = "../beamterm-rasterizer", version = "0.18.0", optional = true }
-beamterm-unicode = { path = "../beamterm-unicode", version = "0.18.0" }
+beamterm-data = { path = "../beamterm-data", version = "1.0.0" }
+beamterm-rasterizer = { path = "../beamterm-rasterizer", version = "1.0.0", optional = true }
+beamterm-unicode = { path = "../beamterm-unicode", version = "1.0.0" }
 compact_str = { workspace = true }
 thiserror = { workspace = true }
 unicode-width.workspace = true

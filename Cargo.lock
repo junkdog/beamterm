@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-atlas"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-data",
  "beamterm-rasterizer",
@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-core"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-data",
  "beamterm-rasterizer",
@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-data"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "compact_str",
  "miniz_oxide 0.9.1",
@@ -268,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-rasterizer"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-data",
  "beamterm-unicode",
@@ -281,7 +281,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-renderer"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-core",
  "beamterm-data",
@@ -303,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "beamterm-unicode"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "emojis",
  "unicode-width",
@@ -1001,7 +1001,7 @@ dependencies = [
 
 [[package]]
 name = "game-console"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-core",
  "glow",
@@ -1441,7 +1441,7 @@ dependencies = [
 
 [[package]]
 name = "native-terminal"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "beamterm-core",
  "glow",
@@ -2544,7 +2544,7 @@ dependencies = [
 
 [[package]]
 name = "terminal-emulator"
-version = "0.18.0"
+version = "1.0.0"
 dependencies = [
  "arboard",
  "beamterm-core",
