@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/). See
 [SEMVER.md](SEMVER.md) for what constitutes a breaking change in beamterm.
 
+## [unreleased]
+
+### 📚 Documentation
+
+- *(renderer)* Add missing doc comments to wasm.rs
+
 ## [beamterm-v1.0.0] - 2026-03-30
 
 ### 🚀 Features
@@ -32,6 +38,7 @@ This project adheres to [Semantic Versioning](https://semver.org/). See
 - Add `include` allow-lists to all published Cargo.toml files
 - *(clippy)* Resolve new clippy warnings across all crates
 - [**breaking**] Remove deprecations (#111)
+- Release beamterm {{version}}
 
 ## [beamterm-v0.18.0] - 2026-03-27
 

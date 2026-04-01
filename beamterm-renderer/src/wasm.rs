@@ -36,6 +36,7 @@ pub struct Cell {
     bg: u32,
 }
 
+/// Builder for cell text styling (foreground/background color, bold, italic, etc.).
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct CellStyle {
@@ -44,20 +45,27 @@ pub struct CellStyle {
     style_bits: u16,
 }
 
+/// Pixel dimensions (width x height).
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Size {
+    /// Width in pixels.
     pub width: u16,
+    /// Height in pixels.
     pub height: u16,
 }
 
+/// Terminal grid dimensions in columns and rows.
 #[wasm_bindgen(js_name = "TerminalSize")]
 #[derive(Debug, Clone, Copy)]
 pub struct WasmTerminalSize {
+    /// Number of columns.
     pub cols: u16,
+    /// Number of rows.
     pub rows: u16,
 }
 
+/// Batched cell update handle for efficient bulk writes to the terminal grid.
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct Batch {
@@ -236,11 +244,13 @@ impl CellQuery {
     }
 }
 
+/// Create a new default `CellStyle`.
 #[wasm_bindgen]
 pub fn style() -> CellStyle {
     CellStyle::new()
 }
 
+/// Create a new `Cell` with the given symbol and style.
 #[wasm_bindgen]
 pub fn cell(symbol: &str, style: CellStyle) -> Cell {
     Cell {
@@ -444,6 +454,7 @@ impl Batch {
 
 #[wasm_bindgen]
 impl Cell {
+    /// Create a new cell with the given symbol and style.
     #[wasm_bindgen(constructor)]
     pub fn new(symbol: String, style: &CellStyle) -> Cell {
         Cell {
@@ -454,41 +465,49 @@ impl Cell {
         }
     }
 
+    /// The cell's text symbol.
     #[wasm_bindgen(getter)]
     pub fn symbol(&self) -> String {
         self.symbol.to_string()
     }
 
+    /// Set the cell's text symbol.
     #[wasm_bindgen(setter)]
     pub fn set_symbol(&mut self, symbol: String) {
         self.symbol = symbol.into();
     }
 
+    /// The foreground color as a 24-bit RGB value.
     #[wasm_bindgen(getter)]
     pub fn fg(&self) -> u32 {
         self.fg
     }
 
+    /// Set the foreground color as a 24-bit RGB value.
     #[wasm_bindgen(setter)]
     pub fn set_fg(&mut self, color: u32) {
         self.fg = color;
     }
 
+    /// The background color as a 24-bit RGB value.
     #[wasm_bindgen(getter)]
     pub fn bg(&self) -> u32 {
         self.bg
     }
 
+    /// Set the background color as a 24-bit RGB value.
     #[wasm_bindgen(setter)]
     pub fn set_bg(&mut self, color: u32) {
         self.bg = color;
     }
 
+    /// The glyph style bits (bold, italic, underline, strikethrough).
     #[wasm_bindgen(getter)]
     pub fn style(&self) -> u16 {
         self.style
     }
 
+    /// Set the glyph style bits.
     #[wasm_bindgen(setter)]
     pub fn set_style(&mut self, style: u16) {
         self.style = style;
@@ -496,6 +515,7 @@ impl Cell {
 }
 
 impl Cell {
+    /// Convert to the internal `CellData` representation.
     pub fn as_cell_data(&self) -> CellData<'_> {
         CellData::new_with_style_bits(&self.symbol, self.style, self.fg, self.bg)
     }

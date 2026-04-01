@@ -25,7 +25,14 @@ mod terminal;
 
 pub(crate) mod js;
 
+/// JavaScript/WASM bindings for the terminal renderer.
 #[cfg(feature = "js-api")]
+#[allow(
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::missing_errors_doc,
+    clippy::needless_pass_by_value
+)]
 pub mod wasm;
 
 pub mod mouse;
