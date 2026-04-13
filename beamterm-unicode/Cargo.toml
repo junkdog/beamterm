@@ -20,7 +20,7 @@ homepage.workspace = true
 unicode-width.workspace = true
 
 [dev-dependencies]
-emojis = "0.8.0"
+emojis = "0.8.1"
 
 [lints]
 workspace = true
