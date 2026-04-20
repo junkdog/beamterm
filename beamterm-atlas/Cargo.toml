@@ -23,7 +23,7 @@ categories.workspace = true
 beamterm-data = { path = "../beamterm-data", version = "1.0.0" }
 beamterm-rasterizer = { path = "../beamterm-rasterizer", version = "1.0.0" }
 beamterm-unicode = { path = "../beamterm-unicode", version = "1.0.0" }
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 color-eyre = "0.6.5"
 directories = "6.0.0"
 tracing = "0.1.44"
