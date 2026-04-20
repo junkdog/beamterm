@@ -28,7 +28,7 @@ color-eyre = "0.6.5"
 directories = "6.0.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
-tracing-appender = "0.2.4"
+tracing-appender = "0.2.5"
 unicode-segmentation = { workspace = true }
 compact_str.workspace = true
 unicode-width.workspace = true
