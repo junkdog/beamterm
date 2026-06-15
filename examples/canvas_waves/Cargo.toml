@@ -8,6 +8,10 @@ publish = false
 ratzilla = { git = "https://github.com/orhun/ratzilla", branch = "main" }
 # ratzilla = { path = "../../../ratzilla" }
 console_error_panic_hook = "0.1.7"
+# ratatui_core (via ratzilla/tachyonfx) needs a registered critical-section impl
+# on wasm32; the std impl provides it. Without this the wasm link fails with
+# `undefined symbol: _critical_section_1_0_acquire`.
+critical-section = { version = "1.1", features = ["std"] }
 tachyonfx = { version = "0.25.0", default-features = false, features = ["wasm"] }
 web-time = "1.1.0"
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
