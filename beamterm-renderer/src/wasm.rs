@@ -370,7 +370,13 @@ impl Batch {
         }
     }
 
-    /// Write text to the terminal
+    /// Write text to the terminal.
+    ///
+    /// When the atlas has a ligature shaper configured (see
+    /// [`setFontBytes`](BeamtermRenderer::set_font_bytes)) and the font ligates,
+    /// the run is segmented so sequences like `=>`, `->`, `===` and `<==>` render
+    /// as single multi-cell ligature glyphs. Otherwise the run is written
+    /// grapheme-by-grapheme as before.
     #[wasm_bindgen(js_name = "text")]
     pub fn text(&mut self, x: u16, y: u16, text: &str, style: &CellStyle) -> Result<(), JsValue> {
         let mut terminal_grid = self.terminal_grid.borrow_mut();
@@ -378,6 +384,30 @@ impl Batch {
 
         if y >= ts.rows {
             return Ok(()); // oob, ignore
+        }
+
+        // ligature-aware path: segment the run and place ligatures as wide glyphs
+        if let Some(segments) = terminal_grid.segment_run(text) {
+            let mut col = x;
+            for seg in segments {
+                if col >= ts.cols {
+                    break;
+                }
+                let sub = &text[seg.start..seg.start + seg.len];
+                let cell = CellData::new_with_style_bits(sub, style.style_bits, style.fg, style.bg);
+                if seg.cells >= 3 {
+                    terminal_grid
+                        .place_ligature(col, y, cell, seg.cells)
+                        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                } else {
+                    // 1- or 2-cell: the wide path handles 2-char ligatures
+                    terminal_grid
+                        .update_cell(col, y, cell)
+                        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                }
+                col += seg.cells as u16;
+            }
+            return Ok(());
         }
 
         let mut col_offset: u16 = 0;
@@ -615,6 +645,25 @@ impl BeamtermRenderer {
             .build()?;
 
         Ok(BeamtermRenderer { terminal })
+    }
+
+    /// Enable programming ligatures by supplying the active font's raw bytes.
+    ///
+    /// `font_bytes` must be raw TrueType/OpenType (sfnt) data. WOFF/WOFF2 must be
+    /// decompressed first (the `@beamterm/renderer` JS package provides a helper).
+    /// The bytes must match the font passed to [`withDynamicAtlas`](Self::with_dynamic_atlas).
+    ///
+    /// Ligatures (`=>`, `->`, `===`, `<==>`, …) activate automatically when the
+    /// font advertises them. Re-call after
+    /// [`replaceWithDynamicAtlas`](Self::replace_with_dynamic_atlas) on font change.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes cannot be parsed as a font face.
+    #[wasm_bindgen(js_name = "setFontBytes")]
+    pub fn set_font_bytes(&mut self, font_bytes: &[u8]) -> Result<(), JsValue> {
+        self.terminal
+            .set_font_bytes(font_bytes)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Enable default mouse selection behavior with built-in copy to clipboard

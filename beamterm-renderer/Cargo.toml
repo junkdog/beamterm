@@ -88,7 +88,13 @@ features = [
 ]
 
 [features]
+# Ligature shaping (pulls rustybuzz via beamterm-core). Optional so that
+# renderer consumers that don't need it (e.g. the demo examples) don't compile
+# rustybuzz. Enabled by `js-api` since the browser package ships ligatures.
+ligatures = ["beamterm-core/ligatures"]
 js-api = [
+    "ligatures",
+
     "compact_str/serde",
 
     "dep:serde",

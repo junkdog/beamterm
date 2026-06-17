@@ -11,6 +11,8 @@ mod native_dynamic_atlas;
 mod program;
 pub(crate) mod renderer;
 pub(crate) mod selection;
+#[cfg(feature = "ligatures")]
+pub(crate) mod shaper;
 pub(crate) mod static_atlas;
 pub(crate) mod terminal_grid;
 pub(crate) mod texture;
@@ -18,7 +20,7 @@ mod ubo;
 
 // Primary API re-exports
 // Re-exports for sibling crates (beamterm-renderer)
-pub use atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker, sealed};
+pub use atlas::{Atlas, FontAtlas, GlyphSlot, GlyphTracker, ShapedSegment, sealed};
 // Crate-internal re-exports
 use buffer::*;
 pub use cell_query::{CellIterator, CellQuery, SelectionMode, select};
@@ -28,6 +30,7 @@ pub use context::GlState;
 /// [`NativeDynamicAtlas`] type alias instead.
 #[doc(hidden)]
 pub use dynamic_atlas::DynamicFontAtlas;
+pub use glyph_cache::MAX_LIGATURE_CELLS;
 /// Internal trait — not covered by semver guarantees.
 /// Use pre-built implementations ([`NativeGlyphRasterizer`] or `CanvasRasterizer`) instead.
 #[doc(hidden)]
@@ -37,6 +40,8 @@ pub use native_dynamic_atlas::{NativeDynamicAtlas, NativeGlyphRasterizer};
 pub(crate) use program::*;
 pub use renderer::{Drawable, RenderContext};
 pub use selection::SelectionTracker;
+#[cfg(feature = "ligatures")]
+pub use shaper::{Shaper, ShaperError};
 pub use static_atlas::StaticFontAtlas;
 pub use terminal_grid::{CellData, CellDynamic, TerminalGrid};
 /// internal type; not covered by semver guarantees.

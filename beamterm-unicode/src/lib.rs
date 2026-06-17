@@ -20,8 +20,12 @@ pub fn is_emoji(s: &str) -> bool {
 
     // ASCII (1 byte, U+0000–U+007F): single ASCII is never emoji, but
     // multi-codepoint sequences starting with ASCII can be (e.g. keycap "1️⃣").
+    // Such sequences always carry a non-ASCII continuation (U+FE0F / U+20E3);
+    // a pure-ASCII run is never emoji. Without the non-ASCII guard, a 2-char
+    // ligature substring like "->" or "==" (len > 1, width 2) is misclassified
+    // as emoji and gets the texture-color flag, rendering white instead of fg.
     if first_byte < 0x80 {
-        return s.len() > 1 && s.width() >= 2;
+        return s.len() > 1 && s.width() >= 2 && bytes.iter().any(|&b| b >= 0x80);
     }
 
     // 2-byte UTF-8 (U+0080–U+07FF): no emoji exist in this range.
@@ -147,6 +151,21 @@ mod tests {
         // Not emoji
         assert!(!is_emoji("A"));
         assert!(!is_emoji("\u{2588}"));
+
+        // ASCII-led keycap sequences (digit + U+FE0F + U+20E3) ARE emoji.
+        assert!(is_emoji("1\u{FE0F}\u{20E3}"));
+        assert!(is_emoji("#\u{FE0F}\u{20E3}"));
+
+        // Pure-ASCII ligature substrings are NOT emoji, even though they are
+        // multi-char and width 2 — regression guard for ligatures rendering
+        // white (Emoji slot sets the texture-color flag instead of tinting fg).
+        assert!(!is_emoji("->"));
+        assert!(!is_emoji("=>"));
+        assert!(!is_emoji("<-"));
+        assert!(!is_emoji("=="));
+        assert!(!is_emoji("&&"));
+        assert!(!is_emoji("|>"));
+        assert!(!is_emoji("::"));
     }
 
     #[test]

@@ -10,7 +10,7 @@ use lru::LruCache;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    gl::atlas::{GlyphSlot, SlotId},
+    gl::atlas::{GLYPH_SLOT_MASK, GlyphSlot, SlotId},
     is_emoji,
 };
 
@@ -22,6 +22,40 @@ pub(crate) const NORMAL_CAPACITY: usize = 2048;
 /// Double-width glyphs: slots 2048..6144 (2048 glyphs x 2 slots each)
 pub(crate) const WIDE_CAPACITY: usize = 2048;
 const WIDE_BASE: SlotId = NORMAL_CAPACITY as SlotId;
+
+/// Smallest ligature width handled by the dedicated ligature pools.
+///
+/// Two-cell ligatures reuse the [wide region](GlyphCache::wide) (same stride),
+/// so the pools only cover widths 3..=[`MAX_LIGATURE_CELLS`].
+pub(crate) const MIN_LIGATURE_CELLS: u8 = 3;
+/// Largest ligature width that can be stored as a single multi-cell glyph.
+pub const MAX_LIGATURE_CELLS: u8 = 8;
+/// Number of size-classed ligature pools (one per width 3..=8).
+const NUM_LIGATURE_POOLS: usize = (MAX_LIGATURE_CELLS - MIN_LIGATURE_CELLS + 1) as usize;
+
+/// First slot of the ligature region (immediately after the wide region).
+const LIGATURE_BASE: SlotId = (NORMAL_CAPACITY + WIDE_CAPACITY * 2) as SlotId;
+/// Glyph capacity per ligature pool, indexed by `width - MIN_LIGATURE_CELLS`.
+///
+/// Width-3 ligatures are the most common (`===`, `!==`, `>>=`, `...`); wider
+/// ones are rarer, so capacity tapers off. Total slots consumed:
+/// `sum(cap[w] * width[w])` must stay within the 13-bit (8192-slot) address space.
+const LIGATURE_POOL_GLYPHS: [SlotId; NUM_LIGATURE_POOLS] = [96, 64, 48, 40, 32, 24];
+
+/// One-past-the-last texture slot used by any region.
+///
+/// The dynamic atlas texture must allocate enough layers to cover this many
+/// slots. Derived from the region layout so the texture and the cache cannot
+/// drift apart.
+pub(crate) const TOTAL_SLOTS: SlotId = {
+    let mut total = LIGATURE_BASE;
+    let mut i = 0;
+    while i < NUM_LIGATURE_POOLS {
+        total += LIGATURE_POOL_GLYPHS[i] * (i as SlotId + MIN_LIGATURE_CELLS as SlotId);
+        i += 1;
+    }
+    total
+};
 
 /// Emoji flag for the dynamic atlas (bit 15).
 ///
@@ -42,19 +76,100 @@ pub(crate) struct GlyphCache {
     normal: LruCache<CacheKey, GlyphSlot>,
     /// LRU for double-width glyphs
     wide: LruCache<CacheKey, GlyphSlot>,
+    /// Size-classed LRU pools for ligatures spanning 3..=8 cells.
+    ligature: [LruCache<CacheKey, GlyphSlot>; NUM_LIGATURE_POOLS],
     /// Next slot in normal region (0-2047)
     normal_next: SlotId,
     /// Next index in wide region (starts at 2048)
     wide_next: SlotId,
+    /// Next slot in each ligature pool.
+    ligature_next: [SlotId; NUM_LIGATURE_POOLS],
+    /// First slot of each ligature pool.
+    ligature_base: [SlotId; NUM_LIGATURE_POOLS],
+    /// One-past-the-last slot of each ligature pool.
+    ligature_end: [SlotId; NUM_LIGATURE_POOLS],
 }
 
 impl GlyphCache {
     pub(crate) fn new() -> Self {
+        let mut ligature_base = [0; NUM_LIGATURE_POOLS];
+        let mut ligature_end = [0; NUM_LIGATURE_POOLS];
+        let mut base = LIGATURE_BASE;
+        for pool in 0..NUM_LIGATURE_POOLS {
+            let width = pool as SlotId + MIN_LIGATURE_CELLS as SlotId;
+            ligature_base[pool] = base;
+            base += LIGATURE_POOL_GLYPHS[pool] * width;
+            ligature_end[pool] = base;
+        }
+        debug_assert!(
+            u32::from(base) <= GLYPH_SLOT_MASK + 1,
+            "ligature region overflows slot address space"
+        );
+
         Self {
             normal: LruCache::unbounded(),
             wide: LruCache::unbounded(),
+            ligature: std::array::from_fn(|_| LruCache::unbounded()),
             normal_next: ASCII_SLOTS,
             wide_next: WIDE_BASE,
+            ligature_next: ligature_base,
+            ligature_base,
+            ligature_end,
+        }
+    }
+
+    /// Gets the slot for a ligature glyph of the given cell width, marking it
+    /// recently used. `cells` must be in `MIN_LIGATURE_CELLS..=MAX_LIGATURE_CELLS`.
+    pub(crate) fn get_ligature(
+        &mut self,
+        key: &str,
+        style: FontStyle,
+        cells: u8,
+    ) -> Option<GlyphSlot> {
+        let pool = Self::ligature_pool(cells)?;
+        let cache_key = (CompactString::new(key), style);
+        self.ligature[pool].get(&cache_key).copied()
+    }
+
+    /// Inserts a ligature glyph spanning `cells` cells, returning its slot and
+    /// the evicted key (if any). Allocates `cells` consecutive slots.
+    pub(crate) fn insert_ligature(
+        &mut self,
+        key: &str,
+        style: FontStyle,
+        cells: u8,
+    ) -> Option<(GlyphSlot, Option<CacheKey>)> {
+        let pool = Self::ligature_pool(cells)?;
+        let cache_key = (CompactString::new(key), style);
+
+        if let Some(&slot) = self.ligature[pool].get(&cache_key) {
+            return Some((slot, None));
+        }
+
+        let width = cells as SlotId;
+        let (idx, evicted) = if self.ligature_next[pool] + width <= self.ligature_end[pool] {
+            let idx = self.ligature_next[pool];
+            self.ligature_next[pool] += width;
+            (idx, None)
+        } else {
+            let (evicted_key, evicted_slot) = self.ligature[pool]
+                .pop_lru()
+                .expect("ligature pool should not be empty when full");
+            (evicted_slot.slot_id(), Some(evicted_key))
+        };
+
+        let slot = GlyphSlot::Ligature(idx, cells);
+        self.ligature[pool].put(cache_key, slot);
+        Some((slot, evicted))
+    }
+
+    /// Returns the pool index for a ligature of the given width, or `None` if
+    /// the width is outside the supported ligature range.
+    fn ligature_pool(cells: u8) -> Option<usize> {
+        if (MIN_LIGATURE_CELLS..=MAX_LIGATURE_CELLS).contains(&cells) {
+            Some((cells - MIN_LIGATURE_CELLS) as usize)
+        } else {
+            None
         }
     }
 
@@ -167,16 +282,26 @@ impl GlyphCache {
 
     /// Returns total number of cached glyphs.
     pub(crate) fn len(&self) -> usize {
-        self.normal.len() + self.wide.len()
+        self.normal.len()
+            + self.wide.len()
+            + self
+                .ligature
+                .iter()
+                .map(LruCache::len)
+                .sum::<usize>()
     }
 
     /// Clears all cached glyphs.
     pub(crate) fn clear(&mut self) {
         self.normal.clear();
         self.wide.clear();
+        for pool in &mut self.ligature {
+            pool.clear();
+        }
 
         self.normal_next = ASCII_SLOTS;
         self.wide_next = WIDE_BASE;
+        self.ligature_next = self.ligature_base;
     }
 }
 
@@ -327,6 +452,55 @@ mod tests {
             cache.get("A", FontStyle::Bold),
             Some(GlyphSlot::Normal(FIRST_NORMAL_SLOT))
         );
+    }
+
+    #[test]
+    fn test_ligature_pools_are_width_classed() {
+        let mut cache = GlyphCache::new();
+
+        let (s3, _) = cache.insert_ligature("===", S, 3).unwrap();
+        let (s3b, _) = cache.insert_ligature("!==", S, 3).unwrap();
+        let (s4, _) = cache.insert_ligature("<==>", S, 4).unwrap();
+
+        // width-3 pool: consecutive entries are `width` slots apart
+        assert!(matches!(s3, GlyphSlot::Ligature(_, 3)));
+        assert_eq!(s3b.slot_id(), s3.slot_id() + 3);
+        // width-4 lives in a different pool, after the width-3 region
+        assert!(matches!(s4, GlyphSlot::Ligature(_, 4)));
+        assert!(s4.slot_id() >= LIGATURE_BASE);
+
+        // lookups round-trip
+        assert_eq!(cache.get_ligature("===", S, 3), Some(s3));
+        assert_eq!(cache.get_ligature("<==>", S, 4), Some(s4));
+        // wrong width class doesn't find it
+        assert_eq!(cache.get_ligature("===", S, 4), None);
+    }
+
+    #[test]
+    fn test_ligature_width_out_of_range() {
+        let mut cache = GlyphCache::new();
+        // width 2 is handled by the wide region, not the ligature pools
+        assert!(cache.insert_ligature("=>", S, 2).is_none());
+        // width 9 exceeds MAX_LIGATURE_CELLS
+        assert!(cache.insert_ligature("=========", S, 9).is_none());
+    }
+
+    #[test]
+    fn test_ligature_eviction_reuses_slots() {
+        let mut cache = GlyphCache::new();
+        let cap = LIGATURE_POOL_GLYPHS[0] as usize; // width-3 pool capacity
+
+        // fill the width-3 pool exactly
+        for i in 0..cap {
+            let (_, evicted) = cache
+                .insert_ligature(&format!("l3-{i}"), S, 3)
+                .unwrap();
+            assert!(evicted.is_none(), "no eviction while filling");
+        }
+        // next insert must evict the LRU entry and reuse its slot
+        let (slot, evicted) = cache.insert_ligature("overflow", S, 3).unwrap();
+        assert_eq!(evicted, Some((CompactString::new("l3-0"), S)));
+        assert!(matches!(slot, GlyphSlot::Ligature(_, 3)));
     }
 
     #[test]

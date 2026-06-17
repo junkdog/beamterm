@@ -103,6 +103,33 @@ Swap the font atlas at runtime. Existing cell content is preserved and translate
 | `replaceWithDynamicAtlas(fontFamilies, fontSize)` | Switch to a dynamic atlas with the given fonts                |
 | `replaceWithStaticAtlas(atlasData?)`              | Switch to a static atlas (`Uint8Array` or `null` for default) |
 
+#### Ligatures
+
+Programming ligatures (`=>`, `->`, `!=`, `===`, `<==>`, …) render when the active
+font ships ligature tables (Fira Code, JetBrains Mono, Cascadia Code, Monaspace Neon)
+and you supply the font's raw bytes so beamterm can shape text runs.
+
+| Method                       | Description                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `setFontBytes(fontBytes)`    | Enable ligatures from the active font's raw **sfnt** (`.ttf`/`.otf`) bytes (`Uint8Array`)   |
+
+Notes:
+
+- The bytes must be raw TrueType/OpenType. **WOFF/WOFF2 must be decompressed to sfnt first**
+  (`setFontBytes` rejects compressed containers). Use a small woff2 decoder, or fetch a `.ttf`.
+- The bytes must match the font passed to `withDynamicAtlas`. Ligatures activate automatically
+  when the font advertises them — there is no separate on/off flag.
+- Re-call `setFontBytes` after `replaceWithDynamicAtlas` when the font changes.
+- Only the dynamic atlas supports ligatures (the static atlas is pre-rasterized).
+
+```javascript
+const renderer = BeamtermRenderer.withDynamicAtlas('#terminal', ['Fira Code'], 16.0);
+
+// `fontBytes` is a Uint8Array of raw .ttf/.otf data (decompress woff2 beforehand)
+const fontBytes = new Uint8Array(await (await fetch('/fonts/FiraCode-Regular.ttf')).arrayBuffer());
+renderer.setFontBytes(fontBytes);
+```
+
 #### Selection & Mouse
 
 | Method                                                        | Description                                                                 |

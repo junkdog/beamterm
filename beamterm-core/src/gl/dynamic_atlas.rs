@@ -5,7 +5,9 @@ use compact_str::{CompactString, ToCompactString};
 
 use super::{
     atlas::{self, Atlas, GlyphSlot, GlyphTracker},
-    glyph_cache::{ASCII_SLOTS, DYNAMIC_EMOJI_FLAG, GlyphCache, NORMAL_CAPACITY, WIDE_CAPACITY},
+    glyph_cache::{
+        ASCII_SLOTS, DYNAMIC_EMOJI_FLAG, GlyphCache, NORMAL_CAPACITY, TOTAL_SLOTS, WIDE_CAPACITY,
+    },
     glyph_rasterizer::GlyphRasterizer,
     texture::{RasterizedGlyph, Texture},
 };
@@ -13,10 +15,12 @@ use crate::Error;
 
 /// Glyphs per layer (1x32 vertical grid)
 const GLYPHS_PER_LAYER: usize = 32;
-/// Total number of glyph slots (2048 normal + 4096 wide = 2048 double-width glyphs)
-const TOTAL_SLOTS: usize = 6144;
-/// Number of texture layers in the atlas
-const NUM_LAYERS: i32 = (TOTAL_SLOTS / GLYPHS_PER_LAYER) as i32; // 192 layers
+/// Number of texture layers in the atlas.
+///
+/// Sized to cover every slot region (normal + wide + ligature pools), rounded
+/// up to a whole number of layers. [`TOTAL_SLOTS`] is derived from the cache
+/// region layout, so the texture grows automatically if the pools change.
+const NUM_LAYERS: i32 = (TOTAL_SLOTS as usize).div_ceil(GLYPHS_PER_LAYER) as i32;
 
 /// A dynamic texture atlas that rasterizes font glyphs on demand.
 ///
@@ -42,6 +46,10 @@ pub struct DynamicFontAtlas<R: GlyphRasterizer> {
     debug_space_pattern: Option<DebugSpacePattern>,
     base_font_size: f32,
     pixel_ratio: f32,
+    /// Optional ligature shaper; when present (and the font ligates) text runs
+    /// are segmented into multi-cell ligature glyphs.
+    #[cfg(feature = "ligatures")]
+    shaper: Option<super::shaper::Shaper>,
 }
 
 impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
@@ -98,10 +106,22 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
             debug_space_pattern,
             base_font_size,
             pixel_ratio,
+            #[cfg(feature = "ligatures")]
+            shaper: None,
         };
         atlas.upload_ascii_glyphs(gl)?;
 
         Ok(atlas)
+    }
+
+    /// Sets (or clears) the ligature shaper used to segment text runs.
+    ///
+    /// When a shaper is configured and its font advertises ligatures,
+    /// [`segment_run`](Atlas::segment_run) groups adjacent characters into
+    /// multi-cell ligature glyphs.
+    #[cfg(feature = "ligatures")]
+    pub fn set_shaper(&mut self, shaper: Option<super::shaper::Shaper>) {
+        self.shaper = shaper;
     }
 
     fn upload_ascii_glyphs(&mut self, gl: &glow::Context) -> Result<(), Error> {
@@ -161,20 +181,34 @@ impl<R: GlyphRasterizer> DynamicFontAtlas<R> {
                 std::borrow::Cow::Borrowed(glyph_data)
             };
 
-            if pending_glyph.slot.is_double_width() {
-                let (left, right) = split_double_width_glyph(&glyph_data, cell_w, cell_h);
-                let slot_id = pending_glyph.slot.slot_id() & DYNAMIC_EMOJI_FLAG.not();
-                self.texture
-                    .upload_glyph(gl, slot_id, padded_cell_size, &left)?;
-                self.texture
-                    .upload_glyph(gl, slot_id + 1, padded_cell_size, &right)?;
-            } else {
-                self.texture.upload_glyph(
-                    gl,
-                    pending_glyph.slot.slot_id(),
-                    padded_cell_size,
-                    &glyph_data,
-                )?;
+            match pending_glyph.slot {
+                GlyphSlot::Wide(_) | GlyphSlot::Emoji(_) => {
+                    let (left, right) = split_double_width_glyph(&glyph_data, cell_w, cell_h);
+                    let slot_id = pending_glyph.slot.slot_id() & DYNAMIC_EMOJI_FLAG.not();
+                    self.texture
+                        .upload_glyph(gl, slot_id, padded_cell_size, &left)?;
+                    self.texture
+                        .upload_glyph(gl, slot_id + 1, padded_cell_size, &right)?;
+                },
+                GlyphSlot::Ligature(slot_id, cells) => {
+                    let pieces = split_glyph_n(&glyph_data, cell_w, cell_h, cells);
+                    for (i, piece) in pieces.iter().enumerate() {
+                        self.texture.upload_glyph(
+                            gl,
+                            slot_id + i as u16,
+                            padded_cell_size,
+                            piece,
+                        )?;
+                    }
+                },
+                GlyphSlot::Normal(_) => {
+                    self.texture.upload_glyph(
+                        gl,
+                        pending_glyph.slot.slot_id(),
+                        padded_cell_size,
+                        &glyph_data,
+                    )?;
+                },
             }
         }
 
@@ -303,6 +337,65 @@ impl<R: GlyphRasterizer> Atlas for DynamicFontAtlas<R> {
         Some(slot.with_styling(styling))
     }
 
+    #[cfg(feature = "ligatures")]
+    fn segment_run(&self, text: &str) -> Option<Vec<atlas::ShapedSegment>> {
+        let shaper = self.shaper.as_ref()?;
+        if !shaper.has_ligatures() {
+            return None;
+        }
+        // only worth segmenting if at least one ligature forms
+        let segments = shaper.segment(text);
+        if !segments.iter().any(|s| s.cells >= 2) {
+            return None;
+        }
+        Some(
+            segments
+                .into_iter()
+                .map(|s| atlas::ShapedSegment { start: s.start, len: s.len, cells: s.cells })
+                .collect(),
+        )
+    }
+
+    fn resolve_ligature_slot(
+        &mut self,
+        key: &str,
+        style_bits: u16,
+        cells: u8,
+    ) -> Option<GlyphSlot> {
+        // two-cell ligatures resolve via the regular wide path
+        if cells < 3 {
+            return self.resolve_glyph_slot(key, style_bits);
+        }
+
+        let font_variant = FontStyle::from_u16(style_bits & FontStyle::MASK).ok()?;
+        let styling = style_bits & (Glyph::STRIKETHROUGH_FLAG | Glyph::UNDERLINE_FLAG);
+
+        if let Some(slot) = self.cache.get_ligature(key, font_variant, cells) {
+            return Some(slot.with_styling(styling));
+        }
+
+        let (slot, _evicted) = self
+            .cache
+            .insert_ligature(key, font_variant, cells)?;
+        self.symbol_lookup
+            .insert(slot.slot_id(), CompactString::new(key));
+        self.glyphs_pending_upload.add(PendingGlyph {
+            slot,
+            key: CompactString::new(key),
+            style: font_variant,
+        });
+
+        Some(slot.with_styling(styling))
+    }
+
+    #[cfg(feature = "ligatures")]
+    fn set_font_shaper_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        let shaper =
+            super::shaper::Shaper::from_bytes(bytes).map_err(|e| Error::Resource(e.to_string()))?;
+        self.shaper = Some(shaper);
+        Ok(())
+    }
+
     fn emoji_bit(&self) -> u32 {
         15
     }
@@ -379,7 +472,11 @@ impl PendingUploads {
     fn add(&mut self, glyph: PendingGlyph) {
         match glyph.slot {
             GlyphSlot::Normal(_) => self.normal.push(glyph),
-            GlyphSlot::Wide(_) | GlyphSlot::Emoji(_) => self.wide.push(glyph),
+            // multi-cell glyphs (wide CJK/emoji and N-cell ligatures) share the
+            // wide upload queue; each is split into its cell pieces on upload
+            GlyphSlot::Wide(_) | GlyphSlot::Emoji(_) | GlyphSlot::Ligature(..) => {
+                self.wide.push(glyph);
+            },
         }
     }
 
@@ -527,6 +624,95 @@ fn split_double_width_glyph(
         RasterizedGlyph::new(left_pixels, cell_w, cell_h),
         RasterizedGlyph::new(right_pixels, cell_w, cell_h),
     )
+}
+
+/// Splits a glyph spanning `cells` cells into `cells` consecutive `cell_w` × `cell_h`
+/// pieces.
+///
+/// Generalizes [`split_double_width_glyph`] to N cells: the source content
+/// (`glyph.width - 2 * padding`) is divided into `cells` equal parts. The first
+/// piece keeps the source's left padding, the last keeps the right padding, and
+/// every split edge between cells is zero-padded — matching the two-cell scheme
+/// so the shader's per-cell sampling reproduces a seamless glyph.
+fn split_glyph_n(
+    glyph: &RasterizedGlyph,
+    cell_w: u32,
+    cell_h: u32,
+    cells: u8,
+) -> Vec<RasterizedGlyph> {
+    let cells = cells as usize;
+    let bytes_per_pixel = 4usize;
+    let padding = FontAtlasData::PADDING as usize;
+    let dst_content_w = (cell_w as usize).saturating_sub(2 * padding);
+
+    let src_row_stride = glyph.width as usize * bytes_per_pixel;
+    let dst_row_stride = cell_w as usize * bytes_per_pixel;
+    let src_content_start = padding;
+    let src_content_width = (glyph.width as usize).saturating_sub(2 * padding);
+
+    // partition the source content into `cells` parts (remainder spread over the
+    // first parts so the totals match the source width exactly)
+    let base = src_content_width / cells;
+    let extra = src_content_width % cells;
+    let part_width = |i: usize| base + usize::from(i < extra);
+    let part_offset = |i: usize| base * i + extra.min(i);
+
+    let copy_px = |dst: &mut [u8], dst_idx: usize, src_idx: usize| {
+        if src_idx + 4 <= glyph.pixels.len() && dst_idx + 4 <= dst.len() {
+            dst[dst_idx..dst_idx + 4].copy_from_slice(&glyph.pixels[src_idx..src_idx + 4]);
+        }
+    };
+
+    let mut pieces = Vec::with_capacity(cells);
+    for i in 0..cells {
+        let mut dst_pixels = vec![0u8; (cell_w * cell_h) as usize * bytes_per_pixel];
+        let content_width = part_width(i).min(dst_content_w);
+        let content_off = part_offset(i);
+
+        for row in 0..cell_h.min(glyph.height) as usize {
+            let src_row = row * src_row_stride;
+            let dst_row = row * dst_row_stride;
+
+            // leftmost piece preserves the source's left padding
+            if i == 0 {
+                for col in 0..padding {
+                    copy_px(
+                        &mut dst_pixels,
+                        dst_row + col * bytes_per_pixel,
+                        src_row + col * bytes_per_pixel,
+                    );
+                }
+            }
+
+            // content for this cell, placed after the destination's left padding
+            for col in 0..content_width {
+                let src_col = src_content_start + content_off + col;
+                let dst_col = padding + col;
+                copy_px(
+                    &mut dst_pixels,
+                    dst_row + dst_col * bytes_per_pixel,
+                    src_row + src_col * bytes_per_pixel,
+                );
+            }
+
+            // rightmost piece preserves the source's right padding
+            if i == cells - 1 {
+                for col in 0..padding {
+                    let src_col = glyph.width as usize - padding + col;
+                    let dst_col = cell_w as usize - padding + col;
+                    copy_px(
+                        &mut dst_pixels,
+                        dst_row + dst_col * bytes_per_pixel,
+                        src_row + src_col * bytes_per_pixel,
+                    );
+                }
+            }
+        }
+
+        pieces.push(RasterizedGlyph::new(dst_pixels, cell_w, cell_h));
+    }
+
+    pieces
 }
 
 #[cfg(test)]

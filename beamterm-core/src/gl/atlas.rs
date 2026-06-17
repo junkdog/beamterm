@@ -100,6 +100,47 @@ pub trait Atlas: sealed::Sealed {
     /// rendering to populate the texture.
     fn resolve_glyph_slot(&mut self, key: &str, style_bits: u16) -> Option<GlyphSlot>;
 
+    /// Segments a horizontal text run into ligature-aware spans.
+    ///
+    /// Returns `None` when the atlas has no ligature shaper configured (the
+    /// caller should then render the run grapheme-by-grapheme as usual). When
+    /// `Some`, the returned segments cover the run left-to-right with no gaps;
+    /// segments with `cells >= 2` are ligatures.
+    ///
+    /// The default implementation returns `None`.
+    fn segment_run(&self, _text: &str) -> Option<Vec<ShapedSegment>> {
+        None
+    }
+
+    /// Resolves a multi-cell ligature glyph spanning `cells` cells.
+    ///
+    /// Used for ligatures of three or more cells; two-cell ligatures resolve via
+    /// [`resolve_glyph_slot`](Self::resolve_glyph_slot) (the wide path). Returns
+    /// `None` when the atlas does not support ligatures.
+    ///
+    /// The default implementation returns `None`.
+    fn resolve_ligature_slot(
+        &mut self,
+        _key: &str,
+        _style_bits: u16,
+        _cells: u8,
+    ) -> Option<GlyphSlot> {
+        None
+    }
+
+    /// Configures ligature shaping from raw sfnt (TrueType/OpenType) font bytes.
+    ///
+    /// Enables [`segment_run`](Self::segment_run) when the font advertises
+    /// ligatures. The bytes must match the font the atlas rasterizes with.
+    ///
+    /// The default implementation is a no-op (atlases without ligature support).
+    ///
+    /// # Errors
+    /// Returns an error if the bytes cannot be parsed as a font face.
+    fn set_font_shaper_bytes(&mut self, _bytes: &[u8]) -> Result<(), Error> {
+        Ok(())
+    }
+
     /// Returns the bit position used for emoji detection in the fragment shader.
     ///
     /// The glyph ID encodes the base slot index (bits 0-12, masked by `0x1FFF`)
@@ -257,6 +298,31 @@ impl FontAtlas {
         self.inner.resolve_glyph_slot(key, style_bits)
     }
 
+    /// Segments a text run into ligature-aware spans, or `None` if unsupported.
+    #[must_use]
+    pub fn segment_run(&self, text: &str) -> Option<Vec<ShapedSegment>> {
+        self.inner.segment_run(text)
+    }
+
+    /// Resolves a multi-cell ligature glyph spanning `cells` cells.
+    pub fn resolve_ligature_slot(
+        &mut self,
+        key: &str,
+        style_bits: u16,
+        cells: u8,
+    ) -> Option<GlyphSlot> {
+        self.inner
+            .resolve_ligature_slot(key, style_bits, cells)
+    }
+
+    /// Configures ligature shaping from raw sfnt font bytes.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes cannot be parsed as a font face.
+    pub fn set_font_shaper_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.inner.set_font_shaper_bytes(bytes)
+    }
+
     /// Flushes pending glyph data to the GPU texture.
     ///
     /// # Errors
@@ -316,6 +382,11 @@ pub enum GlyphSlot {
     Wide(SlotId),
     /// Emoji glyph slot (occupies two consecutive texture slots).
     Emoji(SlotId),
+    /// Ligature glyph spanning three or more cells (e.g. `===`, `<==>`).
+    ///
+    /// Occupies `cells` consecutive texture slots (`id`, `id + 1`, … ,
+    /// `id + cells - 1`). Two-cell ligatures use [`Wide`](Self::Wide) instead.
+    Ligature(SlotId, u8),
 }
 
 impl GlyphSlot {
@@ -323,7 +394,10 @@ impl GlyphSlot {
     #[must_use]
     pub fn slot_id(&self) -> SlotId {
         match *self {
-            GlyphSlot::Normal(id) | GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => id,
+            GlyphSlot::Normal(id)
+            | GlyphSlot::Wide(id)
+            | GlyphSlot::Emoji(id)
+            | GlyphSlot::Ligature(id, _) => id,
         }
     }
 
@@ -335,6 +409,7 @@ impl GlyphSlot {
             Normal(id) => Normal(id | style_bits),
             Wide(id) => Wide(id | style_bits),
             Emoji(id) => Emoji(id | style_bits),
+            Ligature(id, cells) => Ligature(id | style_bits, cells),
         }
     }
 
@@ -343,6 +418,33 @@ impl GlyphSlot {
     pub fn is_double_width(&self) -> bool {
         matches!(self, GlyphSlot::Wide(_) | GlyphSlot::Emoji(_))
     }
+
+    /// Returns the number of terminal cells this glyph spans.
+    ///
+    /// `Normal` spans one cell, `Wide`/`Emoji` span two, and `Ligature` spans
+    /// its stored cell count.
+    #[must_use]
+    pub fn cell_span(&self) -> u8 {
+        match *self {
+            GlyphSlot::Normal(_) => 1,
+            GlyphSlot::Wide(_) | GlyphSlot::Emoji(_) => 2,
+            GlyphSlot::Ligature(_, cells) => cells,
+        }
+    }
+}
+
+/// A ligature-aware segment of a text run produced by [`Atlas::segment_run`].
+///
+/// `start`/`len` are byte offsets into the run. A segment spanning `cells >= 2`
+/// cells is a ligature that should be rendered as one multi-cell glyph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShapedSegment {
+    /// Byte offset into the run where this segment starts.
+    pub start: usize,
+    /// Byte length of this segment.
+    pub len: usize,
+    /// Number of terminal cells this segment spans.
+    pub cells: u8,
 }
 
 /// Tracks glyphs that were requested but not found in the font atlas.

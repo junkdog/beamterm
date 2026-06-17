@@ -1,4 +1,8 @@
-use std::{cmp::min, fmt::Debug};
+use std::{
+    cmp::min,
+    collections::{HashSet, VecDeque},
+    fmt::Debug,
+};
 
 use beamterm_data::{CellSize, FontAtlasData, FontStyle, Glyph, GlyphEffect, TerminalSize};
 use compact_str::CompactString;
@@ -9,7 +13,7 @@ use crate::{
     error::Error,
     gl::{
         CellIterator, CellQuery, Drawable, GlState, RenderContext, ShaderProgram,
-        atlas::{self, FontAtlas, GlyphSlot},
+        atlas::{self, FontAtlas, GlyphSlot, ShapedSegment},
         buffer_upload_array,
         dirty_regions::DirtyRegions,
         selection::SelectionTracker,
@@ -312,10 +316,10 @@ impl TerminalGrid {
             .map_or(space_glyph, |slot| slot.slot_id());
 
         // translate existing glyph ids to new atlas
-        let mut skip_next = false;
+        let mut skip = 0usize;
         for idx in 0..self.cells.len() {
-            if skip_next {
-                skip_next = false;
+            if skip > 0 {
+                skip -= 1;
                 continue;
             }
 
@@ -336,7 +340,20 @@ impl TerminalGrid {
                     // update right-half in next cell if within bounds
                     if let Some(next_cell) = self.cells.get_mut(idx + 1) {
                         next_cell.set_glyph_id(id + 1);
-                        skip_next = true;
+                        skip = 1;
+                    }
+                },
+                Some(GlyphSlot::Ligature(id, cells)) => {
+                    // place the ligature's consecutive halves across `cells` cells
+                    self.cells[idx].set_glyph_id(id);
+                    for i in 1..cells as usize {
+                        match self.cells.get_mut(idx + i) {
+                            Some(c) => {
+                                c.set_glyph_id(id + i as u16);
+                                skip += 1;
+                            },
+                            None => break,
+                        }
                     }
                 },
                 None => {
@@ -542,8 +559,9 @@ impl TerminalGrid {
         let atlas = &mut self.atlas;
         let cell_buf = &mut self.cells;
 
-        // handle double-width emoji that span two cells
-        let mut pending_cell: Option<CellDynamic> = None;
+        // handle multi-cell glyphs (wide emoji/CJK span 2 cells, ligatures span N);
+        // their trailing halves are queued and consumed on subsequent cells.
+        let mut pending: VecDeque<CellDynamic> = VecDeque::new();
         cell_buf
             .iter_mut()
             .zip(cells)
@@ -552,15 +570,23 @@ impl TerminalGrid {
                     .resolve_glyph_slot(data.symbol, data.style_bits)
                     .unwrap_or(fallback_glyph);
 
-                *cell = if let Some(second_cell) = pending_cell.take() {
-                    second_cell
+                *cell = if let Some(next_half) = pending.pop_front() {
+                    next_half
                 } else {
                     match glyph {
                         GlyphSlot::Normal(id) => CellDynamic::new(id, data.fg, data.bg),
 
                         GlyphSlot::Wide(id) | GlyphSlot::Emoji(id) => {
                             // storing a double-width glyph, reserve next cell with right-half id
-                            pending_cell = Some(CellDynamic::new(id + 1, data.fg, data.bg));
+                            pending.push_back(CellDynamic::new(id + 1, data.fg, data.bg));
+                            CellDynamic::new(id, data.fg, data.bg)
+                        },
+
+                        GlyphSlot::Ligature(id, cells) => {
+                            // reserve the trailing halves for the following cells
+                            for i in 1..cells as u16 {
+                                pending.push_back(CellDynamic::new(id + i, data.fg, data.bg));
+                            }
                             CellDynamic::new(id, data.fg, data.bg)
                         },
                     }
@@ -605,15 +631,15 @@ impl TerminalGrid {
 
         // ratatui and beamterm can disagree on which emoji
         // are double-width (beamterm assumes double-width for all emoji),
-        // so for ratatui and similar clients we need to skip the next cell
-        // if we just wrote a double-width emoji in the current cell.
-        let mut skip_idx = None;
+        // so for ratatui and similar clients we need to skip the trailing cells
+        // that were already written as the halves of a previous multi-cell glyph.
+        let mut skip: HashSet<usize> = HashSet::new();
 
         cells
             .filter(|(idx, _)| *idx < cell_count)
             .for_each(|(idx, cell)| {
-                if skip_idx.take() == Some(idx) {
-                    // skip this cell, already handled as part of previous double-width emoji
+                if skip.remove(&idx) {
+                    // skip this cell, already handled as part of a previous multi-cell glyph
                     return;
                 }
 
@@ -636,7 +662,25 @@ impl TerminalGrid {
                         if let Some(c) = cell_buf.get_mut(idx + 1) {
                             *c = CellDynamic::new(id + 1, cell.fg, cell.bg);
                             dirty_regions.mark(idx + 1);
-                            skip_idx = Some(idx + 1);
+                            skip.insert(idx + 1);
+                        }
+                    },
+
+                    GlyphSlot::Ligature(id, cells) => {
+                        // render leftmost half in current cell, trailing halves after
+                        cell_buf[idx] = CellDynamic::new(id, cell.fg, cell.bg);
+                        dirty_regions.mark(idx);
+
+                        for i in 1..cells as usize {
+                            let j = idx + i;
+                            match cell_buf.get_mut(j) {
+                                Some(c) => {
+                                    *c = CellDynamic::new(id + i as u16, cell.fg, cell.bg);
+                                    dirty_regions.mark(j);
+                                    skip.insert(j);
+                                },
+                                None => break,
+                            }
                         }
                     },
                 }
@@ -663,6 +707,68 @@ impl TerminalGrid {
     /// `Result` for API consistency with batch update methods.
     pub fn update_cell_by_index(&mut self, idx: usize, cell_data: CellData) -> Result<(), Error> {
         self.update_cells_by_index(std::iter::once((idx, cell_data)))
+    }
+
+    /// Configures ligature shaping for the active atlas from raw sfnt font bytes.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes cannot be parsed as a font face.
+    pub fn set_font_shaper_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.atlas.set_font_shaper_bytes(bytes)
+    }
+
+    /// Segments a horizontal text run into ligature-aware spans.
+    ///
+    /// Returns `None` when the atlas has no ligature support, in which case the
+    /// caller should render the run grapheme-by-grapheme. When `Some`, segments
+    /// with `cells >= 2` are ligatures; place two-cell ligatures with
+    /// [`update_cell`](Self::update_cell) (the two-character symbol resolves
+    /// through the wide path) and wider ones with
+    /// [`place_ligature`](Self::place_ligature).
+    #[must_use]
+    pub fn segment_run(&self, text: &str) -> Option<Vec<ShapedSegment>> {
+        self.atlas.segment_run(text)
+    }
+
+    /// Places a ligature glyph spanning three or more columns starting at (x, y).
+    ///
+    /// `cell` carries the symbol (the ligature substring), style bits, and
+    /// colors; `cells` is the number of columns the ligature spans.
+    ///
+    /// # Errors
+    /// Infallible today; returns `Result` for API consistency.
+    pub fn place_ligature(
+        &mut self,
+        x: u16,
+        y: u16,
+        cell: CellData,
+        cells: u8,
+    ) -> Result<(), Error> {
+        let cols = self.terminal_size.cols as usize;
+        let idx = y as usize * cols + x as usize;
+        if idx >= self.cells.len() {
+            return Ok(());
+        }
+
+        let slot = self
+            .atlas
+            .resolve_ligature_slot(cell.symbol, cell.style_bits, cells)
+            .unwrap_or(GlyphSlot::Normal(self.fallback_glyph));
+
+        let span = slot.cell_span() as usize;
+        let base = slot.slot_id();
+        self.cells[idx] = CellDynamic::new(base, cell.fg, cell.bg);
+        self.dirty_regions.mark(idx);
+        for i in 1..span {
+            match self.cells.get_mut(idx + i) {
+                Some(c) => {
+                    *c = CellDynamic::new(base + i as u16, cell.fg, cell.bg);
+                    self.dirty_regions.mark(idx + i);
+                },
+                None => break,
+            }
+        }
+        Ok(())
     }
 
     /// Flushes pending cell updates to the GPU.

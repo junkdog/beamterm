@@ -294,6 +294,25 @@ impl Terminal {
         Ok(())
     }
 
+    /// Enables ligature shaping for the current dynamic atlas from raw sfnt bytes.
+    ///
+    /// The bytes must be raw TrueType/OpenType (decompress WOFF/WOFF2 first) and
+    /// match the font being rendered. Ligatures activate automatically when the
+    /// font advertises them. This is a no-op for static atlases or fonts without
+    /// ligature tables. Re-apply after [`replace_with_dynamic_atlas`] when the
+    /// font changes.
+    ///
+    /// [`replace_with_dynamic_atlas`]: Self::replace_with_dynamic_atlas
+    ///
+    /// # Errors
+    /// Returns an error if the bytes cannot be parsed as a font face.
+    pub fn set_font_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.grid
+            .borrow_mut()
+            .set_font_shaper_bytes(bytes)?;
+        Ok(())
+    }
+
     /// Returns the textual content of the specified cell selection.
     pub fn get_text(&self, selection: CellQuery) -> CompactString {
         self.grid.borrow().get_text(selection)

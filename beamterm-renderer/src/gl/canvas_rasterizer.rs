@@ -30,8 +30,10 @@
 //! }
 //! ```
 
+use beamterm_core::gl::MAX_LIGATURE_CELLS;
 use beamterm_data::{FontAtlasData, FontStyle};
 use compact_str::CompactString;
+use unicode_width::UnicodeWidthStr;
 use wasm_bindgen::prelude::*;
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 
@@ -41,6 +43,13 @@ use crate::error::Error;
 const PADDING: u32 = FontAtlasData::PADDING as u32;
 
 const OFFSCREEN_CANVAS_WIDTH: u32 = 256;
+
+/// Number of cells a grapheme occupies on the canvas, clamped to the maximum
+/// supported glyph span. Ligature substrings (e.g. `===`) report their full
+/// character count; emoji/CJK report 2; ordinary text reports 1.
+fn cell_span(grapheme: &str) -> u32 {
+    (UnicodeWidthStr::width(grapheme).max(1) as u32).min(u32::from(MAX_LIGATURE_CELLS))
+}
 
 /// Number of glyphs per rasterization batch.
 /// Canvas height is scaled to fit this many glyphs.
@@ -96,8 +105,12 @@ impl CanvasRasterizer {
 
         let cell_metrics = Self::measure_cell_metrics(&ctx)?;
 
-        // Resize canvas to fit GLYPH_BATCH_SIZE glyphs
+        // Resize canvas to fit GLYPH_BATCH_SIZE glyphs vertically and the widest
+        // possible glyph (a MAX_LIGATURE_CELLS-wide ligature) horizontally.
         let required_height = GLYPH_BATCH_SIZE as u32 * cell_metrics.padded_height;
+        let required_width =
+            (cell_metrics.padded_width * u32::from(MAX_LIGATURE_CELLS)).max(OFFSCREEN_CANVAS_WIDTH);
+        canvas.set_width(required_width);
         canvas.set_height(required_height);
 
         // Re-initialize context after resize (canvas resize clears context state)
@@ -149,8 +162,9 @@ impl CanvasRasterizer {
 
         let num_glyphs = symbols.len() as u32;
 
-        // canvas needs to be double-width (for emoji) and tall enough for all glyphs
-        let canvas_width = cell_w * 2;
+        // canvas must be wide enough for the widest glyph (emoji=2, ligatures up
+        // to MAX_LIGATURE_CELLS) and tall enough for all glyphs
+        let canvas_width = cell_w * u32::from(MAX_LIGATURE_CELLS);
         let canvas_height = cell_h * num_glyphs;
 
         self.render_ctx.clear_rect(
@@ -207,8 +221,7 @@ impl CanvasRasterizer {
         let mut results = Vec::with_capacity(symbols.len());
 
         for (i, &(grapheme, _)) in symbols.iter().enumerate() {
-            let padded_width =
-                if beamterm_core::is_double_width(grapheme) { cell_w * 2 } else { cell_w };
+            let padded_width = cell_w * cell_span(grapheme);
 
             let glyph_start = i * glyph_stride;
             let mut pixels = Vec::with_capacity((padded_width * cell_h) as usize * bytes_per_pixel);

@@ -23,6 +23,9 @@ keywords.workspace = true
 [features]
 default = []
 native-dynamic-atlas = ["dep:beamterm-rasterizer"]
+# Ligature-aware text shaping (GSUB) via rustybuzz. Enables multi-cell ligature
+# glyphs when the atlas is given font bytes.
+ligatures = ["dep:rustybuzz"]
 
 [dependencies]
 bitflags.workspace = true
@@ -35,6 +38,7 @@ unicode-width.workspace = true
 glow.workspace = true
 lru = "0.16"
 rustc-hash = "2.1.1"
+rustybuzz = { version = "0.20", optional = true }
 
 [dev-dependencies]
 
